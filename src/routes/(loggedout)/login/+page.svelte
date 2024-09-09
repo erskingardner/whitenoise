@@ -17,7 +17,7 @@
             <label for="nsec" class="mb-2 flex flex-col gap-2 text-lg items-start font-medium">
                 Login in with your nsec
                 <input
-                    type="text"
+                    type="password"
                     id="nsec"
                     bind:value={nsecOrHex}
                     placeholder="nsec1..."
