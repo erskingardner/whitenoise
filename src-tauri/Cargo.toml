@@ -1,0 +1,37 @@
+[package]
+name = "whitenoise"
+version = "0.0.0"
+description = "A Tauri App"
+authors = ["you"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "whitenoise_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.0.0-rc", features = [] }
+
+[dependencies]
+derive_more = { version = "1.0.0", features = ["from"] }
+keyring = { version = "3.2.0", features = [
+    "apple-native",
+    "windows-native",
+    "linux-native",
+] }
+nostr-sdk = "0.34"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sled = "0.34"
+tauri = { version = "2.0.0-rc", features = [] }
+tauri-plugin-shell = "2.0.0-rc"
+tauri-plugin-store = "2.0.0-rc"
+tokio = { version = "1.40.0", features = ["full"] }
+
+[patch.crates-io]
+tungstenite = { git = "https://github.com/yukibtc/tungstenite-rs", branch = "tor" }
+
+[profile.dev]
+incremental = true

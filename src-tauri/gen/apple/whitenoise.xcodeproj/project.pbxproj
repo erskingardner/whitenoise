@@ -1,0 +1,463 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 54;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1FD6384FA060070FDFA415D2 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3E600E5803BC32AF3B68D7E6 /* MetalKit.framework */; };
+		41B6787DD9957B300188BBD5 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A4C0591CF2F714565406B94B /* UIKit.framework */; };
+		70B4B42321F8BC2BD303E09D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 70E4A123C644B79C9C8026C2 /* Assets.xcassets */; };
+		A363E827C4611813F3290EFC /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 69530FC2708AEE0A11B02FAF /* assets */; };
+		AA43819189B4BFA368AF5D4C /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 2396B794DCC230E97D5562AD /* LaunchScreen.storyboard */; };
+		C6BC2A3A496B2E30100C3FF5 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A08CF0BAF28B3807D7AAF697 /* Metal.framework */; };
+		DDB29F5FA9F69777422E58CE /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E13E31C8937F00F5CFADA2C5 /* QuartzCore.framework */; };
+		E043981428B951A2DDD3B378 /* libwhitenoise_lib.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 89BAE0DB0C8E4E2F15F8B18F /* libwhitenoise_lib.a */; };
+		E2472A8057EBEA16515A38E3 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 94FA3087CB878D4B140BCF4C /* WebKit.framework */; };
+		ED94655EA4922828CB25AC34 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E40869A8136A8F635AB5B764 /* Security.framework */; };
+		F9E43893D09498ED58B539C5 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A63BA1F9F77AED9E45116D03 /* CoreGraphics.framework */; };
+		FC6B92F449D460170409ADC4 /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = A2D02946A0F5F6C7C1C42B0F /* main.mm */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0963DCC56B1680D904713FCE /* whitenoise_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = whitenoise_iOS.entitlements; sourceTree = "<group>"; };
+		2396B794DCC230E97D5562AD /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		251EBA09724F83AAC5FED2AA /* whitenoise_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = whitenoise_iOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		3E600E5803BC32AF3B68D7E6 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
+		69530FC2708AEE0A11B02FAF /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
+		70E4A123C644B79C9C8026C2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		89BAE0DB0C8E4E2F15F8B18F /* libwhitenoise_lib.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libwhitenoise_lib.a; sourceTree = "<group>"; };
+		8EDD64A3C0E6F7D6DCEBB70F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		94FA3087CB878D4B140BCF4C /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		A08CF0BAF28B3807D7AAF697 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
+		A2D02946A0F5F6C7C1C42B0F /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
+		A4C0591CF2F714565406B94B /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+		A63BA1F9F77AED9E45116D03 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
+		C1A89687E1539F7E9B8A03E7 /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
+		C498E2C02E14EFF841BC3682 /* main.rs */ = {isa = PBXFileReference; path = main.rs; sourceTree = "<group>"; };
+		E13E31C8937F00F5CFADA2C5 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
+		E40869A8136A8F635AB5B764 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		FF88942EBA538D6E6DDBA3DF /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		5EB067C07DE8FFB5CDAD1A9C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E043981428B951A2DDD3B378 /* libwhitenoise_lib.a in Frameworks */,
+				F9E43893D09498ED58B539C5 /* CoreGraphics.framework in Frameworks */,
+				C6BC2A3A496B2E30100C3FF5 /* Metal.framework in Frameworks */,
+				1FD6384FA060070FDFA415D2 /* MetalKit.framework in Frameworks */,
+				DDB29F5FA9F69777422E58CE /* QuartzCore.framework in Frameworks */,
+				ED94655EA4922828CB25AC34 /* Security.framework in Frameworks */,
+				41B6787DD9957B300188BBD5 /* UIKit.framework in Frameworks */,
+				E2472A8057EBEA16515A38E3 /* WebKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		08E96A757912991907BCFE81 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				A63BA1F9F77AED9E45116D03 /* CoreGraphics.framework */,
+				89BAE0DB0C8E4E2F15F8B18F /* libwhitenoise_lib.a */,
+				A08CF0BAF28B3807D7AAF697 /* Metal.framework */,
+				3E600E5803BC32AF3B68D7E6 /* MetalKit.framework */,
+				E13E31C8937F00F5CFADA2C5 /* QuartzCore.framework */,
+				E40869A8136A8F635AB5B764 /* Security.framework */,
+				A4C0591CF2F714565406B94B /* UIKit.framework */,
+				94FA3087CB878D4B140BCF4C /* WebKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		44951423C0DF79A48A242FCD = {
+			isa = PBXGroup;
+			children = (
+				69530FC2708AEE0A11B02FAF /* assets */,
+				70E4A123C644B79C9C8026C2 /* Assets.xcassets */,
+				2396B794DCC230E97D5562AD /* LaunchScreen.storyboard */,
+				8656314EBEA44429AEAE016A /* whitenoise_iOS */,
+				D1E1019D0506DEC61C1FCDD4 /* Externals */,
+				7BD8337937EBD081F78F7B40 /* Sources */,
+				77C5CD4DB93C8E5FABABD364 /* src */,
+				08E96A757912991907BCFE81 /* Frameworks */,
+				689B29DA128B9BB3A4E533A7 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		689B29DA128B9BB3A4E533A7 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				251EBA09724F83AAC5FED2AA /* whitenoise_iOS.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		77C5CD4DB93C8E5FABABD364 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				C1A89687E1539F7E9B8A03E7 /* lib.rs */,
+				C498E2C02E14EFF841BC3682 /* main.rs */,
+			);
+			name = src;
+			path = ../../src;
+			sourceTree = "<group>";
+		};
+		7BD8337937EBD081F78F7B40 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				E44E7E444209550106E4627A /* whitenoise */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		8656314EBEA44429AEAE016A /* whitenoise_iOS */ = {
+			isa = PBXGroup;
+			children = (
+				0963DCC56B1680D904713FCE /* whitenoise_iOS.entitlements */,
+				8EDD64A3C0E6F7D6DCEBB70F /* Info.plist */,
+			);
+			path = whitenoise_iOS;
+			sourceTree = "<group>";
+		};
+		C63E78E5E99F35C9E7683DCA /* bindings */ = {
+			isa = PBXGroup;
+			children = (
+				FF88942EBA538D6E6DDBA3DF /* bindings.h */,
+			);
+			path = bindings;
+			sourceTree = "<group>";
+		};
+		D1E1019D0506DEC61C1FCDD4 /* Externals */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Externals;
+			sourceTree = "<group>";
+		};
+		E44E7E444209550106E4627A /* whitenoise */ = {
+			isa = PBXGroup;
+			children = (
+				A2D02946A0F5F6C7C1C42B0F /* main.mm */,
+				C63E78E5E99F35C9E7683DCA /* bindings */,
+			);
+			path = whitenoise;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		34CD203144877C2813A32221 /* whitenoise_iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6E197FB0D24D905B6BFA933B /* Build configuration list for PBXNativeTarget "whitenoise_iOS" */;
+			buildPhases = (
+				74A993B6270700DCBD1B5D0F /* Build Rust Code */,
+				8836CBA2F2AFF43FB4F3A51E /* Sources */,
+				F8AB08174DEE90192BB8159D /* Resources */,
+				5EB067C07DE8FFB5CDAD1A9C /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = whitenoise_iOS;
+			productName = whitenoise_iOS;
+			productReference = 251EBA09724F83AAC5FED2AA /* whitenoise_iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		CC7D1BCFCABD402786EC68DD /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 1E830BCE0A47611691176820 /* Build configuration list for PBXProject "whitenoise" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 44951423C0DF79A48A242FCD;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				34CD203144877C2813A32221 /* whitenoise_iOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		F8AB08174DEE90192BB8159D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				70B4B42321F8BC2BD303E09D /* Assets.xcassets in Resources */,
+				AA43819189B4BFA368AF5D4C /* LaunchScreen.storyboard in Resources */,
+				A363E827C4611813F3290EFC /* assets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		74A993B6270700DCBD1B5D0F /* Build Rust Code */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Rust Code";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libwhitenoise_lib.a",
+				"$(SRCROOT)/Externals/arm64/${CONFIGURATION}/libwhitenoise_lib.a",
+				"$(SRCROOT)/Externals/arm64-sim/${CONFIGURATION}/libwhitenoise_lib.a",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "bun tauri ios xcode-script -v --platform ${PLATFORM_DISPLAY_NAME:?} --sdk-root ${SDKROOT:?} --framework-search-paths \"${FRAMEWORK_SEARCH_PATHS:?}\" --header-search-paths \"${HEADER_SEARCH_PATHS:?}\" --gcc-preprocessor-definitions \"${GCC_PREPROCESSOR_DEFINITIONS:-}\" --configuration ${CONFIGURATION:?} ${FORCE_COLOR} ${ARCHS:?}";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		8836CBA2F2AFF43FB4F3A51E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FC6B92F449D460170409ADC4 /* main.mm in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		19ED7A32EF62DE978BE5682E /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = release;
+		};
+		45742F9D71FFE9415D5D0FC7 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = (
+					arm64,
+					"arm64-sim",
+				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = whitenoise_iOS/whitenoise_iOS.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = "arm64-sim x86_64";
+				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = arm64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = whitenoise_iOS/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64-sim]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64-sim/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.tauri.dev;
+				PRODUCT_NAME = whitenoise;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = "arm64  arm64-sim";
+			};
+			name = release;
+		};
+		B07B495C9C8EC5ED61518D8C /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = (
+					arm64,
+					"arm64-sim",
+				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = whitenoise_iOS/whitenoise_iOS.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = "arm64-sim x86_64";
+				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = arm64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = whitenoise_iOS/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64-sim]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64-sim/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.tauri.dev;
+				PRODUCT_NAME = whitenoise;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = "arm64  arm64-sim";
+			};
+			name = debug;
+		};
+		E7964AE30017FA8C5CADF266 /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1E830BCE0A47611691176820 /* Build configuration list for PBXProject "whitenoise" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E7964AE30017FA8C5CADF266 /* debug */,
+				19ED7A32EF62DE978BE5682E /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+		6E197FB0D24D905B6BFA933B /* Build configuration list for PBXNativeTarget "whitenoise_iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B07B495C9C8EC5ED61518D8C /* debug */,
+				45742F9D71FFE9415D5D0FC7 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = CC7D1BCFCABD402786EC68DD /* Project object */;
+}

@@ -1,0 +1,39 @@
+{
+  "name": "whitenoise",
+  "version": "0.0.1",
+  "description": "",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "tauri": "tauri"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@tauri-apps/api": ">=2.0.0-rc.0",
+    "@tauri-apps/plugin-shell": ">=2.0.0-rc.0",
+    "@tauri-apps/plugin-store": "^2.0.0-rc.1",
+    "prettier": "^3.3.3",
+    "prettier-plugin-svelte": "^3.2.6"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-static": "^3.0.1",
+    "@sveltejs/kit": "^2.0.0",
+    "@sveltejs/vite-plugin-svelte": "^3.0.0",
+    "@tauri-apps/cli": ">=2.0.0-rc.0",
+    "autoprefixer": "^10.4.20",
+    "phosphor-svelte": "^2.0.1",
+    "postcss": "^8.4.41",
+    "svelte": "^5.0.0-next.240",
+    "svelte-check": "^3.6.0",
+    "tailwindcss": "^3.4.10",
+    "tslib": "^2.4.1",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.3",
+    "@nostr-dev-kit/ndk": "^2.10.0",
+    "@nostr-dev-kit/ndk-cache-dexie": "2.5.1"
+  }
+}
