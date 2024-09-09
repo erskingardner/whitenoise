@@ -24,7 +24,8 @@
   - Security
 ✅ Need simple splash screen while we're checking for identities (don't flash login screen)
 ✅ Contacts list
-  - search your contacts
+  ✅ Load contacts from Nostr
+  - search your contacts by name (NIP-50)
   - enter an npub or nprofile
 - NIP-04
 - NIP-17
@@ -39,6 +40,12 @@
   - Fetch NIP-04 DMs for user
   - Fetch NIP-17 DMs for user
   - Fetch Prekey events for user
+- Make sure that when current identity changes, we update the UI
+  - Contacts
+  - Chats
+  - Legacy chats
+- Mobile
+  - Need to make sure the view collapses to mobile size properly
 
 ## 🐛 Bugs
 

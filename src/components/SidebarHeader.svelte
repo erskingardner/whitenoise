@@ -23,7 +23,7 @@
                 class="w-full p-2 rounded-md border border-gray-700 bg-transparent"
                 placeholder="Search..."
             />
-            <button class="absolute right-6">
+            <button class="absolute right-3">
                 <MagnifyingGlass size="1.5rem" weight="thin" />
             </button>
         </div>

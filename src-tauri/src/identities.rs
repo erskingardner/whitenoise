@@ -78,9 +78,7 @@ impl std::iter::FromIterator<String> for Identities {
 #[tauri::command]
 pub fn get_identities(state: State<'_, AppState>) -> Option<Identities> {
     let db = state.db.clone();
-    let ids = Identities::from_database(&db).expect("Couldn't read from database");
-    println!("Identities: {:?}", ids);
-    ids
+    Identities::from_database(&db).expect("Couldn't read from database")
 }
 
 /// Fetch the currently active identity from settings
