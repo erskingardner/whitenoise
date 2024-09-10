@@ -12,7 +12,7 @@
 
     async function getContacts() {
         const contacts = await $ndk.activeUser?.follows();
-        return contacts ? contacts : new Set();
+        return contacts ? contacts : new Set<NDKUser>();
     }
 
     // TODO: need to sort by something (last seen or last message or name?)
@@ -28,18 +28,16 @@
             <Loader size={40}/>
         </div>
     {:then contacts}
-        {#if contacts.size > 0}
-            {#each contacts as contact}
-                <button on:click={() => (selectedContact = contact as NDKUser)} class="w-full">
-                    <Contact
-                        pubkey={(contact as NDKUser).pubkey}
-                        active={(contact as NDKUser).pubkey === selectedContact?.pubkey}
-                    />
-                </button>
-            {/each}
+        {#each contacts as contact (contact.pubkey)}
+            <button on:click={() => (selectedContact = contact)} class="w-full">
+                <Contact
+                    pubkey={contact.pubkey}
+                    active={contact.pubkey === selectedContact?.pubkey}
+                />
+            </button>
         {:else}
             <div class="text-gray-500 w-full p-4 text-center">No contacts found</div>
-        {/if}
+        {/each}
     {:catch error}
         <div class="text-red-500 w-full p-4 text-center">Error loading contacts</div>
     {/await}
