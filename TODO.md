@@ -27,7 +27,10 @@
   ✅ Load contacts from Nostr
   ✅ Ensure that changing profiles updates the contacts list
   - search your contacts by name (NIP-50)
-  - enter an npub or nprofile
+  - search for a user by npub, nprofile, or hex pubkey
+  - filter contacts by active conversations
+  - sort contacts by last message, last seen, or name
+  - show conversation transcript on click in the main panel
 - NIP-04
 - NIP-17
 - NIP-104
@@ -37,12 +40,12 @@
 - Link to help docs
 - Once logged in and AppSettings are loaded, start the main app
   - Fetch profile for user
-  - Fetch contacts for user
+  ✅ Fetch contacts for user
   - Fetch NIP-04 DMs for user
   - Fetch NIP-17 DMs for user
   - Fetch Prekey events for user
 - Make sure that when current identity changes, we update the UI
-  - Contacts
+  ✅ Contacts
   - Chats
   - Legacy chats
 - Mobile
