@@ -25,6 +25,7 @@
 ✅ Need simple splash screen while we're checking for identities (don't flash login screen)
 ✅ Contacts list
   ✅ Load contacts from Nostr
+  ✅ Ensure that changing profiles updates the contacts list
   - search your contacts by name (NIP-50)
   - enter an npub or nprofile
 - NIP-04

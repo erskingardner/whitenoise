@@ -6,7 +6,6 @@
     export let showSearch: boolean = true;
     export let showNewIcon: boolean = true;
     export let newIcon: Component = NotePencil;
-
 </script>
 
 <div class="sticky top-0 p-4 pb-6 flex flex-col gap-6 bg-gray-900 border-b border-gray-700">

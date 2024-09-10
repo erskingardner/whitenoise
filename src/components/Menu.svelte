@@ -6,7 +6,7 @@
 </script>
 
 <div
-    class="sidebar-menu border-r border-r-gray-700 bg-gray-900 relative w-[66px] h-screen overflow-y-scroll shrink-0"
+    class="sidebar-menu border-r border-r-gray-700 bg-gray-900 relative w-[77px] h-screen overflow-y-scroll shrink-0"
 >
     <div
         class="flex flex-col mx-auto items-center align-center gap-4 p-3 top-0 left-0 bottom-0 h-screen fixed"

@@ -5,31 +5,44 @@
     import { UserPlus } from "phosphor-svelte";
     import ndk from "../../../stores/ndk";
     import { type NDKUser } from "@nostr-dev-kit/ndk";
-    import { onMount } from "svelte";
     import Contact from "../../../components/Contact.svelte";
+    import Loader from "../../../components/Loader.svelte";
 
-    let contacts: Set<NDKUser> | undefined;
     let selectedContact: NDKUser | undefined;
-    onMount(async () => {
-        contacts = await $ndk.activeUser?.follows();
-    });
+
+    async function getContacts() {
+        const contacts = await $ndk.activeUser?.follows();
+        return contacts ? contacts : new Set();
+    }
 
     // TODO: need to sort by something (last seen or last message or name?)
     // TODO: need to add a search bar
     // TODO: need to add a filter to only show contacts with messages
     // TODO: need to show conversation transcript on click in the main panel
-    // TODO: need to make loading way faster
 </script>
 
 <Sidebar>
     <SidebarHeader title="Contacts" newIcon={UserPlus} />
-    {#if contacts}
-        {#each contacts as contact}
-            <button on:click={() => (selectedContact = contact)} class="w-full">
-                <Contact pubkey={contact.pubkey} active={contact.pubkey === selectedContact?.pubkey} />
-            </button>
-        {/each}
-    {/if}
+    {#await getContacts()}
+        <div class="w-full h-10 mt-4 flex items-center justify-center">
+            <Loader size={40}/>
+        </div>
+    {:then contacts}
+        {#if contacts.size > 0}
+            {#each contacts as contact}
+                <button on:click={() => (selectedContact = contact as NDKUser)} class="w-full">
+                    <Contact
+                        pubkey={(contact as NDKUser).pubkey}
+                        active={(contact as NDKUser).pubkey === selectedContact?.pubkey}
+                    />
+                </button>
+            {/each}
+        {:else}
+            <div class="text-gray-500 w-full p-4 text-center">No contacts found</div>
+        {/if}
+    {:catch error}
+        <div class="text-red-500 w-full p-4 text-center">Error loading contacts</div>
+    {/await}
 </Sidebar>
 <MainPanel>
     <div class="py-4 px-6">
