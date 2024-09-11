@@ -1,4 +1,4 @@
-use crate::Result;
+use anyhow::Result;
 use keyring::Entry;
 use nostr_sdk::Keys;
 

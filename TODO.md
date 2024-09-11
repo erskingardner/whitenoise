@@ -67,6 +67,11 @@
 - ✅ You can log in with the same nsec twice
 - ✅ Login screen doesn't redirect to the app anymore
 
+## 🆘 Errors
+
+- Where we do handle errors? 
+  - We can use `anyhow` to propogate the error but at some point we have to handle/show it. I think the best option is to propogate to the UI layer via an error message or toast (and allow for a retry where possible).
+
 ## 🔐 Security 
 
 - investigate CSP in tuari.conf.json
