@@ -1,7 +1,8 @@
+import { get } from 'svelte/store';
 import { browser } from "$app/environment";
 import type { NDKCacheAdapter } from "@nostr-dev-kit/ndk";
-import NDKCacheAdapterDexie from "@nostr-dev-kit/ndk-cache-dexie";
 import NDK from "@nostr-dev-kit/ndk";
+import NDKCacheAdapterDexie from "@nostr-dev-kit/ndk-cache-dexie";
 import { writable } from "svelte/store";
 
 let cacheAdapter: NDKCacheAdapter | undefined;
