@@ -11,6 +11,7 @@ use crate::app_settings::AppSettings;
 use crate::database::{delete_app_data, Database};
 use crate::identities::{
     create_identity, get_current_identity, get_identities, login, logout, set_current_identity,
+    nip04_decrypt,
 };
 use crate::nostr::init_nostr_with_pubkey;
 use anyhow::{Context, Result};
@@ -66,6 +67,7 @@ pub fn run() {
             get_current_identity,
             set_current_identity,
             create_identity,
+            nip04_decrypt,
             delete_app_data,
             init_nostr_with_pubkey
         ])

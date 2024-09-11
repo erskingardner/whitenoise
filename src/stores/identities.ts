@@ -1,6 +1,6 @@
 import { get, writable } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
-import ndk from "./ndk";
+import { ndkStore } from "./ndk";
 
 export type Identity = {
     pubkey: string;
@@ -36,7 +36,6 @@ export class LoginError extends Error {
  */
 export async function switchIdentity(pubkey: string): Promise<void> {
     await invoke("set_current_identity", { pubkey });
-    const ndkStore = get(ndk);
     const user = ndkStore.getUser({ pubkey });
     ndkStore.activeUser = user;
     currentIdentity.set(pubkey);
@@ -103,4 +102,18 @@ export async function login(nsecOrHex: string): Promise<void> {
     }
     identities.update(currentIdentities => [...currentIdentities, { pubkey } as Identity]);
     currentIdentity.set(await invoke("get_current_identity"));
+}
+
+/**
+ * Decrypts NIP04 message payload from/for recipient
+ *
+ * This function invokes the "nip04_decrypt" command on the backend
+ * to decrypt a nip04 message and returns the plaintext (or undefined).
+ *
+ * @param counterparty - The public key of the message counterparty.
+ * @param message - The message to decrypt.
+ * @returns A promise that resolves with the message plaintext.
+ */
+export async function nip04Decrypt(counterparty: string, message: string): Promise<string> {
+  return invoke('nip04_decrypt', {counterparty, message})
 }
