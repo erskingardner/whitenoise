@@ -1,6 +1,6 @@
 use crate::app_settings::AppSettings;
 use crate::AppState;
-use crate::Result;
+use anyhow::Result;
 use sled::{Db, IVec};
 use std::{path::PathBuf, sync::Arc};
 use tauri::State;

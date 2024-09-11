@@ -27,6 +27,7 @@ serde_json = "1"
 sled = "0.34"
 tauri = { version = "2.0.0-rc", features = [] }
 tauri-plugin-shell = "2.0.0-rc"
+anyhow = "1.0"
 tauri-plugin-store = "2.0.0-rc"
 tokio = { version = "1.40.0", features = ["full"] }
 

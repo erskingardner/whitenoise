@@ -4943,6 +4943,7 @@ dependencies = [
 name = "whitenoise"
 version = "0.0.0"
 dependencies = [
+ "anyhow",
  "derive_more 1.0.0",
  "keyring",
  "nostr-sdk",

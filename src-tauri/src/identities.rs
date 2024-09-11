@@ -2,7 +2,7 @@ use crate::database::Database;
 use crate::secrets_store;
 use crate::AppSettings;
 use crate::AppState;
-use crate::Result;
+use anyhow::Result;
 use nostr_sdk::Keys;
 use serde::{Deserialize, Serialize};
 use std::str::from_utf8;
