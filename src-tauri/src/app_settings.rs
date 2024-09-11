@@ -1,5 +1,5 @@
 use crate::database::Database;
-use crate::Result;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::str::from_utf8;
 
@@ -31,6 +31,7 @@ impl AppSettings {
     }
 
     pub fn save(&self, database: &Database) -> Result<()> {
+        // TODO: Handle errors better and return them to the UI layer
         let json = serde_json::to_string(self)?;
         database.insert(SETTINGS_KEY, json.as_str())?;
         Ok(())
