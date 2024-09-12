@@ -64,10 +64,6 @@ pub async fn update_signer_with_keys(keys: Keys) -> Result<()> {
         *CLIENT.lock() = Some(client);
     }
 
-    println!(
-        "Updated signer for Nostr client {:?}",
-        keys.public_key().to_hex()
-    );
     Ok(())
 }
 

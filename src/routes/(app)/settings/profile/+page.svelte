@@ -1,8 +1,7 @@
 <script lang="ts">
-    import { identities, switchIdentity, createIdentity, login, logout } from "../../../../stores/identities";
-    import Avatar from "../../../../components/Avatar.svelte";
-    import Name from "../../../../components/Name.svelte";
-    import { SignOut, PlusCircle, SignIn } from "phosphor-svelte";
+    import { identities, createIdentity, login } from "../../../../stores/identities";
+    import { PlusCircle, SignIn } from "phosphor-svelte";
+    import ProfileCard from "../../../../components/ProfileCard.svelte";
 
     let nsecOrHex = "";
 
@@ -10,24 +9,17 @@
         await login(nsecOrHex);
         nsecOrHex = ""; // Clear the input field
     }
+
+    async function copyNpub(npub: string) {
+        navigator.clipboard.writeText(npub);
+    }
 </script>
 
 <h1 class="text-xl font-semibold mb-6">Profile</h1>
 <div class="flex flex-col gap-12 items-start">
     <div class="flex flex-col gap-6 w-full">
         {#each $identities as id}
-            <div class="rounded-lg bg-gray-800 flex flex-row items-center justify-between p-4">
-                <div class="flex flex-row gap-6 items-center">
-                    <button onclick={() => switchIdentity(id.pubkey)}>
-                        <Avatar pubkey={id.pubkey} pxSize={40} />
-                    </button>
-                    <Name pubkey={id.pubkey} />
-                </div>
-                <button onclick={() => logout(id.pubkey)} title="Logout from this account" class="flex flex-row gap-2 items-center px-3 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 ring-1 ring-gray-500">
-                    <SignOut size="2rem" weight="thin" />
-                    Sign out
-                </button>
-            </div>
+            <ProfileCard pubkey={id.pubkey} />
         {/each}
     </div>
     <div class="flex flex-col gap-6 items-start w-full">
