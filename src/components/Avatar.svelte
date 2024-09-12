@@ -13,9 +13,6 @@
     let { pubkey, pxSize = 32, showRing = false }: Props = $props();
     let user: NDKUser | null = $derived($ndk.getUser({ pubkey }));
     let profile: Promise<NDKUserProfile | null> | null = $derived(user?.fetchProfile());
-
-    $inspect("profile", profile);
-    $inspect("user", user);
 </script>
 
 <div class="flex flex-col items-center justify-center">

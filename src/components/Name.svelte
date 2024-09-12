@@ -9,19 +9,18 @@
 
     let { pubkey }: Props = $props();
 
-    let user: NDKUser | null = $state(null);
-    let profile: NDKUserProfile | null = $state(null);
-    
-    onMount(async () => {
-        user = $ndk.getUser({ pubkey });
-        profile = await user.fetchProfile();
-    });
+    let user: NDKUser | null = $derived($ndk.getUser({ pubkey }));
+    let profile: Promise<NDKUserProfile | null> | null = $derived(user?.fetchProfile());
 </script>
 
 <div class="text-lg font-semibold">
-    {#if user && profile && (profile?.displayName || profile?.name)}
-        {profile.displayName || profile.name}
-    {:else}
-        {`${user?.npub.slice(0, 20)}...`}
+    {#if profile !== null}
+        {#await profile then profile}
+            {#if profile?.displayName || profile?.name}
+                {profile.displayName || profile.name}
+            {:else}
+                {`${user?.npub.slice(0, 20)}...`}
+            {/if}
+        {/await}
     {/if}
 </div>

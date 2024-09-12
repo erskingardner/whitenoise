@@ -12,6 +12,7 @@
     import { listen, type UnlistenFn } from "@tauri-apps/api/event";
     import { currentIdentity } from "../../../stores/identities";
     import ChatMessage from "../../../components/ChatMessage.svelte";
+    import { tick } from "svelte";
 
     let selectedChat: string | undefined = $state(undefined);
     let chats: NChat[] = $state([]);
@@ -22,11 +23,15 @@
         chats = [];
         selectedChat = undefined;
         try {
-            const fetchedChats = await invoke("get_legacy_chats", { pubkey: $currentIdentity }) as NChat;
+            const fetchedChats = (await invoke("get_legacy_chats", {
+                pubkey: $currentIdentity,
+            })) as NChat;
             const sortedChats = Object.entries(fetchedChats)
                 .sort(([, a], [, b]) => b.latest - a.latest)
                 .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
             chats = sortedChats as NChat[];
+            await tick();
+            scrollToBottom();
         } catch (error) {
             console.error("Error fetching contacts:", error);
         } finally {
@@ -48,9 +53,24 @@
         unlisten();
     });
 
-    function selectConversation(pubkey: string) {
+    async function selectConversation(pubkey: string) {
         selectedChat = pubkey;
         isLoading = false;
+        await tick();
+        scrollToBottom();
+    }
+
+    function scrollToBottom() {
+        const node = document.getElementById("main-panel") as HTMLElement;
+        console.log("scrollToBottom", node);
+        if (node) {
+            node.scrollTo({
+                top: node.scrollHeight + 1000,
+                behavior: "smooth",
+            });
+        } else {
+            console.error("Element with id 'main-panel' not found");
+        }
     }
 </script>
 
@@ -66,7 +86,11 @@
     {/if}
     {#each Object.entries(chats) as [pubkey, chat]}
         <button onclick={() => selectConversation(pubkey)} class="w-full">
-            <Contact {pubkey} active={pubkey === selectedChat} lastMessageAt={Number(chat.latest)} />
+            <Contact
+                {pubkey}
+                active={pubkey === selectedChat}
+                lastMessageAt={Number(chat.latest)}
+            />
         </button>
     {/each}
 </Sidebar>

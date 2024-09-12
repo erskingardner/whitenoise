@@ -1,6 +1,6 @@
 <script lang="ts">
 </script>
 
-<div class="grow overflow-y-scroll flex flex-col justify-start">
+<div id="main-panel" class="grow overflow-y-scroll flex flex-col relative justify-start h-screen">
     <slot />
 </div>
