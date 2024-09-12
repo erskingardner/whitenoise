@@ -13,32 +13,34 @@ use crate::identities::{
     create_identity, get_current_identity, get_identities, login, logout, set_current_identity,
     nip04_decrypt,
 };
-use crate::nostr::init_nostr_with_pubkey;
+use crate::nostr::{get_contacts, init_nostr_for_pubkey};
 use anyhow::{Context, Result};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
 // --- Structs ---
-#[allow(dead_code)]
 struct AppState {
     db: Arc<Database>,
     settings: Arc<Mutex<AppSettings>>,
-    app_handle: tauri::AppHandle,
 }
 
 // --- Setup App State ---
 /// Initialize the app state
 /// This will create or reuse a local embedded database
 /// AppSettings will be loaded from the database or defaulted if none exists
-fn init_app_state(databse_path: PathBuf, app_handle: tauri::AppHandle) -> Result<AppState> {
+async fn init_app_state(databse_path: PathBuf) -> Result<AppState> {
     let db = Database::new(databse_path)?;
     let settings =
         AppSettings::from_database(&db).context("Couldn't load settings from database")?;
+
+    if settings.clone().current_identity.is_some() {
+        init_nostr_for_pubkey(settings.clone().current_identity.unwrap()).await?;
+    }
+
     Ok(AppState {
         db: Arc::new(db),
         settings: Arc::new(Mutex::new(settings)),
-        app_handle,
     })
 }
 
@@ -46,17 +48,21 @@ fn init_app_state(databse_path: PathBuf, app_handle: tauri::AppHandle) -> Result
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
-            let app_handle = app.handle();
-            let app_data_dir = app_handle
-                .clone()
-                .path()
-                .app_data_dir()
-                .expect("Failed to get app data dir");
-            println!("App data dir: {:?}", app_data_dir);
-            let app_state = init_app_state(app_data_dir, app_handle.clone())?;
-            // TODO: We should handle errors here and retry or send an event to the frontend for display.
-            app.manage(app_state);
-            Ok(())
+            tauri::async_runtime::block_on(async move {
+                let app_handle = app.handle();
+                let app_data_dir = app_handle
+                    .clone()
+                    .path()
+                    .app_data_dir()
+                    .expect("Failed to get app data dir");
+
+                // TODO: Remove this later - just for debugging
+                // println!("App data dir: {:?}", app_data_dir);
+
+                let app_state = init_app_state(app_data_dir).await?;
+                app.manage(app_state);
+                Ok(())
+            })
         })
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -67,9 +73,9 @@ pub fn run() {
             get_current_identity,
             set_current_identity,
             create_identity,
+            get_contacts,
             nip04_decrypt,
             delete_app_data,
-            init_nostr_with_pubkey
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

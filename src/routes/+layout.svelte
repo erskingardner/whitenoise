@@ -6,6 +6,7 @@
     import { invoke } from "@tauri-apps/api/core";
     import { goto } from "$app/navigation";
     import { page } from "$app/stores";
+    import ndk from "../stores/ndk";
 
     let unlisten: UnlistenFn;
 
@@ -24,6 +25,7 @@
         const ids: string[] = await invoke("get_identities");
         identities.set(ids ? ids.map((id: string) => ({ pubkey: id }) as Identity) : []);
         currentIdentity.set(await invoke("get_current_identity"));
+        $ndk.activeUser = $ndk.getUser({pubkey: $currentIdentity});
         if ($identities.length > 0 && $currentIdentity && ($page.url.pathname === "/" || $page.url.pathname === "/login")) {
             goto("/chats");
         } else if ($identities.length === 0 || !$currentIdentity && $page.url.pathname !== "/login") {

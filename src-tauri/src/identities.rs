@@ -1,4 +1,5 @@
 use crate::database::Database;
+use crate::nostr;
 use crate::secrets_store;
 use crate::AppSettings;
 use crate::AppState;
@@ -93,56 +94,67 @@ pub fn get_current_identity(state: State<'_, AppState>) -> Option<String> {
 
 /// Change the currently active identity
 #[tauri::command]
-pub fn set_current_identity(
+pub async fn set_current_identity(
     pubkey: String,
     state: State<'_, AppState>,
     app_handle: tauri::AppHandle,
-) -> Option<String> {
+) -> Result<String, String> {
     let db = state.db.clone();
+
     let mut settings =
         AppSettings::from_database(&db).expect("Couldn't read settings from database");
     settings.current_identity = Some(pubkey.clone());
     settings.save(&db).expect("Couldn't save settings");
+
+    // Update the nostr client with the new signer
+    let keys =
+        secrets_store::get_nostr_keys_for_pubkey(pubkey.as_str()).map_err(|e| e.to_string())?;
+    nostr::update_signer_with_keys(keys)
+        .await
+        .expect("Couldn't update Nostr signer");
     app_handle
         .emit("identity_change", ())
         .expect("Couldn't emit event");
-    Some(pubkey)
+    Ok(pubkey)
 }
 
 /// Create a new identity keypair
 /// For new users or for creating ephemeral identities
 #[tauri::command]
-pub fn create_identity(state: State<'_, AppState>, app_handle: tauri::AppHandle) -> String {
+pub async fn create_identity(
+    state: State<'_, AppState>,
+    app_handle: tauri::AppHandle,
+) -> Result<String, String> {
     let keys = Keys::generate();
-    add_identity(keys.clone(), state);
+    add_identity(keys.clone(), state).await;
     app_handle
         .emit("identity_change", ())
         .expect("Couldn't emit event");
-    keys.public_key().to_string()
+    Ok(keys.public_key().to_string())
 }
 
 /// Log in with an nostr private key (nsec or hex)
 #[tauri::command]
-pub fn login(
+pub async fn login(
     nsec_or_hex: String,
     state: State<'_, AppState>,
     app_handle: tauri::AppHandle,
-) -> String {
+) -> Result<String, String> {
     let keys = Keys::parse(nsec_or_hex).expect("Couldn't parse keys from provided secret key");
     let pubkey = keys.public_key().to_string();
 
     // Check if the identity already exists
     if let Some(identities) = get_identities(state.clone()) {
         if identities.0.contains(&pubkey) {
-            return pubkey; // Return early if the identity already exists
+            return Ok(pubkey);
         }
     }
 
-    add_identity(keys.clone(), state.clone());
+    add_identity(keys.clone(), state.clone()).await;
     app_handle
         .emit("identity_change", ())
         .expect("Couldn't emit event");
-    pubkey
+    Ok(pubkey)
 }
 
 /// Log out of the current identity, removing it from the secrets store
@@ -190,7 +202,7 @@ pub fn nip04_decrypt(counterparty: String, message: String, state: State<'_, App
 
 /// Adds a nostr keypair the identities vector, sets the current identity,
 /// and saves the private key to the secrets store.
-fn add_identity(keys: Keys, state: State<'_, AppState>) {
+async fn add_identity(keys: Keys, state: State<'_, AppState>) {
     let db = state.db.clone();
     let pubkey = keys.public_key().to_string();
     let identities = match get_identities(state.clone()) {
@@ -201,8 +213,19 @@ fn add_identity(keys: Keys, state: State<'_, AppState>) {
         None => Identities(vec![pubkey.clone()]),
     };
     identities.save(&db).expect("Couldn't save identities");
-    let mut settings = state.settings.lock().expect("Couldn't lock settings");
-    settings.current_identity = Some(pubkey.clone());
-    settings.save(&db).expect("Couldn't update settings");
+
+    {
+        let mut settings = state.settings.lock().expect("Couldn't lock settings");
+        // Update the current identity & save settings
+        settings.current_identity = Some(pubkey.clone());
+        settings.save(&db).expect("Couldn't update settings");
+    } // Release the lock here
+
+    // Update the nostr client with the new signer
+    nostr::update_signer_with_keys(keys.clone())
+        .await
+        .expect("Couldn't update nostr signer");
+
+    // Save the private key to the secrets store
     let _ = secrets_store::store_private_key(keys);
 }
