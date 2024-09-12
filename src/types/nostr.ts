@@ -5,3 +5,20 @@ export type NContact = {
     relay_url: string;
     alias: string;
 };
+
+export type NChat = {
+    [key: string]: {
+        latest: number; 
+        events: NEvent[];
+    }
+};
+
+export type NEvent = {
+    id: string;
+    pubkey: string;
+    created_at: number;
+    kind: number;
+    tags: string[][];
+    content: string;
+    sig: string;
+}

@@ -22,7 +22,7 @@
 <div class="rounded-lg bg-gray-800 flex flex-row items-center justify-between p-4">
     <div class="flex flex-row gap-6 items-center">
         <button onclick={() => switchIdentity(pubkey)}>
-            <Avatar {pubkey} pxSize={40} />
+            <Avatar {pubkey} pxSize={40} showRing={true} />
         </button>
         <div class="flex flex-col gap-0">
             <Name {pubkey} />

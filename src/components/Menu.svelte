@@ -47,7 +47,7 @@
         <div class="mt-auto align-middle flex flex-col gap-6 items-center">
             {#each $identities as identity}
                 <button onclick={() => switchIdentity(identity.pubkey)}>
-                    <Avatar pubkey={identity.pubkey} pxSize={32} />
+                    <Avatar pubkey={identity.pubkey} pxSize={32} showRing={true} />
                 </button>
             {/each}
 

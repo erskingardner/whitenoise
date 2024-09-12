@@ -17,6 +17,7 @@
     async function getContacts(): Promise<void> {
         isLoading = true;
         contacts = [];
+        selectedContact = undefined;
         try {
             const fetchedContacts = await invoke("get_contacts");
             contacts = fetchedContacts as NContact[];

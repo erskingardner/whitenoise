@@ -11,9 +11,8 @@ use crate::app_settings::AppSettings;
 use crate::database::{delete_app_data, Database};
 use crate::identities::{
     create_identity, get_current_identity, get_identities, login, logout, set_current_identity,
-    nip04_decrypt,
 };
-use crate::nostr::{get_contacts, init_nostr_for_pubkey};
+use crate::nostr::{get_contacts, init_nostr_for_pubkey, get_legacy_chats};
 use anyhow::{Context, Result};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -74,7 +73,7 @@ pub fn run() {
             set_current_identity,
             create_identity,
             get_contacts,
-            nip04_decrypt,
+            get_legacy_chats,
             delete_app_data,
         ])
         .run(tauri::generate_context!())

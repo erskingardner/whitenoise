@@ -4,29 +4,47 @@
     import type { NDKUser, NDKUserProfile } from "@nostr-dev-kit/ndk";
     import { currentIdentity } from "../stores/identities";
 
-    export let pubkey: string;
-    export let pxSize: number = 32;
+    interface Props {
+        pubkey: string;
+        pxSize?: number;
+        showRing?: boolean;
+    }
 
-    let user: NDKUser;
-    let profile: NDKUserProfile | null = null;
-    
-    onMount(async () => {
-        user = $ndk.getUser({ pubkey });
-        profile = await user.fetchProfile();
-    });
+    let { pubkey, pxSize = 32, showRing = false }: Props = $props();
+    let user: NDKUser | null = $derived($ndk.getUser({ pubkey }));
+    let profile: Promise<NDKUserProfile | null> | null = $derived(user?.fetchProfile());
+
+    $inspect("profile", profile);
+    $inspect("user", user);
 </script>
 
 <div class="flex flex-col items-center justify-center">
-    {#if profile && profile?.image}
-        <img src={profile.image} alt="avatar" class="avatar rounded-full bg-cover {$currentIdentity === pubkey
-            ? 'ring-4 ring-blue-600 ring-offset-2 ring-offset-gray-900'
-            : ''}" style="width: {pxSize}px; height: {pxSize}px;" />
-    {:else}
-        <div class="rounded-full font-semibold text-xl font-mono flex flex-col justify-center text-center {$currentIdentity === pubkey
-            ? 'ring-4 ring-blue-600 ring-offset-2 ring-offset-gray-900'
-            : ''}"
-        style="background-color: #{pubkey.slice(0, 6)}; width: {pxSize}px; height: {pxSize}px;">
-            {pubkey.slice(0, 2)}
-        </div>
+    {#if profile !== null}
+        {#await profile then profile}
+            {#if profile?.image}
+                <img
+                    src={user?.profile?.image}
+                    alt="avatar"
+                    class="shrink-0 avatar rounded-full bg-cover {$currentIdentity === pubkey &&
+                    showRing
+                        ? 'ring-4 ring-blue-600 ring-offset-2 ring-offset-gray-900'
+                        : ''}"
+                    style="width: {pxSize}px; height: {pxSize}px; min-width: {pxSize}px; min-height: {pxSize}px;"
+                />
+            {:else}
+                <div
+                    class="rounded-full font-semibold text-xl font-mono shrink-0 flex flex-col justify-center text-center {$currentIdentity ===
+                        pubkey && showRing
+                        ? 'ring-4 ring-blue-600 ring-offset-2 ring-offset-gray-900'
+                        : ''}"
+                    style="background-color: #{pubkey.slice(
+                        0,
+                        6
+                    )}; width: {pxSize}px; height: {pxSize}px; min-width: {pxSize}px; min-height: {pxSize}px;"
+                >
+                    {pubkey.slice(0, 2)}
+                </div>
+            {/if}
+        {/await}
     {/if}
 </div>

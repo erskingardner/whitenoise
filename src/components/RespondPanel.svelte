@@ -7,7 +7,7 @@
     }
 </script>
 
-<div class="sticky bottom-0 flex flex-row gap-4 p-4 bg-gray-800 items-center">
+<div class="sticky bottom-0 flex flex-row gap-4 p-4 bg-gray-800 items-center mt-auto">
     <input
         type="text"
         placeholder="Type a message..."

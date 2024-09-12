@@ -1,13 +1,20 @@
 <script lang="ts">
-    import type { NDKUser } from "@nostr-dev-kit/ndk";
-    import { CheckCircle } from "phosphor-svelte";
+    import type { NEvent } from "../types/nostr";
     import Avatar from "./Avatar.svelte";
     import Name from "./Name.svelte";
+    import { formatMessageTime } from "../utils/time";
+    import ndk from "../stores/ndk";
+    import { type NDKUser } from "@nostr-dev-kit/ndk";
 
-    export let pubkey: string;
-    export let active: boolean = false;
+    interface Props {
+        pubkey: string;
+        active: boolean;
+        lastMessageAt?: number;
+    }
 
-    let user: NDKUser;
+    let { pubkey, active = false, lastMessageAt }: Props = $props();
+
+    const user: NDKUser = $derived($ndk.getUser({pubkey}));
 </script>
 
 <div
@@ -20,14 +27,13 @@
         <div class="font-medium">
             <Name pubkey={pubkey} />
         </div>
-        <div class="font-extralight line-clamp-2">
-            TODO: last seen <!-- TODO: last seen -->
+        <div class="font-light font-mono line-clamp-2">
+            {user.npub.slice(0, 18)}...
         </div>
     </div>
     <div class="metadata flex flex-col gap-1 items-center justify-center ml-auto">
-        <div class="timestamp">Fri</div> <!-- TODO: last message timestamp -->
-        <div class="read-state">
-            <CheckCircle size="1rem" weight="thin" />
-        </div>
+        {#if lastMessageAt}
+            <div class="timestamp text-xs">{formatMessageTime(lastMessageAt)}</div>
+        {/if}
     </div>
 </div>
