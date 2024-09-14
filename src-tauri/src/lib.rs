@@ -10,8 +10,8 @@ mod secrets_store;
 use crate::app_settings::AppSettings;
 use crate::database::{delete_app_data, Database};
 use crate::identities::{
-    create_identity, get_current_identity, get_identities, login, logout, set_current_identity,
-    nip04_decrypt,
+    create_identity, get_current_identity, get_identities, login, logout, nip04_decrypt,
+    set_current_identity,
 };
 use crate::nostr::{get_contacts, init_nostr_for_pubkey};
 use anyhow::{Context, Result};
@@ -34,8 +34,8 @@ async fn init_app_state(databse_path: PathBuf) -> Result<AppState> {
     let settings =
         AppSettings::from_database(&db).context("Couldn't load settings from database")?;
 
-    if settings.clone().current_identity.is_some() {
-        init_nostr_for_pubkey(settings.clone().current_identity.unwrap()).await?;
+    if let Some(current_identity) = &settings.current_identity {
+        init_nostr_for_pubkey(current_identity).await;
     }
 
     Ok(AppState {
@@ -51,7 +51,6 @@ pub fn run() {
             tauri::async_runtime::block_on(async move {
                 let app_handle = app.handle();
                 let app_data_dir = app_handle
-                    .clone()
                     .path()
                     .app_data_dir()
                     .expect("Failed to get app data dir");

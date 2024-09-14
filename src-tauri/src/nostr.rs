@@ -1,28 +1,21 @@
 use crate::secrets_store;
-use anyhow::{Context, Result};
-use lazy_static::lazy_static;
-use nostr_ndb::NdbDatabase;
 use nostr_sdk::prelude::*;
-use parking_lot::{Mutex, Once};
 use std::time::Duration;
+use tokio::sync::OnceCell;
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
 
-lazy_static! {
-    static ref CLIENT: Mutex<Option<Client>> = Mutex::new(None);
-}
+static CLIENT: OnceCell<Client> = OnceCell::const_new();
 
-static INIT: Once = Once::new();
-
-pub async fn init_nostr_for_pubkey(pubkey: String) -> Result<()> {
-    INIT.call_once(|| {
-        tokio::spawn(async move {
-            let keys = secrets_store::get_nostr_keys_for_pubkey(pubkey.as_str())
-                .expect("Failed to get Nostr keys");
-
+/// Get or init client
+///
+/// If the client not exists, initialize it without signer.
+pub async fn get_client() -> &'static Client {
+    CLIENT
+        .get_or_init(|| async {
             let database = NdbDatabase::open("./db/ndb").expect("Failed to open database");
 
-            let nostr_client = Client::builder().signer(keys).database(database).build();
+            let nostr_client = Client::builder().database(database).build();
 
             let relays = vec![
                 "wss://relay.damus.io",
@@ -36,46 +29,34 @@ pub async fn init_nostr_for_pubkey(pubkey: String) -> Result<()> {
             }
 
             nostr_client.connect().await;
-            *CLIENT.lock() = Some(nostr_client.clone());
-        });
-    });
 
-    Ok(())
+            nostr_client
+        })
+        .await
 }
 
-pub fn get_client() -> Result<Client> {
-    let nostr_client = CLIENT
-        .lock()
-        .as_ref()
-        .cloned()
-        .context("Client not initialized")?;
-    Ok(nostr_client)
+/// Get keys from secrets store, get (or init) nostr client and set signer.
+pub async fn init_nostr_for_pubkey(pubkey: &str) {
+    let keys = secrets_store::get_nostr_keys_for_pubkey(pubkey).expect("Failed to get Nostr keys");
+    update_signer_with_keys(keys).await
 }
 
-pub async fn update_signer_with_keys(keys: Keys) -> Result<()> {
-    let client = {
-        let client_guard = CLIENT.lock();
-        client_guard.as_ref().cloned()
-    };
-
-    if let Some(client) = client {
-        let signer = NostrSigner::from(keys.clone());
-        client.set_signer(Some(signer)).await;
-        *CLIENT.lock() = Some(client);
-    }
-
-    Ok(())
+/// Update nostr client signer.
+pub async fn update_signer_with_keys(keys: Keys) {
+    let signer = NostrSigner::from(keys);
+    let client = get_client().await;
+    client.set_signer(Some(signer)).await;
 }
 
-pub async fn _update_relays(_relays: Vec<String>) -> Result<()> {
-    todo!()
-}
+// pub async fn _update_relays(_relays: Vec<String>) -> Result<()> {
+//     todo!()
+// }
 
 // --- Commands ---
 #[tauri::command]
 pub async fn get_contacts() -> Vec<Contact> {
     get_client()
-        .expect("Couldn't get the nostr client")
+        .await
         .get_contact_list(Some(DEFAULT_TIMEOUT))
         .await
         .unwrap()

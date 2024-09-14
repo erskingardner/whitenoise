@@ -4,9 +4,9 @@ use crate::secrets_store;
 use crate::AppSettings;
 use crate::AppState;
 use anyhow::Result;
+use nostr_sdk::nips::nip04;
 use nostr_sdk::Keys;
 use nostr_sdk::PublicKey;
-use nostr_sdk::nips::nip04;
 use serde::{Deserialize, Serialize};
 use std::str::from_utf8;
 use tauri::Emitter;
@@ -109,9 +109,7 @@ pub async fn set_current_identity(
     // Update the nostr client with the new signer
     let keys =
         secrets_store::get_nostr_keys_for_pubkey(pubkey.as_str()).map_err(|e| e.to_string())?;
-    nostr::update_signer_with_keys(keys)
-        .await
-        .expect("Couldn't update Nostr signer");
+    nostr::update_signer_with_keys(keys).await;
     app_handle
         .emit("identity_change", ())
         .expect("Couldn't emit event");
@@ -191,7 +189,8 @@ pub fn logout(pubkey: String, state: State<'_, AppState>, app_handle: tauri::App
 #[tauri::command]
 pub fn nip04_decrypt(counterparty: String, message: String, state: State<'_, AppState>) -> String {
     let identity = get_current_identity(state).expect("No identity selected");
-    let keys = secrets_store::get_nostr_keys_for_pubkey(&identity).expect("Unable to get keys for pubkey");
+    let keys =
+        secrets_store::get_nostr_keys_for_pubkey(&identity).expect("Unable to get keys for pubkey");
     let secret = keys.secret_key().expect("Failed to get secret key");
     let pubkey = PublicKey::from_hex(counterparty).expect("Invalid recipient key");
 
@@ -222,9 +221,7 @@ async fn add_identity(keys: Keys, state: State<'_, AppState>) {
     } // Release the lock here
 
     // Update the nostr client with the new signer
-    nostr::update_signer_with_keys(keys.clone())
-        .await
-        .expect("Couldn't update nostr signer");
+    nostr::update_signer_with_keys(keys.clone()).await;
 
     // Save the private key to the secrets store
     let _ = secrets_store::store_private_key(keys);
