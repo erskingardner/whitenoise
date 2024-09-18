@@ -79,5 +79,5 @@
 
 ## 🔐 Security 
 
-- investigate CSP in tuari.conf.json
+- investigate CSP in tuari.conf.json - Needs to be locked down as much as possible
 - Isolation mode?

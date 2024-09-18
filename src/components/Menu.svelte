@@ -1,7 +1,7 @@
 <script lang="ts">
     import { PhoneCall, Gear, Users, ChatsCircle, ShieldWarning } from "phosphor-svelte";
     import { page } from "$app/stores";
-    import { identities, switchIdentity } from "../stores/identities";
+    import { identities, switchIdentity } from "../stores/accounts";
     import Avatar from "./Avatar.svelte";
 </script>
 
@@ -22,9 +22,9 @@
         <a
             href="/chats"
             class="p-4 hover:bg-gray-800 rounded-lg {$page.url.pathname === '/chats'
-                    ? 'bg-gray-800'
-                    : ''}"
-            >
+                ? 'bg-gray-800'
+                : ''}"
+        >
             <ChatsCircle size="2rem" weight="thin" />
         </a>
         <a
@@ -34,7 +34,11 @@
                 : ''}"
         >
             <ChatsCircle size="2rem" weight="thin" />
-            <ShieldWarning size="1.5rem" weight="bold" class="text-red-500 absolute top-2 right-2" />
+            <ShieldWarning
+                size="1.5rem"
+                weight="bold"
+                class="text-red-500 absolute top-2 right-2"
+            />
         </a>
         <a
             href="/calls"
@@ -45,9 +49,9 @@
             <PhoneCall size="2rem" weight="thin" />
         </a>
         <div class="mt-auto align-middle flex flex-col gap-6 items-center">
-            {#each $identities as identity}
-                <button onclick={() => switchIdentity(identity.pubkey)}>
-                    <Avatar pubkey={identity.pubkey} pxSize={32} showRing={true} />
+            {#each Object.entries($identities) as [pubkey, metadata]}
+                <button onclick={() => switchIdentity(pubkey)}>
+                    <Avatar {pubkey} picture={metadata.picture} pxSize={32} showRing={true} />
                 </button>
             {/each}
 

@@ -1,16 +1,29 @@
 // These are types that map to the rust-nostr types from the rust backend
 
-export type NContact = {
-    public_key: string;
-    relay_url: string;
-    alias: string;
+export type NUsers = {
+    [keys: string]: {
+        metadata: NMetadata;
+    };
+};
+
+export type NMetadata = {
+    name?: string;
+    display_name?: string;
+    about?: string;
+    picture?: string;
+    banner?: string;
+    website?: string;
+    nip05?: string;
+    lud06?: string;
+    lud16?: string;
 };
 
 export type NChat = {
     [key: string]: {
-        latest: number; 
+        latest: number;
+        metadata: NMetadata;
         events: NEvent[];
-    }
+    };
 };
 
 export type NEvent = {
@@ -21,4 +34,4 @@ export type NEvent = {
     tags: string[][];
     content: string;
     sig: string;
-}
+};

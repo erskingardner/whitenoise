@@ -1,9 +1,11 @@
-import { get } from 'svelte/store';
 import { browser } from "$app/environment";
 import type { NDKCacheAdapter } from "@nostr-dev-kit/ndk";
-import NDK from "@nostr-dev-kit/ndk";
 import NDKCacheAdapterDexie from "@nostr-dev-kit/ndk-cache-dexie";
 import { writable } from "svelte/store";
+import NDKSvelte from "@nostr-dev-kit/ndk-svelte";
+import { NDKKind } from "@nostr-dev-kit/ndk";
+import { currentIdentity } from "./accounts";
+import { get } from "svelte/store";
 
 let cacheAdapter: NDKCacheAdapter | undefined;
 
@@ -11,7 +13,7 @@ if (browser) {
     cacheAdapter = new NDKCacheAdapterDexie({ dbName: "whitenoise" });
 }
 
-export const ndkStore = new NDK({
+export const ndkStore = new NDKSvelte({
     explicitRelayUrls: [
         "wss://purplepag.es",
         "wss://relay.nostr.band",
@@ -34,3 +36,11 @@ ndkStore.connect().then(() => console.log("NDK Connected"));
 const ndk = writable(ndkStore);
 
 export default ndk;
+
+export const nip04Sub = get(ndk).storeSubscribe(
+    {
+        kinds: [NDKKind.EncryptedDirectMessage],
+        authors: [get(currentIdentity)],
+    },
+    { closeOnEose: false }
+);

@@ -13,6 +13,8 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@nostr-dev-kit/ndk-cache-dexie": "^2.5.1",
+    "@nostr-dev-kit/ndk-svelte": "^2.2.18",
     "@tauri-apps/api": ">=2.0.0-rc.0",
     "@tauri-apps/plugin-shell": ">=2.0.0-rc.0",
     "@tauri-apps/plugin-store": "^2.0.0-rc.1",
@@ -25,6 +27,9 @@
     "@sveltejs/vite-plugin-svelte": "^3.0.0",
     "@tauri-apps/cli": ">=2.0.0-rc.0",
     "autoprefixer": "^10.4.20",
+    "flowbite": "^2.5.1",
+    "flowbite-svelte": "^0.46.16",
+    "nostr-tools": "2.7.2",
     "phosphor-svelte": "^2.0.1",
     "postcss": "^8.4.41",
     "svelte": "^5.0.0-next.240",
@@ -32,8 +37,6 @@
     "tailwindcss": "^3.4.10",
     "tslib": "^2.4.1",
     "typescript": "^5.0.0",
-    "vite": "^5.0.3",
-    "@nostr-dev-kit/ndk": "^2.10.0",
-    "@nostr-dev-kit/ndk-cache-dexie": "2.5.1"
+    "vite": "^5.0.3"
   }
 }

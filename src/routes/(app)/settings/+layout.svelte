@@ -1,8 +1,5 @@
 <script lang="ts">
     import { onMount } from "svelte";
-    import ndk from "../../../stores/ndk";
-    import { currentIdentity } from "../../../stores/identities";
-    import type { NDKEvent } from "@nostr-dev-kit/ndk";
     import MainPanel from "../../../components/MainPanel.svelte";
     import Sidebar from "../../../components/Sidebar.svelte";
     import SidebarHeader from "../../../components/SidebarHeader.svelte";
@@ -10,11 +7,9 @@
     import { getVersion } from "@tauri-apps/api/app";
 
     let version: string;
-    
-    let profile: NDKEvent | null = null;
+
     onMount(async () => {
         version = await getVersion();
-        profile = await $ndk.fetchEvent({ kinds: [0], authors: [$currentIdentity] });
     });
 </script>
 
@@ -33,7 +28,9 @@
             class={$page.url.pathname === "/settings/developer" ? "bg-gray-800" : ""}
             href="/settings/developer">Developer</a
         >
-        <div class="fixed bottom-0 text-sm self-center mb-6 font-extralight font-mono">v{version} - RIP Telegram</div>
+        <div class="fixed bottom-0 text-sm self-center mb-6 font-extralight font-mono">
+            v{version} - RIP Telegram
+        </div>
     </div>
 </Sidebar>
 <MainPanel>
