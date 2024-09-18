@@ -6,10 +6,10 @@
 </script>
 
 <Sidebar>
-    <SidebarHeader title="Calls" newIcon={PhonePlus} />
+    <SidebarHeader title="Calls" newIcon={PhonePlus} showNewIcon={false} />
 </Sidebar>
 <MainPanel>
-    <div class="py-4 px-6">
-        <h1 class="text-xl font-semibold mb-6">Calls coming soon</h1>
+    <div class="flex flex-col justify-center grow items-center gap-4 text-gray-500">
+        Two weeks™
     </div>
 </MainPanel>

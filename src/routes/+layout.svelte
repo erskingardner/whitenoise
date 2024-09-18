@@ -1,20 +1,16 @@
 <script lang="ts">
     import "../app.pcss";
-    import { currentIdentity, identities, type Identity } from "../stores/identities";
-    import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+    import { currentIdentity, identities, fetchAccounts } from "../stores/accounts";
+    import { listen, type UnlistenFn } from "@tauri-apps/api/event";
     import { onDestroy, onMount } from "svelte";
-    import { invoke } from "@tauri-apps/api/core";
     import { goto } from "$app/navigation";
     import { page } from "$app/stores";
-    import ndk from "../stores/ndk";
 
     let unlisten: UnlistenFn;
 
     onMount(async () => {
         updateIdentities();
-        unlisten = await listen<string>('identity_change', (event) => {
-            updateIdentities();
-        });
+        unlisten = await listen<string>("identity_change", (_event) => updateIdentities());
     });
 
     onDestroy(() => {
@@ -22,13 +18,17 @@
     });
 
     async function updateIdentities() {
-        const ids: string[] = await invoke("get_identities");
-        identities.set(ids ? ids.map((id: string) => ({ pubkey: id }) as Identity) : []);
-        currentIdentity.set(await invoke("get_current_identity"));
-        $ndk.activeUser = $ndk.getUser({pubkey: $currentIdentity});
-        if ($identities.length > 0 && $currentIdentity && ($page.url.pathname === "/" || $page.url.pathname === "/login")) {
+        await fetchAccounts();
+        if (
+            Object.keys($identities).length > 0 &&
+            $currentIdentity &&
+            ($page.url.pathname === "/" || $page.url.pathname === "/login")
+        ) {
             goto("/chats");
-        } else if ($identities.length === 0 || !$currentIdentity && $page.url.pathname !== "/login") {
+        } else if (
+            Object.keys($identities).length === 0 ||
+            (!$currentIdentity && $page.url.pathname !== "/login")
+        ) {
             goto("/login");
         }
     }

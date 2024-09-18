@@ -1,23 +1,17 @@
 <script lang="ts">
-    import { onMount } from "svelte";
-    import ndk from "../stores/ndk";
-    import type { NDKUser, NDKUserProfile } from "@nostr-dev-kit/ndk";
+    import type { NMetadata } from "../types/nostr";
+    import { npubFromPubkey } from "../utils/nostr";
 
-    export let pubkey: string;
+    interface Props {
+        pubkey: string;
+        metadata?: NMetadata;
+    }
 
-    let user: NDKUser;
-    let profile: NDKUserProfile | null = null;
-    user = $ndk.getUser({ pubkey });
+    let { pubkey, metadata }: Props = $props();
 
-    onMount(async () => {
-        profile = await user.fetchProfile();
-    });
+    let name = $derived(metadata?.display_name || metadata?.name || npubFromPubkey(pubkey));
 </script>
 
-<div class="text-lg font-semibold">
-    {#if profile && (profile?.displayName || profile?.name)}
-        {profile.displayName || profile.name}
-    {:else}
-        {`${user.npub.slice(0, 20)}...`}
-    {/if}
+<div class="text-lg font-semibold truncate shrink">
+    {name}
 </div>

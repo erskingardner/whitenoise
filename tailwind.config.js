@@ -4,8 +4,16 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                'mono': ['Menlo', 'Monaco', 'Ubuntu Mono', 'Consolas', 'Courier New', 'monospace'],
-              },
+                mono: [
+                    "Inconsolata",
+                    "Menlo",
+                    "Monaco",
+                    "Ubuntu Mono",
+                    "Consolas",
+                    "Courier New",
+                    "monospace",
+                ],
+            },
         },
     },
     plugins: [],

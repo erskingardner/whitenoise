@@ -1,21 +1,40 @@
 <script lang="ts">
-    import { User } from "phosphor-svelte";
+    import type { NEvent, NMetadata } from "../types/nostr";
+    import { currentIdentity } from "../stores/accounts";
+    import Avatar from "./Avatar.svelte";
+    import { formatMessageTime } from "../utils/time";
+    import { ShieldWarning } from "phosphor-svelte";
+    import { Tooltip } from "flowbite-svelte";
 
-    export let user: number;
+    interface Props {
+        event: NEvent;
+        metadata?: NMetadata;
+    }
+
+    let { event, metadata }: Props = $props();
 </script>
 
-<div class="px-4 flex flex-row gap-4 items-end {user === 2 ? 'flex-row-reverse' : ''}">
+<div
+    class="px-4 flex flex-row gap-4 items-end {$currentIdentity === event.pubkey
+        ? 'flex-row-reverse'
+        : ''}"
+>
+    <Avatar pubkey={event.pubkey} picture={metadata?.picture} />
     <div
-        class="avatar border border-gray-400 rounded-full w-6 h-6 flex flex-col items-center justify-center shrink-0"
-        style="background-color: purple;"
-    >
-        <User size="1.5rem" weight="thin" />
-    </div>
-    <div
-        class="rounded-full {user === 1 ? 'bg-gray-700' : 'bg-blue-700'} {user === 2
+        class="rounded-lg {$currentIdentity === event.pubkey
+            ? 'bg-gray-700'
+            : 'bg-blue-700'} {$currentIdentity === event.pubkey
             ? 'ml-auto'
-            : ''} px-4 py-2 max-w-3/4"
+            : ''} px-4 py-2 max-w-3/4 flex flex-col gap-2 break-all whitespace-break-spaces"
     >
-        This is a chat message
+        {event.content}
+        <div class="text-xs text-gray-400 self-end flex flex-row gap-1 items-center">
+            {formatMessageTime(event.created_at)}
+            <ShieldWarning size="1rem" weight="regular" class="text-red-500" />
+            <Tooltip defaultClass="tooltip">
+                This is a NIP-04 encrypted message.<br />
+                <span class="font-medium italic">All metadata is publicly visible.</span>
+            </Tooltip>
+        </div>
     </div>
 </div>
