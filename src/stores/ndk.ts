@@ -3,9 +3,6 @@ import type { NDKCacheAdapter } from "@nostr-dev-kit/ndk";
 import NDKCacheAdapterDexie from "@nostr-dev-kit/ndk-cache-dexie";
 import { writable } from "svelte/store";
 import NDKSvelte from "@nostr-dev-kit/ndk-svelte";
-import { NDKKind } from "@nostr-dev-kit/ndk";
-import { currentIdentity } from "./accounts";
-import { get } from "svelte/store";
 
 let cacheAdapter: NDKCacheAdapter | undefined;
 
@@ -36,11 +33,3 @@ ndkStore.connect().then(() => console.log("NDK Connected"));
 const ndk = writable(ndkStore);
 
 export default ndk;
-
-export const nip04Sub = get(ndk).storeSubscribe(
-    {
-        kinds: [NDKKind.EncryptedDirectMessage],
-        authors: [get(currentIdentity)],
-    },
-    { closeOnEose: false }
-);

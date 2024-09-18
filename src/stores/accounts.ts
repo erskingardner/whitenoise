@@ -1,7 +1,6 @@
 import { writable, get } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
 import type { NUsers } from "../types/nostr";
-import ndk from "./ndk";
 
 export type Accounts = {
     accounts: NUsers;

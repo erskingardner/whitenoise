@@ -5,15 +5,12 @@
     import { onDestroy, onMount } from "svelte";
     import { goto } from "$app/navigation";
     import { page } from "$app/stores";
-    import ndk from "../stores/ndk";
 
     let unlisten: UnlistenFn;
 
     onMount(async () => {
         updateIdentities();
-        unlisten = await listen<string>("identity_change", (event) => {
-            updateIdentities();
-        });
+        unlisten = await listen<string>("identity_change", (_event) => updateIdentities());
     });
 
     onDestroy(() => {
