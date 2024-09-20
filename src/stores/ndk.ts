@@ -18,6 +18,7 @@ export const ndkStore = new NDKSvelte({
         "wss://relay.snort.social",
         "wss://relay.damus.io",
         "wss://relay.primal.net",
+        "ws://localhost:8080",
     ],
     outboxRelayUrls: ["wss://purplepag.es", "wss://relay.primal.net"],
     autoConnectUserRelays: true,

@@ -11,8 +11,6 @@
     import { listen, type UnlistenFn } from "@tauri-apps/api/event";
     import SidebarModal from "../../../components/SidebarModal.svelte";
     import ChatHeader from "../../../components/ChatHeader.svelte";
-    import ndk from "../../../stores/ndk";
-    import { type NDKUser } from "@nostr-dev-kit/ndk";
 
     // The pubkey of the currently selected contact
     let selectedContact: string | undefined = $state(undefined);

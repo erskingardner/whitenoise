@@ -68,7 +68,9 @@ impl Whitenoise {
             "wss://relay.damus.io",
             "wss://relay.snort.social",
             "wss://relay.primal.net",
+            "wss://nos.lol",
             "wss://purplepag.es",
+            "ws://localhost:8080",
         ];
 
         for relay in relays {

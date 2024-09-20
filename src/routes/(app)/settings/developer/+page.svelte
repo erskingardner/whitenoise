@@ -1,10 +1,15 @@
 <script lang="ts">
     import { invoke } from "@tauri-apps/api/core";
     import { identities, currentIdentity, fetchAccounts } from "../../../../stores/accounts";
-    import { Skull, UserList } from "phosphor-svelte";
+    import { Skull, UserList, Key, KeyReturn } from "phosphor-svelte";
     import { onMount } from "svelte";
+    import ndk from "../../../../stores/ndk";
+    import type { NDKEvent } from "@nostr-dev-kit/ndk";
+    import { MLSCiphersuites } from "../../../../types/mls";
 
-    let events: Events;
+    let events: Events = $state({});
+    let keyPackages: unknown[] = $state([]);
+
     type Events = {
         database_contacts?: number;
         relay_contacts?: number;
@@ -19,6 +24,27 @@
         await invoke("delete_app_data");
         $identities = {};
         $currentIdentity = "";
+    }
+
+    async function generateAndPublishKeyPackage() {
+        await invoke("generate_and_publish_key_package", { pubkey: $currentIdentity });
+    }
+
+    async function fetchKeyPackages(): Promise<void> {
+        const keyPackageEvents = await $ndk.fetchEvents({
+            kinds: [443 as number],
+            authors: [$currentIdentity],
+        });
+        keyPackages = [];
+        keyPackageEvents.forEach(async (event: NDKEvent) => {
+            console.log(event.rawEvent());
+            console.log(
+                "ciphersuite from tag",
+                MLSCiphersuites.get(parseInt(event.getMatchingTags("ciphersuite")[0][1]))
+            );
+            const keyPackage = await invoke("parse_key_package", { keyPackageHex: event.content });
+            keyPackages.push(keyPackage);
+        });
     }
 </script>
 
@@ -63,4 +89,23 @@
         <UserList class="h-10 w-10" weight="thin" />
         Fetch accounts
     </button>
+    <button
+        onclick={generateAndPublishKeyPackage}
+        class="flex flex-row gap-4 items-center bg-gray-800 rounded-lg p-4 hover:ring-4 ring-gray-700 ring-offset-4 ring-offset-gray-900 w-full"
+    >
+        <Key class="h-10 w-10" weight="thin" />
+        Generate and publish key package
+    </button>
+    <button
+        onclick={fetchKeyPackages}
+        class="flex flex-row gap-4 items-center bg-gray-800 rounded-lg p-4 hover:ring-4 ring-gray-700 ring-offset-4 ring-offset-gray-900 w-full"
+    >
+        <KeyReturn class="h-10 w-10" weight="thin" />
+        Fetch key packages
+    </button>
+    <div>
+        {#each keyPackages as keyPackage}
+            <pre>{JSON.stringify(keyPackage, null, 2)}</pre>
+        {/each}
+    </div>
 </div>

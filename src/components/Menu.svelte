@@ -3,6 +3,7 @@
     import { page } from "$app/stores";
     import { identities, switchIdentity } from "../stores/accounts";
     import Avatar from "./Avatar.svelte";
+    import type { NMetadata } from "../types/nostr";
 </script>
 
 <div
@@ -12,14 +13,6 @@
         class="flex flex-col mx-auto items-center align-center gap-4 p-3 top-0 left-0 bottom-0 h-screen fixed"
     >
         <a
-            href="/contacts"
-            class="p-4 hover:bg-gray-800 rounded-lg {$page.url.pathname === '/contacts'
-                ? 'bg-gray-800'
-                : ''}"
-        >
-            <Users size="2rem" weight="thin" />
-        </a>
-        <a
             href="/chats"
             class="p-4 hover:bg-gray-800 rounded-lg {$page.url.pathname === '/chats'
                 ? 'bg-gray-800'
@@ -27,7 +20,7 @@
         >
             <ChatsCircle size="2rem" weight="thin" />
         </a>
-        <a
+        <!-- <a
             href="/legacy"
             class="p-4 hover:bg-gray-800 rounded-lg relative {$page.url.pathname === '/legacy'
                 ? 'bg-gray-800'
@@ -39,7 +32,7 @@
                 weight="bold"
                 class="text-red-500 absolute top-2 right-2"
             />
-        </a>
+        </a> -->
         <a
             href="/calls"
             class="p-4 hover:bg-gray-800 rounded-lg {$page.url.pathname === '/calls'
@@ -51,7 +44,12 @@
         <div class="mt-auto align-middle flex flex-col gap-6 items-center">
             {#each Object.entries($identities) as [pubkey, metadata]}
                 <button onclick={() => switchIdentity(pubkey)}>
-                    <Avatar {pubkey} picture={metadata.picture} pxSize={32} showRing={true} />
+                    <Avatar
+                        {pubkey}
+                        picture={(metadata as NMetadata).picture}
+                        pxSize={32}
+                        showRing={true}
+                    />
                 </button>
             {/each}
 

@@ -13,8 +13,8 @@
     import { identities, currentIdentity } from "../../../stores/accounts";
     import ChatMessage from "../../../components/ChatMessage.svelte";
     import { tick } from "svelte";
-    let selectedChat: string | undefined = $state(undefined);
 
+    let selectedChat: string | undefined = $state(undefined);
     let chats: NChat = $state({});
     let isLoading = $state(true);
 
@@ -26,6 +26,7 @@
             const fetchedChats = (await invoke("get_legacy_chats", {
                 pubkey: $currentIdentity,
             })) as NChat;
+            console.log("fetchedChats", fetchedChats);
             const sortedChats = Object.entries(fetchedChats)
                 .sort(([, a], [, b]) => b.latest - a.latest)
                 .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});

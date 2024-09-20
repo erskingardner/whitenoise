@@ -3,6 +3,7 @@ mod accounts;
 mod app_settings;
 mod database;
 mod nostr;
+mod nostr_mls;
 mod secrets_store;
 mod whitenoise;
 
@@ -12,6 +13,7 @@ use crate::database::delete_app_data;
 use crate::nostr::{
     fetch_dev_events, get_contacts, get_legacy_chats, get_metadata_for_pubkey, send_message,
 };
+use crate::nostr_mls::key_packages::{generate_and_publish_key_package, parse_key_package};
 use crate::whitenoise::Whitenoise;
 use tauri::Manager;
 
@@ -64,6 +66,8 @@ pub fn run() {
             get_legacy_chats,
             fetch_dev_events,
             send_message,
+            generate_and_publish_key_package,
+            parse_key_package,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
