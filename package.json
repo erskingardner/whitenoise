@@ -15,28 +15,29 @@
   "dependencies": {
     "@nostr-dev-kit/ndk-cache-dexie": "^2.5.1",
     "@nostr-dev-kit/ndk-svelte": "^2.2.18",
-    "@tauri-apps/api": ">=2.0.0-rc.0",
-    "@tauri-apps/plugin-shell": ">=2.0.0-rc.0",
-    "@tauri-apps/plugin-store": "^2.0.0-rc.1",
-    "prettier": "^3.3.3",
-    "prettier-plugin-svelte": "^3.2.6"
+    "@tauri-apps/api": "2.0.0-rc.5",
+    "@tauri-apps/plugin-shell": "2.0.0-rc.1",
+    "@tauri-apps/plugin-store": "2.0.0-rc.1"
   },
   "devDependencies": {
-    "@sveltejs/adapter-static": "^3.0.1",
-    "@sveltejs/kit": "^2.0.0",
-    "@sveltejs/vite-plugin-svelte": "^3.0.0",
-    "@tauri-apps/cli": ">=2.0.0-rc.0",
+    "@sveltejs/adapter-static": "^3.0.5",
+    "@sveltejs/kit": "^2.5.28",
+    "@sveltejs/vite-plugin-svelte": "4.0.0-next.7",
+    "@tauri-apps/cli": "2.0.0-rc.16",
+    "@types/node": "^22.5.5",
     "autoprefixer": "^10.4.20",
     "flowbite": "^2.5.1",
-    "flowbite-svelte": "^0.46.16",
+    "flowbite-svelte": "^0.46.17",
     "nostr-tools": "2.7.2",
     "phosphor-svelte": "^2.0.1",
-    "postcss": "^8.4.41",
-    "svelte": "^5.0.0-next.240",
-    "svelte-check": "^3.6.0",
-    "tailwindcss": "^3.4.10",
-    "tslib": "^2.4.1",
-    "typescript": "^5.0.0",
-    "vite": "^5.0.3"
+    "postcss": "^8.4.47",
+    "prettier": "^3.3.3",
+    "prettier-plugin-svelte": "^3.2.6",
+    "svelte": "5.0.0-next.257",
+    "svelte-check": "^4.0.2",
+    "tailwindcss": "^3.4.12",
+    "tslib": "^2.7.0",
+    "typescript": "^5.6.2",
+    "vite": "^5.4.7"
   }
 }

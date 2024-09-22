@@ -1,8 +1,8 @@
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 mod accounts;
 mod app_settings;
 mod database;
 mod nostr;
+mod nostr_mls;
 mod secrets_store;
 mod whitenoise;
 
@@ -12,9 +12,12 @@ use crate::database::delete_app_data;
 use crate::nostr::{
     fetch_dev_events, get_contacts, get_legacy_chats, get_metadata_for_pubkey, send_message,
 };
+use crate::nostr_mls::key_packages::{generate_and_publish_key_package, parse_key_package};
 use crate::whitenoise::Whitenoise;
+use log::debug;
 use tauri::Manager;
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     env_logger::init();
 
@@ -33,8 +36,10 @@ pub fn run() {
                 //     .cache_dir()
                 //     .expect("Failed to get cache dir");
 
+                debug!("Whitenoise data dir: {:?}", &data_dir.as_path());
+
                 // Initialize Whitenoise
-                let whitenoise = Whitenoise::new(&data_dir.as_path()).await?;
+                let whitenoise = Whitenoise::new(data_dir.as_path()).await?;
 
                 // Update Nostr signer with keys for the current identity if they exist
                 let nostr_keys = whitenoise
@@ -64,6 +69,8 @@ pub fn run() {
             get_legacy_chats,
             fetch_dev_events,
             send_message,
+            generate_and_publish_key_package,
+            parse_key_package,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

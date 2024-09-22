@@ -23,34 +23,37 @@
   - ✅ Dev tools
   - Security
 - ✅ Need simple splash screen while we're waiting for identities (don't flash login screen)
-- ✅ Contacts list
+- ✅ Contacts Panel
   - ✅ Load contacts from Nostr
   - ✅ Ensure that changing profiles updates the contacts list
-  - search should filter your contacts by name, npub, nprofile, or hex pubkey
-  - search should also search all of nostr for a user by npub, nprofile, name, or hex pubkey (NIP-50)
+  - ✅ search should filter your contacts by name, npub, nprofile, or hex pubkey
+  - Contacts list should group contacts by chats, nostr contacts, and OS contacts
+  - Allow for inviting OS contacts to download the app
+  - Allow for inviting Nostr contacts to download the app via NIP-17 or NIP-04
+  - search should also search all of nostr for a user by npub, nprofile, name, or hex pubkey (NIP-50 + Primal cache)
   - filter contacts by active conversations
   - sort contacts by last message, last seen, or name
   - show conversation transcripts on click in the main panel (how does this work with both legacy and MLS chats?)
-- NIP-04
+- ✅ NIP-04
 - NIP-17
 - NIP-104 (MLS)
-  - Create prekey events
+  ✅ Create & publish prekey events
     - Adding someone manually with prekey event in person
   - Show conversations in sidebar
   - Show conversation transcripts in main panel
   - Show participants in conversation (where do we put conversation details?)
-- NO onboarding flow. 
+- Simple 1-2 step onboarding flow
 - Link to help docs (where?)
 - Once logged in and AppSettings are loaded, start the main app
-  - Fetch profile for user
+  - ✅ Fetch profile for user
   - ✅ Fetch contacts for user
-  - Fetch NIP-04 DMs for user
+  - ✅ Fetch NIP-04 DMs for user
   - Fetch NIP-17 DMs for user
   - Fetch Prekey events for user
 - Make sure that when current identity changes, we update the UI
   - ✅ Contacts
   - Chats
-  - Legacy chats
+  - ✅ Legacy chats
 - Mobile
   - Need to make sure the view collapses to mobile size properly
 
@@ -70,12 +73,7 @@
 ## 🆘 Errors
 
 - Where we do handle errors? 
-  - We can use `anyhow` to propogate the error but at some point we have to handle/show it. I think the best option is to propogate to the UI layer via an error message or toast (and allow for a retry where possible).
-
-## 🆘 Errors
-
-- Where we do handle errors? 
-  - We can use `anyhow` to propogate the error but at some point we have to handle/show it. I think the best option is to propogate to the UI layer via an error message or toast (and allow for a retry where possible).
+  - We use `anyhow` to propogate the error but at some point we have to handle/show it. I think the best option is to propogate to the UI layer via an error message or toast (and allow for a retry where possible).
 
 ## 🔐 Security 
 

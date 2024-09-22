@@ -27,7 +27,7 @@
 <div class="rounded-lg bg-gray-800 flex flex-row gap-6 items-center justify-between p-4">
     <div class="flex flex-row gap-6 items-center shrink overflow-hidden p-2">
         <button onclick={() => switchIdentity(pubkey)} class="overflow-visible">
-            <Avatar picture={metadata.picture} {pubkey} pxSize={40} showRing={true} />
+            <Avatar picture={metadata?.picture} {pubkey} pxSize={40} showRing={true} />
         </button>
         <div class="flex flex-col gap-0 min-w-0">
             <Name {pubkey} {metadata} />

@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { NotePencil, MagnifyingGlass } from "phosphor-svelte";
+    import { NotePencil, MagnifyingGlass, CaretLeft } from "phosphor-svelte";
     import type { ComponentType } from "svelte";
     import { createEventDispatcher } from "svelte";
 
@@ -22,6 +22,7 @@
     export let title: string;
     export let showSearch: boolean = true;
     export let showNewIcon: boolean = true;
+    export let showBackIcon: boolean = false;
     export let newIcon: ComponentType = NotePencil;
 
     let searchTerm: string = "";
@@ -31,13 +32,20 @@
     class="sticky top-0 p-4 pb-6 flex flex-col gap-6 bg-gray-900 border-b border-gray-700 relative"
 >
     <div class="flex flex-row gap-4 items-center">
+        {#if showBackIcon}
+            <button
+                onclick={() => dispatch("backIconClicked")}
+                class="p-2 rounded-md hover:bg-gray-800"
+            >
+                <CaretLeft size="1.5rem" weight="thin" />
+            </button>
+        {/if}
         <h2 class="text-xl py-2 font-bold grow">{title}</h2>
         {#if showNewIcon}
             <button
                 onclick={() => dispatch("newIconClicked")}
                 class="p-2 rounded-md hover:bg-gray-800"
             >
-                <!-- {@render this=newIcon size="1.5rem" weight="" } -->
                 <svelte:component this={newIcon} size="1.5rem" weight="thin" />
             </button>
         {/if}

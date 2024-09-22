@@ -1,4 +1,4 @@
-/src/main/java/com/tauri/dev/generated
+/src/main/java/chat/whitenoise/dev/generated
 /src/main/jniLibs/**/*.so
 /src/main/assets/tauri.conf.json
 /tauri.build.gradle.kts

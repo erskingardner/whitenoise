@@ -3,7 +3,7 @@
     import { currentIdentity } from "../stores/accounts";
     import Avatar from "./Avatar.svelte";
     import { formatMessageTime } from "../utils/time";
-    import { ShieldWarning } from "phosphor-svelte";
+    import { LockKeyOpen } from "phosphor-svelte";
     import { Tooltip } from "flowbite-svelte";
 
     interface Props {
@@ -30,7 +30,9 @@
         {event.content}
         <div class="text-xs text-gray-400 self-end flex flex-row gap-1 items-center">
             {formatMessageTime(event.created_at)}
-            <ShieldWarning size="1rem" weight="regular" class="text-red-500" />
+            {#if event.kind === 4}
+                <LockKeyOpen size="1rem" weight="regular" class="text-red-500" />
+            {/if}
             <Tooltip defaultClass="tooltip">
                 This is a NIP-04 encrypted message.<br />
                 <span class="font-medium italic">All metadata is publicly visible.</span>

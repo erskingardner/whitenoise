@@ -3,6 +3,9 @@
 export type NUsers = {
     [keys: string]: {
         metadata: NMetadata;
+        nip17: boolean;
+        nip104: boolean;
+        inbox_relays: string[];
     };
 };
 
