@@ -3,30 +3,31 @@
     import Sidebar from "../../../components/Sidebar.svelte";
     import SidebarHeader from "../../../components/SidebarHeader.svelte";
     import MainPanel from "../../../components/MainPanel.svelte";
-    import { MagnifyingGlass } from "phosphor-svelte";
-    import ContactPanel from "../../../components/ContactPanel.svelte";
-    import { slide } from "svelte/transition";
+    import ContactsSidebar from "../../../components/ContactsSidebar.svelte";
+    import ContactsMainPanel from "../../../components/ContactsMainPanel.svelte";
     import { invoke } from "@tauri-apps/api/core";
     import { identities, currentIdentity } from "../../../stores/accounts";
     import { tick } from "svelte";
     import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-    import type { NEvent, NMetadata, NChat } from "../../../types/nostr";
+    import type { NEvent, NMetadata, NChat, NUsers } from "../../../types/nostr";
     import { onMount, onDestroy } from "svelte";
     import Loader from "../../../components/Loader.svelte";
     import Contact from "../../../components/Contact.svelte";
     import ChatHeader from "../../../components/ChatHeader.svelte";
     import ChatMessage from "../../../components/ChatMessage.svelte";
 
-    let contactPanelVisible = $state(false);
+    let contactsVisible = $state(false);
     let contactSearch = $state("");
     let searchTerm = $state("");
+
+    let selectedContact: string | undefined = $state(undefined);
 
     function handleSearch(event: CustomEvent<string>) {
         searchTerm = event.detail;
     }
 
-    function toggleContactPanel() {
-        contactPanelVisible = !contactPanelVisible;
+    function toggleContactsVisible() {
+        contactsVisible = !contactsVisible;
     }
 
     async function submitContactsSearch(event: KeyboardEvent | MouseEvent) {
@@ -104,15 +105,13 @@
 </script>
 
 <Sidebar>
-    {#if contactPanelVisible}
-        <div in:slide={{ delay: 100, duration: 100, axis: "x" }}>
-            <ContactPanel on:backIconClicked={toggleContactPanel} />
-        </div>
+    {#if contactsVisible}
+        <ContactsSidebar on:backIconClicked={toggleContactsVisible} bind:selectedContact />
     {:else}
         <SidebarHeader
             title="Chats"
             on:search={handleSearch}
-            on:newIconClicked={toggleContactPanel}
+            on:newIconClicked={toggleContactsVisible}
         />
         {#if isLoading}
             <div class="w-full h-10 mt-4 flex items-center justify-center">
@@ -129,13 +128,16 @@
                     metadata={chat.metadata}
                     active={pubkey === selectedChat}
                     lastMessageAt={Number(chat.latest)}
+                    isLegacy={[4, 17].includes(chat.events[1].kind)}
                 />
             </button>
         {/each}
     {/if}
 </Sidebar>
 <MainPanel>
-    {#if selectedChat === undefined}
+    {#if contactsVisible}
+        <ContactsMainPanel bind:selectedContact />
+    {:else if selectedChat === undefined}
         <div class="flex items-center justify-center w-full text-gray-500 h-screen grow">
             Select a conversation
         </div>

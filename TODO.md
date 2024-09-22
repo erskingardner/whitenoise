@@ -23,11 +23,14 @@
   - ✅ Dev tools
   - Security
 - ✅ Need simple splash screen while we're waiting for identities (don't flash login screen)
-- ✅ Contacts list
+- ✅ Contacts Panel
   - ✅ Load contacts from Nostr
   - ✅ Ensure that changing profiles updates the contacts list
   - ✅ search should filter your contacts by name, npub, nprofile, or hex pubkey
-  - search should also search all of nostr for a user by npub, nprofile, name, or hex pubkey (NIP-50)
+  - Contacts list should group contacts by chats, nostr contacts, and OS contacts
+  - Allow for inviting OS contacts to download the app
+  - Allow for inviting Nostr contacts to download the app via NIP-17 or NIP-04
+  - search should also search all of nostr for a user by npub, nprofile, name, or hex pubkey (NIP-50 + Primal cache)
   - filter contacts by active conversations
   - sort contacts by last message, last seen, or name
   - show conversation transcripts on click in the main panel (how does this work with both legacy and MLS chats?)
@@ -39,7 +42,7 @@
   - Show conversations in sidebar
   - Show conversation transcripts in main panel
   - Show participants in conversation (where do we put conversation details?)
-- NO onboarding flow. 
+- Simple 1-2 step onboarding flow
 - Link to help docs (where?)
 - Once logged in and AppSettings are loaded, start the main app
   - ✅ Fetch profile for user

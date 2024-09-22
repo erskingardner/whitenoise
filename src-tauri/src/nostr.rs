@@ -25,53 +25,106 @@ pub struct RawEvent {
     sig: Signature,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct EnrichedContact {
+    pub metadata: Metadata,
+    pub nip17: bool,
+    pub nip104: bool,
+    pub inbox_relays: Vec<String>,
+}
+
 // --- Commands ---
 
-/// Retrieves the contact list for the current user.
-///
-/// This function is a Tauri command that asynchronously fetches the user's contacts
-/// from the Nostr network using the Whitenoise client.
-///
-/// # Arguments
-///
-/// * `wn` - A Tauri State containing the Whitenoise client.
-///
-/// # Returns
-///
-/// * `Result<Vec<Contact>, String>` - A Result containing either:
-///   - `Ok(Vec<Contact>)`: A vector of Contact objects if successful.
-///   - `Err(String)`: An error message as a String if the operation fails.
-///
-/// # Notes
-///
-/// - This function uses a default timeout of 5 seconds (DEFAULT_TIMEOUT) for the network request.
-/// - It currently unwraps the result of the get_contact_list call, which may panic if an error occurs.
-///   Consider handling potential errors more gracefully in production code.
 #[tauri::command]
 pub async fn get_contacts(
     wn: State<'_, Whitenoise>,
-) -> Result<HashMap<PublicKey, Metadata>, String> {
+) -> Result<HashMap<String, EnrichedContact>, String> {
+    // Fetch contact list public keys
     let contact_list_pubkeys = wn
         .nostr
         .get_contact_list_public_keys(Some(DEFAULT_TIMEOUT))
         .await
-        .unwrap();
-    let filter = Filter::new()
+        .expect("Failed to fetch contact list public keys");
+
+    debug!(
+        "contact_list_pubkeys length: {:?}",
+        contact_list_pubkeys.len()
+    );
+
+    // Fetch metadata for all contacts in a single query
+    let metadata_filter = Filter::new()
         .kind(Kind::Metadata)
-        .authors(contact_list_pubkeys);
+        .authors(contact_list_pubkeys.clone());
     let contacts = wn
         .nostr
         .database()
-        .query(vec![filter], Order::Asc)
+        .query(vec![metadata_filter], Order::Asc)
         .await
-        .unwrap();
+        .expect("Failed to query metadata");
 
-    let mut contacts_map: HashMap<PublicKey, Metadata> = HashMap::new();
+    // Prepare filters for messaging capabilities
+    let dm_relay_list_filter = Filter::new()
+        .kind(Kind::Custom(10050))
+        .authors(contact_list_pubkeys.clone());
+    let prekey_filter = Filter::new()
+        .kind(Kind::Custom(443))
+        .authors(contact_list_pubkeys);
+
+    // Fetch messaging capabilities for all contacts in a single query
+    let messaging_capabilities_events = wn
+        .nostr
+        .get_events_of(
+            vec![dm_relay_list_filter, prekey_filter],
+            EventSource::Both {
+                timeout: Some(DEFAULT_TIMEOUT),
+                specific_relays: None,
+            },
+        )
+        .await
+        .expect("Failed to fetch messaging capabilities");
+
+    // Process contacts and messaging capabilities
+    let mut contacts_map: HashMap<String, EnrichedContact> = HashMap::new();
     for contact in contacts {
-        contacts_map.insert(
-            contact.author(),
-            Metadata::from_json(contact.content()).unwrap(),
-        );
+        let metadata = Metadata::from_json(contact.content()).expect("Failed to parse metadata");
+        let author = contact.author().to_string();
+
+        let mut enriched_contact = EnrichedContact {
+            metadata,
+            nip17: false,
+            nip104: false,
+            inbox_relays: Vec::new(),
+        };
+
+        // Process messaging capabilities
+        for event in &messaging_capabilities_events {
+            if event.author().to_string() == author {
+                match event.kind() {
+                    Kind::Replaceable(10050) => {
+                        enriched_contact.nip17 = true;
+                        enriched_contact.inbox_relays.extend(
+                            event
+                                .tags
+                                .iter()
+                                .filter(|tag| tag.kind() == TagKind::Relay)
+                                .filter_map(|tag| tag.content())
+                                .map(|s| s.to_string()),
+                        );
+                    }
+                    Kind::Custom(443) => {
+                        if event
+                            .get_tag_content(TagKind::Custom("mls_protocol_version".into()))
+                            .is_some()
+                        {
+                            enriched_contact.nip104 = true;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        contacts_map.insert(author, enriched_contact);
     }
 
     Ok(contacts_map)

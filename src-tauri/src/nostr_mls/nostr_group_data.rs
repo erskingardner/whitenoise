@@ -26,9 +26,9 @@ pub struct NostrGroupDataExtension {
 }
 
 impl NostrGroupDataExtension {
-    fn extension_type(&self) -> ExtensionType {
-        ExtensionType::Unknown(0xFF69)
-    }
+    // fn extension_type(&self) -> ExtensionType {
+    //     ExtensionType::Unknown(0xFF69)
+    // }
     pub fn new(name: String, description: String) -> Self {
         // Generate a random 32-byte group ID
         let mut rng = rand::thread_rng();

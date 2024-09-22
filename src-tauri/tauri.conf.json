@@ -1,7 +1,7 @@
 {
     "productName": "White Noise",
     "version": "0.0.1",
-    "identifier": "com.tauri.dev",
+    "identifier": "chat.whitenoise.dev",
     "build": {
         "beforeDevCommand": "bun run dev",
         "devUrl": "http://localhost:1420",

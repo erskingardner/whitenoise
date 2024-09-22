@@ -1,4 +1,3 @@
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 mod accounts;
 mod app_settings;
 mod database;
@@ -15,8 +14,10 @@ use crate::nostr::{
 };
 use crate::nostr_mls::key_packages::{generate_and_publish_key_package, parse_key_package};
 use crate::whitenoise::Whitenoise;
+use log::debug;
 use tauri::Manager;
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     env_logger::init();
 
@@ -35,8 +36,10 @@ pub fn run() {
                 //     .cache_dir()
                 //     .expect("Failed to get cache dir");
 
+                debug!("Whitenoise data dir: {:?}", &data_dir.as_path());
+
                 // Initialize Whitenoise
-                let whitenoise = Whitenoise::new(&data_dir.as_path()).await?;
+                let whitenoise = Whitenoise::new(data_dir.as_path()).await?;
 
                 // Update Nostr signer with keys for the current identity if they exist
                 let nostr_keys = whitenoise

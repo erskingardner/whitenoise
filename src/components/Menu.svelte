@@ -1,13 +1,21 @@
 <script lang="ts">
-    import { PhoneCall, Gear, Users, ChatsCircle, ShieldWarning } from "phosphor-svelte";
+    import { PhoneCall, Gear, ChatCircle } from "phosphor-svelte";
     import { page } from "$app/stores";
-    import { identities, switchIdentity } from "../stores/accounts";
+    import { identities, switchIdentity, currentIdentity } from "../stores/accounts";
     import Avatar from "./Avatar.svelte";
     import type { NMetadata } from "../types/nostr";
+
+    let picture = $derived(
+        $identities !== undefined &&
+            $currentIdentity !== undefined &&
+            Object.keys($identities).length > 0
+            ? ($identities[$currentIdentity] as NMetadata)?.picture
+            : undefined
+    );
 </script>
 
 <div
-    class="sidebar-menu border-r border-r-gray-700 bg-gray-900 relative w-[77px] h-screen overflow-y-scroll shrink-0"
+    class="hidden md:block sidebar-menu border-r border-r-gray-700 bg-gray-900 relative w-[77px] h-screen overflow-y-scroll shrink-0"
 >
     <div
         class="flex flex-col mx-auto items-center align-center gap-4 p-3 top-0 left-0 bottom-0 h-screen fixed"
@@ -18,21 +26,8 @@
                 ? 'bg-gray-800'
                 : ''}"
         >
-            <ChatsCircle size="2rem" weight="thin" />
+            <ChatCircle size="2rem" weight="thin" />
         </a>
-        <!-- <a
-            href="/legacy"
-            class="p-4 hover:bg-gray-800 rounded-lg relative {$page.url.pathname === '/legacy'
-                ? 'bg-gray-800'
-                : ''}"
-        >
-            <ChatsCircle size="2rem" weight="thin" />
-            <ShieldWarning
-                size="1.5rem"
-                weight="bold"
-                class="text-red-500 absolute top-2 right-2"
-            />
-        </a> -->
         <a
             href="/calls"
             class="p-4 hover:bg-gray-800 rounded-lg {$page.url.pathname === '/calls'
@@ -58,4 +53,28 @@
             </a>
         </div>
     </div>
+</div>
+
+<div
+    class="mobile-menu fixed bottom-0 w-full py-2 px-6 bg-gray-900 border-t border-t-gray-700 md:hidden flex flex-row justify-between items-center z-50"
+>
+    <a href="/chats" class="p-4 flex flex-col gap-1 items-center">
+        <ChatCircle size="2.75rem" weight={$page.url.pathname === "/chats" ? "fill" : "thin"} />
+        Chats
+    </a>
+    <a href="/calls" class="p-4 flex flex-col gap-1 items-center">
+        <PhoneCall size="2.75rem" weight={$page.url.pathname === "/calls" ? "fill" : "thin"} />
+        Calls
+    </a>
+    <button onclick={() => console.log("Change!")} class="p-4 flex flex-col gap-1 items-center">
+        <Avatar pubkey={$currentIdentity} {picture} pxSize={40} showRing={false} />
+        Profile
+    </button>
+    <a href="/settings/profile" class="p-4 flex flex-col gap-1 items-center">
+        <Gear
+            size="2.75rem"
+            weight={$page.url.pathname.match(/\/settings\/profile/) ? "fill" : "thin"}
+        />
+        Settings
+    </a>
 </div>

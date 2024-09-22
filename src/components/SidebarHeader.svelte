@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { NotePencil, MagnifyingGlass, ArrowLeft } from "phosphor-svelte";
+    import { NotePencil, MagnifyingGlass, CaretLeft } from "phosphor-svelte";
     import type { ComponentType } from "svelte";
     import { createEventDispatcher } from "svelte";
 
@@ -37,7 +37,7 @@
                 onclick={() => dispatch("backIconClicked")}
                 class="p-2 rounded-md hover:bg-gray-800"
             >
-                <ArrowLeft size="1.5rem" weight="thin" />
+                <CaretLeft size="1.5rem" weight="thin" />
             </button>
         {/if}
         <h2 class="text-xl py-2 font-bold grow">{title}</h2>

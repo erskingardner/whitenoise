@@ -1,3 +1,3 @@
-package com.tauri.dev
+package chat.whitenoise.dev
 
 class MainActivity : TauriActivity()

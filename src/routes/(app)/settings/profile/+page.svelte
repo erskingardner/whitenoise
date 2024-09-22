@@ -9,15 +9,13 @@
         await login(nsecOrHex);
         nsecOrHex = ""; // Clear the input field
     }
-
-    $inspect($identities);
 </script>
 
 <h1 class="text-xl font-semibold mb-6">Profile</h1>
 <div class="flex flex-col gap-12 items-start">
     <div class="flex flex-col gap-6 w-full">
-        {#each Object.entries($identities) as [pubkey, metadata]}
-            <ProfileCard {pubkey} {metadata} />
+        {#each Object.entries($identities) as [pubkey, contactData]}
+            <ProfileCard {pubkey} metadata={contactData.metadata} />
         {/each}
     </div>
     <div class="flex flex-col gap-6 items-start w-full">
