@@ -1,8 +1,9 @@
 <script lang="ts">
     export let size = 80;
+    export let fullscreen = true;
 </script>
 
-<div class="flex flex-col items-center justify-center w-screen h-screen">
+<div class={fullscreen ? "w-screen h-screen" : "flex flex-col items-center justify-center"}>
     <div class="lds-ripple" style="--size:{size}px;">
         <div></div>
         <div></div>

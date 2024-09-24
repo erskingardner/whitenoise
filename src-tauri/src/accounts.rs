@@ -1,9 +1,10 @@
 use crate::nostr;
+use crate::nostr::{EnrichedContact, DEFAULT_TIMEOUT};
 use crate::secrets_store;
 use crate::{database::Database, whitenoise::Whitenoise};
 use anyhow::Result;
 use log::debug;
-use nostr_sdk::{Keys, Metadata};
+use nostr_sdk::{EventSource, Filter, Keys, Kind, Metadata, TagKind};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::str::from_utf8;
@@ -17,7 +18,7 @@ const ACCOUNTS_KEY: &str = "accounts";
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Accounts {
     /// List of account identifiers
-    pub accounts: Option<HashMap<String, Metadata>>,
+    pub accounts: Option<HashMap<String, EnrichedContact>>,
     /// The currently active identity
     pub current_identity: Option<String>,
 }
@@ -133,16 +134,70 @@ pub async fn login(
         .await
         .unwrap_or_else(|_| Metadata::default());
 
+    let mut enriched_contact = EnrichedContact {
+        metadata,
+        nip17: false,
+        nip104: false,
+        inbox_relays: vec![],
+    };
+
+    // Prepare filters for messaging capabilities
+    let dm_relay_list_filter = Filter::new()
+        .kind(Kind::Custom(10050))
+        .author(keys.public_key());
+    let prekey_filter = Filter::new()
+        .kind(Kind::Custom(443))
+        .author(keys.public_key());
+
+    // Fetch messaging capabilities for all contacts in a single query
+    let messaging_capabilities_events = wn
+        .nostr
+        .get_events_of(
+            vec![dm_relay_list_filter, prekey_filter],
+            EventSource::Both {
+                timeout: Some(DEFAULT_TIMEOUT),
+                specific_relays: None,
+            },
+        )
+        .await
+        .expect("Failed to fetch messaging capabilities");
+
+    // Process messaging capabilities
+    for event in &messaging_capabilities_events {
+        match event.kind() {
+            Kind::Replaceable(10050) => {
+                enriched_contact.nip17 = true;
+                enriched_contact.inbox_relays.extend(
+                    event
+                        .tags
+                        .iter()
+                        .filter(|tag| tag.kind() == TagKind::Relay)
+                        .filter_map(|tag| tag.content())
+                        .map(|s| s.to_string()),
+                );
+            }
+            Kind::Custom(443) => {
+                if event
+                    .get_tag_content(TagKind::Custom("mls_protocol_version".into()))
+                    .is_some()
+                {
+                    enriched_contact.nip104 = true;
+                }
+            }
+            _ => {}
+        }
+    }
+
     // Scope the MutexGuard to release it before the .await
     {
         let mut accounts = wn.accounts.lock().map_err(|e| e.to_string())?;
         match accounts.accounts.as_mut() {
             Some(accounts) => {
-                accounts.insert(keys.public_key().to_string(), metadata);
+                accounts.insert(keys.public_key().to_string(), enriched_contact);
             }
             None => {
                 let mut new_accounts = HashMap::new();
-                new_accounts.insert(keys.public_key().to_string(), metadata);
+                new_accounts.insert(keys.public_key().to_string(), enriched_contact);
                 accounts.accounts = Some(new_accounts);
             }
         }
@@ -310,7 +365,13 @@ mod tests {
 
         let mut accounts = Accounts::default();
         let mut test_accounts = HashMap::new();
-        test_accounts.insert("pubkey1".to_string(), Metadata::new());
+        let enriched_contact = EnrichedContact {
+            metadata: Metadata::new(),
+            nip17: false,
+            nip104: false,
+            inbox_relays: vec![],
+        };
+        test_accounts.insert("pubkey1".to_string(), enriched_contact);
         accounts.accounts = Some(test_accounts);
         accounts.current_identity = Some("pubkey1".to_string());
 

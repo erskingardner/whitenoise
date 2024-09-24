@@ -1,14 +1,10 @@
-import { browser } from "$app/environment";
 import type { NDKCacheAdapter } from "@nostr-dev-kit/ndk";
 import NDKCacheAdapterDexie from "@nostr-dev-kit/ndk-cache-dexie";
 import { writable } from "svelte/store";
 import NDKSvelte from "@nostr-dev-kit/ndk-svelte";
 
 let cacheAdapter: NDKCacheAdapter | undefined;
-
-if (browser) {
-    cacheAdapter = new NDKCacheAdapterDexie({ dbName: "whitenoise" });
-}
+cacheAdapter = new NDKCacheAdapterDexie({ dbName: "whitenoise" });
 
 export const ndkStore = new NDKSvelte({
     explicitRelayUrls: [

@@ -25,7 +25,7 @@ pub struct RawEvent {
     sig: Signature,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct EnrichedContact {
     pub metadata: Metadata,
     pub nip17: bool,
@@ -149,7 +149,7 @@ pub async fn get_legacy_chats(
     wn: State<'_, Whitenoise>,
 ) -> Result<HashMap<String, Conversation>, String> {
     let start = Instant::now();
-    let current_pubkey = PublicKey::from_hex(&pubkey).unwrap();
+    let current_pubkey = PublicKey::from_hex(&pubkey).expect("Invalid pubkey");
     let events = wn
         .nostr
         .get_events_of(
@@ -253,12 +253,12 @@ pub async fn update_nostr_identity(keys: Keys, wn: &State<'_, Whitenoise>) -> Re
     debug!(target: "whitenoise::nostr::update_nostr_identity", "Updating nostr identity");
     // Unsubscribe from all existing subscriptions
     wn.nostr.unsubscribe_all().await;
-
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Unsubscribed from all");
     // Update the signer for the Nostr client
     wn.nostr
         .set_signer(Some(NostrSigner::Keys(keys.clone())))
         .await;
-
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Set signer");
     // Event notification listener
     // let mut notifications = wn.nostr.notifications();
 
@@ -272,30 +272,31 @@ pub async fn update_nostr_identity(keys: Keys, wn: &State<'_, Whitenoise>) -> Re
         .kind(Kind::ContactList)
         .author(keys.public_key());
     let _contacts_sub = wn.nostr.subscribe(vec![contacts_filter], None).await;
-
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Subscribed for contacts list updates");
     // Subscribe for contact list metadata
     let contact_list_pubkeys = wn
         .nostr
         .get_contact_list_public_keys(Some(DEFAULT_TIMEOUT))
         .await
         .unwrap();
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Got contact list pubkeys: {:?}", contact_list_pubkeys);
     let metadata_filter = Filter::new()
         .kind(Kind::Metadata)
         .authors(contact_list_pubkeys);
     let _metadata_sub = wn.nostr.subscribe(vec![metadata_filter], None).await;
-
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Subscribed for metadata updates");
     // Subscribe for messaging (NIP-04)
     let nip_4_sent = Filter::new()
         .kind(Kind::EncryptedDirectMessage)
         .author(keys.public_key());
-
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Created nip4 sent filter");
     let nip_4_received = Filter::new()
         .kind(Kind::EncryptedDirectMessage)
         .pubkeys(vec![keys.public_key()]);
-
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Created nip4 received filter");
     let _nip_4_sent_sub = wn.nostr.subscribe(vec![nip_4_sent], None).await;
     let _nip_4_received_sub = wn.nostr.subscribe(vec![nip_4_received], None).await;
-
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Subscribed for nip4 messaging");
     debug!(target: "whitenoise::nostr::update_nostr_identity", "Updated nostr identity & subscriptions for user {:?}", keys.public_key());
 
     Ok(())

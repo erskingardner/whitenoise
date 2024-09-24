@@ -8,7 +8,6 @@
     font-feature-settings:
         "liga" 1,
         "calt" 1; /* fix for Chrome */
-    @apply text-gray-50 bg-gray-900;
 
     font-synthesis: none;
     text-rendering: optimizeLegibility;
@@ -16,14 +15,27 @@
     -moz-osx-font-smoothing: grayscale;
     -webkit-text-size-adjust: 100%;
 }
+
+:root,
+html,
+body,
+#app {
+    @apply text-gray-50 bg-gray-900;
+}
+
 @supports (font-variation-settings: normal) {
     :root {
         font-family: InterVariable, sans-serif;
     }
 }
+
+/* Always dark mode */
 @media (prefers-color-scheme: dark) {
-    :root {
-        /* Always dark mode */
+    :root,
+    html,
+    body,
+    #app {
+        @apply text-gray-50 bg-gray-900;
     }
 }
 
@@ -32,6 +44,7 @@ html {
     -webkit-text-size-adjust: none;
     text-size-adjust: none;
 }
+
 .field-error {
     @apply text-red-500 font-medium text-sm;
 }

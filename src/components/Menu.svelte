@@ -1,9 +1,14 @@
 <script lang="ts">
     import { PhoneCall, Gear, ChatCircle } from "phosphor-svelte";
-    import { page } from "$app/stores";
     import { identities, switchIdentity, currentIdentity } from "../stores/accounts";
     import Avatar from "./Avatar.svelte";
     import type { NMetadata } from "../types/nostr";
+
+    type props = {
+        f7route: any;
+    };
+
+    let { f7route }: props = $props();
 
     let picture = $derived(
         $identities !== undefined &&
@@ -22,7 +27,7 @@
     >
         <a
             href="/chats"
-            class="p-4 hover:bg-gray-800 rounded-lg {$page.url.pathname === '/chats'
+            class="p-4 hover:bg-gray-800 rounded-lg {f7route.path === '/chats'
                 ? 'bg-gray-800'
                 : ''}"
         >
@@ -30,7 +35,7 @@
         </a>
         <a
             href="/calls"
-            class="p-4 hover:bg-gray-800 rounded-lg {$page.url.pathname === '/calls'
+            class="p-4 hover:bg-gray-800 rounded-lg {f7route.path === '/calls'
                 ? 'bg-gray-800'
                 : ''}"
         >
@@ -59,11 +64,11 @@
     class="mobile-menu fixed bottom-0 w-full py-2 px-6 bg-gray-900 border-t border-t-gray-700 md:hidden flex flex-row justify-between items-center z-50"
 >
     <a href="/chats" class="p-4 flex flex-col gap-1 items-center">
-        <ChatCircle size="2.75rem" weight={$page.url.pathname === "/chats" ? "fill" : "thin"} />
+        <ChatCircle size="2.75rem" weight={f7route.path === "/chats" ? "fill" : "thin"} />
         Chats
     </a>
     <a href="/calls" class="p-4 flex flex-col gap-1 items-center">
-        <PhoneCall size="2.75rem" weight={$page.url.pathname === "/calls" ? "fill" : "thin"} />
+        <PhoneCall size="2.75rem" weight={f7route.path === "/calls" ? "fill" : "thin"} />
         Calls
     </a>
     <button onclick={() => console.log("Change!")} class="p-4 flex flex-col gap-1 items-center">
@@ -71,10 +76,7 @@
         Profile
     </button>
     <a href="/settings/profile" class="p-4 flex flex-col gap-1 items-center">
-        <Gear
-            size="2.75rem"
-            weight={$page.url.pathname.match(/\/settings\/profile/) ? "fill" : "thin"}
-        />
+        <Gear size="2.75rem" weight={f7route.path.match(/\/settings\/profile/) ? "fill" : "thin"} />
         Settings
     </a>
 </div>

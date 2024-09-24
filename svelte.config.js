@@ -1,15 +1,10 @@
-// Tauri doesn't have a Node.js server to do proper SSR
-// so we will use adapter-static to prerender the app (SSG)
-// See: https://v2.tauri.app/start/frontend/sveltekit/ for more info
-import adapter from "@sveltejs/adapter-static";
 import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";
 
-/** @type {import('@sveltejs/kit').Config} */
-const config = {
+export default {
+    // Consult https://svelte.dev/docs#compile-time-svelte-preprocess
+    // for more information about preprocessors
     preprocess: vitePreprocess(),
-    kit: {
-        adapter: adapter(),
+    compatibility: {
+        componentApi: true,
     },
 };
-
-export default config;
