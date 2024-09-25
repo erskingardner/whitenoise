@@ -11,8 +11,14 @@ const routes = [
         component: Chats,
     },
     {
-        path: "/chats/:id/",
+        path: "/chats/:pubkey/",
         asyncComponent: () => import("../pages/Messages.svelte"),
+    },
+    {
+        path: "/contacts/",
+        popup: {
+            asyncComponent: () => import("../pages/Contacts.svelte"),
+        },
     },
     {
         path: "/calls/",

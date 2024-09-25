@@ -1,7 +1,7 @@
 import Framework7, { utils, getDevice } from "framework7/lite";
 
 // import Dialog from "framework7/components/dialog";
-// import Popup from "framework7/components/popup";
+import Popup from "framework7/components/popup";
 import LoginScreen from "framework7/components/login-screen";
 // import Popover from "framework7/components/popover";
 // import Actions from "framework7/components/actions";
@@ -12,9 +12,9 @@ import LoginScreen from "framework7/components/login-screen";
 // import Sortable from "framework7/components/sortable";
 import Swipeout from "framework7/components/swipeout";
 // import Accordion from "framework7/components/accordion";
-// import ContactsList from "framework7/components/contacts-list";
+import ContactsList from "framework7/components/contacts-list";
 // import VirtualList from "framework7/components/virtual-list";
-// import ListIndex from "framework7/components/list-index";
+import ListIndex from "framework7/components/list-index";
 // import Timeline from "framework7/components/timeline";
 import Tabs from "framework7/components/tabs";
 import Panel from "framework7/components/panel";
@@ -35,14 +35,14 @@ import Input from "framework7/components/input";
 // import PullToRefresh from "framework7/components/pull-to-refresh";
 // import DataTable from "framework7/components/data-table";
 // import Fab from "framework7/components/fab";
-// import Searchbar from "framework7/components/searchbar";
+import Searchbar from "framework7/components/searchbar";
 import Messages from "framework7/components/messages";
-// import Messagebar from "framework7/components/messagebar";
+import Messagebar from "framework7/components/messagebar";
 // import Swiper from "framework7/components/swiper";
 // import PhotoBrowser from "framework7/components/photo-browser";
 // import Notification from "framework7/components/notification";
 // import Autocomplete from "framework7/components/autocomplete";
-// import Tooltip from "framework7/components/tooltip";
+import Tooltip from "framework7/components/tooltip";
 // import Gauge from "framework7/components/gauge";
 // import Skeleton from "framework7/components/skeleton";
 // import ColorPicker from "framework7/components/color-picker";
@@ -55,7 +55,7 @@ import Messages from "framework7/components/messages";
 
 Framework7.use([
     // Dialog,
-    // Popup,
+    Popup,
     LoginScreen,
     // Popover,
     // Actions,
@@ -66,9 +66,9 @@ Framework7.use([
     // Sortable,
     Swipeout,
     // Accordion,
-    // ContactsList,
+    ContactsList,
     // VirtualList,
-    // ListIndex,
+    ListIndex,
     // Timeline,
     Tabs,
     Panel,
@@ -89,14 +89,14 @@ Framework7.use([
     // PullToRefresh,
     // DataTable,
     // Fab,
-    // Searchbar,
+    Searchbar,
     Messages,
-    // Messagebar,
+    Messagebar,
     // Swiper,
     // PhotoBrowser,
     // Notification,
     // Autocomplete,
-    // Tooltip,
+    Tooltip,
     // Skeleton,
     // ColorPicker,
     // Treeview,

@@ -14,7 +14,7 @@
     import { invoke } from "@tauri-apps/api/core";
     import { currentIdentity } from "../stores/accounts";
     import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-    import type { NChat } from "../types/nostr";
+    import type { NChat, NMetadata } from "../types/nostr";
     import { nameFromMetadata } from "../utils/nostr";
     import { formatMessageTime } from "../utils/time";
     import Avatar from "../components/Avatar.svelte";
@@ -25,6 +25,8 @@
     let chats: NChat = $state({});
 
     let unlisten: UnlistenFn;
+
+    let { f7router } = $props();
 
     async function getLegacyChats(): Promise<void> {
         isLoading = true;
@@ -44,7 +46,6 @@
                 .sort(([, a], [, b]) => b.latest - a.latest)
                 .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
             chats = sortedChats;
-            console.log("chats", chats);
         } catch (error) {
             console.error("Error fetching contacts:", error);
         } finally {
@@ -64,12 +65,26 @@
     function swipeoutArchive() {
         f7.dialog.alert("Archive");
     }
-    function onUserSelect(pubkey: string) {
-        setTimeout(() => {
-            console.log("start new chat with", pubkey);
-            // f7router.navigate(`/chats/${pubkey}/`);
-        }, 300);
-    }
+    const onContactSelect = (pubkey: string, metadata: NMetadata) => {
+        console.log("start new chat with", pubkey);
+        if (chats[pubkey]) {
+            setTimeout(() => {
+                f7router.navigate(`/chats/${pubkey}/`, {
+                    props: {
+                        chat: chats[pubkey],
+                    },
+                });
+            }, 300);
+        } else {
+            setTimeout(() => {
+                f7router.navigate(`/chats/${pubkey}/`, {
+                    props: {
+                        chat: { latest: undefined, metadata: metadata, events: [] },
+                    },
+                });
+            }, 300);
+        }
+    };
 </script>
 
 <Page
@@ -102,6 +117,7 @@
                 href="/contacts/"
                 routeProps={{
                     modalTitle: "New Chat",
+                    onContactSelect,
                 }}
                 class="top-2"
             />
@@ -130,14 +146,13 @@
                     ? 'bg-gray-800'
                     : ''} transition-colors duration-200"
                 routeProps={{
-                    pubkey,
-                    chats,
+                    chat,
                 }}
             >
                 <Avatar slot="media" picture={chat.metadata.picture} {pubkey} pxSize={48} />
                 <span slot="text" class="flex flex-row items-center gap-2">
                     {#if chat.events[chat.events.length - 1].pubkey === $currentIdentity}
-                        <Checks class="text-green-500" />
+                        <Checks class="text-green-500 w-4 h-4 shrink-0" />
                     {/if}
                     {chat.events[chat.events.length - 1].content}
                 </span>
