@@ -10,61 +10,68 @@
         Popup,
         Searchbar,
         Subnavbar,
-        ListIndex,
-        Icon,
-        f7ready,
     } from "framework7-svelte";
-    import type { NUsers } from "../types/nostr";
-    import { invoke } from "@tauri-apps/api/core";
+    import { isValidHexPubkey } from "../types/nostr";
     import { UsersThree, User } from "phosphor-svelte";
     import { npubFromPubkey } from "../utils/nostr";
     import Avatar from "../components/Avatar.svelte";
     import Loader from "../components/Loader.svelte";
+    import ndk from "../stores/ndk";
+    import type { NDKUser, NDKUserProfile } from "@nostr-dev-kit/ndk";
 
-    let { modalTitle = "Contacts", onContactSelect } = $props();
-
-    let contacts: NUsers = $state({});
-    let isLoading = $state(true);
-
-    async function getContacts(): Promise<void> {
-        isLoading = true;
-        contacts = {};
-        try {
-            contacts = await invoke("get_contacts");
-        } catch (error) {
-            console.error("Error fetching contacts:", error);
-        } finally {
-            isLoading = false;
-        }
+    interface Props {
+        modalTitle?: string;
+        onContactSelect: (pubkey: string, profile: NDKUserProfile | undefined) => void;
     }
 
-    $inspect(contacts);
+    let { modalTitle = "Contacts", onContactSelect }: Props = $props();
 
-    f7ready(async () => {
-        await getContacts();
+    let isLoading = $state(true);
+    let contacts: NDKUser[] = $state([]);
+
+    $effect(() => {
+        if ($ndk.activeUser) {
+            $ndk.activeUser
+                .follows()
+                .then(async (follows) => {
+                    isLoading = true;
+                    const cleanedContacts = Array.from(follows).filter((follow) =>
+                        isValidHexPubkey(follow.pubkey)
+                    );
+                    await Promise.all(
+                        cleanedContacts.map((follow: NDKUser) => {
+                            follow.fetchProfile();
+                        })
+                    );
+                    contacts = cleanedContacts;
+                })
+                .catch((error) => {
+                    console.error("Error fetching NDK contacts:", error);
+                })
+                .finally(() => {
+                    console.log("Contacts loaded");
+                    isLoading = false;
+                });
+        }
     });
 
-    // Transform and sort contacts object into an array
-    let sortedContacts = $derived(
-        Object.entries(contacts)
-            .map(([pubkey, userData]) => ({
-                pubkey,
-                ...userData,
-                ...userData.metadata,
-            }))
-            .sort((a, b) => {
-                const nameA = (a.name || a.display_name || "").toLowerCase();
-                const nameB = (b.name || b.display_name || "").toLowerCase();
-                return nameA.localeCompare(nameB);
-            })
-    );
+    let sortedContacts = $derived(getSortedContacts(contacts));
+    let groups = $derived(getGroups(sortedContacts));
 
-    function getGroups() {
-        const groupedContacts: { [key: string]: typeof sortedContacts } = {};
+    function getSortedContacts(contacts: NDKUser[]): NDKUser[] {
+        return contacts.sort((a, b) => {
+            const nameA = (a.profile?.displayName || a.profile?.name || "").toLowerCase();
+            const nameB = (b.profile?.displayName || b.profile?.name || "").toLowerCase();
+            return nameA.localeCompare(nameB);
+        });
+    }
+
+    function getGroups(sortedContacts: NDKUser[]): { [key: string]: NDKUser[] } {
+        const groupedContacts: { [key: string]: NDKUser[] } = {};
 
         sortedContacts.forEach((contact) => {
-            const name = contact.name || contact.display_name || "";
-            const key = name ? name[0].toUpperCase() : "-";
+            const name = contact.profile?.name || contact.profile?.displayName || "";
+            const key = name ? name[0].toUpperCase() : "#";
 
             if (!groupedContacts[key]) {
                 groupedContacts[key] = [];
@@ -72,11 +79,11 @@
             groupedContacts[key].push(contact);
         });
 
-        // Sort the keys alphabetically, but ensure '-' is at the end if it exists
+        // Sort the keys alphabetically, but ensure '#' is at the end if it exists
         return Object.keys(groupedContacts)
             .sort((a, b) => {
-                if (a === "-") return 1;
-                if (b === "-") return -1;
+                if (a === "#") return 1;
+                if (b === "#") return -1;
                 return a.localeCompare(b);
             })
             .reduce(
@@ -84,15 +91,11 @@
                     acc[key] = groupedContacts[key];
                     return acc;
                 },
-                {} as { [key: string]: typeof sortedContacts }
+                {} as { [key: string]: NDKUser[] }
             );
     }
 
-    // Group sorted contacts by first letter of name
-    let groups = $derived(getGroups());
-
     // Create a link in the empty sidebar to do a NIP-50 and primal cache search
-    // This method will handle that
     async function submitContactsSearch(event: KeyboardEvent | MouseEvent) {
         // TODO: implement contacts search
         if (event instanceof KeyboardEvent) {
@@ -121,11 +124,6 @@
                     <Loader fullscreen={false} size={32} />
                 </div>
             {:else}
-                <ListIndex
-                    indexes={Object.keys(groups)}
-                    listEl=".contacts-list"
-                    class="bg-transparent"
-                />
                 <List
                     contactsList
                     noChevron
@@ -142,25 +140,22 @@
                         <span slot="title" class="text-color-primary"> New Contact </span>
                     </ListItem>
 
-                    {#each Object.keys(groups) as groupKey}
-                        <ListGroup key={groupKey}>
+                    {#each Object.entries(groups) as [groupKey, contacts]}
+                        <ListGroup>
                             <ListItem groupTitle title={groupKey} class="p-0 w-full" />
-                            {#each groups[groupKey] as contact (contact.pubkey)}
+                            {#each contacts as contact (contact.pubkey)}
                                 <ListItem
                                     link
-                                    title={contact.display_name ||
-                                        contact.name ||
+                                    title={contact.profile?.displayName ||
+                                        contact.profile?.name ||
                                         npubFromPubkey(contact.pubkey)}
                                     popupClose
                                     on:click={() =>
-                                        onContactSelect(
-                                            contact.pubkey,
-                                            contacts[contact.pubkey].metadata
-                                        )}
+                                        onContactSelect(contact.pubkey, contact.profile)}
                                 >
                                     <Avatar
                                         slot="media"
-                                        picture={contact.picture}
+                                        picture={contact.profile?.image}
                                         pubkey={contact.pubkey}
                                     />
                                 </ListItem>

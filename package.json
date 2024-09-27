@@ -29,20 +29,20 @@
     "@tailwindcss/forms": "^0.5.9",
     "@tauri-apps/cli": "2.0.0-rc.16",
     "@tsconfig/svelte": "^5.0.4",
-    "@types/node": "^22.5.5",
+    "@types/node": "^22.7.3",
     "autoprefixer": "^10.4.20",
     "less": "^4.2.0",
     "nostr-tools": "2.7.2",
     "phosphor-svelte": "^2.0.1",
     "postcss": "^8.4.47",
     "prettier": "^3.3.3",
-    "prettier-plugin-svelte": "^3.2.6",
+    "prettier-plugin-svelte": "^3.2.7",
     "rollup-plugin-visualizer": "^5.12.0",
     "svelte": "5.0.0-next.257",
-    "svelte-check": "^4.0.2",
-    "tailwindcss": "^3.4.12",
+    "svelte-check": "^4.0.3",
+    "tailwindcss": "^3.4.13",
     "tslib": "^2.7.0",
     "typescript": "^5.6.2",
-    "vite": "^5.4.7"
+    "vite": "^5.4.8"
   }
 }

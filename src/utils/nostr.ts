@@ -1,5 +1,5 @@
 import { npubEncode } from "nostr-tools/nip19";
-import type { NMetadata } from "../types/nostr";
+import type { NMetadata, NEvent } from "../types/nostr";
 
 /**
  * Retrieves the display name from the given NMetadata object.
@@ -31,4 +31,21 @@ export function npubFromPubkey(pubkey: string): string {
  */
 export function truncatedNpub(pubkey: string, length: number = 20): string {
     return npubFromPubkey(pubkey).slice(0, length);
+}
+
+/**
+ * Checks if a Nostr event is considered insecure from a messaging standpoint.
+ *
+ * @param event - The Nostr event to check.
+ * @returns True if the event is considered insecure, false otherwise.
+ *
+ * @remarks
+ * This function considers events with kinds 4 and 14 as insecure.
+ * Kind 4 typically represents encrypted direct messages, which leak metadata.
+ * kind 14 is often used for encrypted and gift-wrapped direct messages, which have no
+ * PCS or forward secrecy.
+ */
+export function isInsecure(event: NEvent): boolean {
+    const insecureKinds = [4, 14];
+    return insecureKinds.includes(event.kind);
 }

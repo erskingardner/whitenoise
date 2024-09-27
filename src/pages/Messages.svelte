@@ -7,7 +7,7 @@
     import { formatMessageTime } from "../utils/time";
     import { Warning } from "phosphor-svelte";
     import { invoke } from "@tauri-apps/api/core";
-    import { nameFromMetadata } from "../utils/nostr";
+    import { nameFromMetadata, isInsecure } from "../utils/nostr";
 
     type Chat = {
         latest: number | undefined;
@@ -16,7 +16,6 @@
     };
 
     let { pubkey, chat }: { pubkey: string; chat: Chat } = $props();
-    console.log("chat", chat);
 
     let messageText = $state("");
 
@@ -63,6 +62,14 @@
         const nextMessage = chat.events[messageIndex + 1];
         return !nextMessage || messageTypeForEvent(nextMessage) !== messageTypeForEvent(event);
     };
+
+    // TODO: Add method for creating a new 104 chat
+    // 1. Create group using current user details
+    // 2. Fetch and parse prekey of other user - display error if there isn't a prekey
+    // 3. Create group, invite the other party, send welcome message
+    //      - This group needs to be saved to the database
+    //      - We need to have a method for fetching groups from database/backend
+    // 4. Create chat in the UI, move the view to that chat.
 </script>
 
 <Page class="messages-page bg-gray-900" noToolbar messagesContent {onPageInit} {onPageBeforeRemove}>
@@ -78,6 +85,7 @@
                 <div class="subtitle">online</div>
             </div>
         </Link>
+        <!-- TODO: Add button to create 104 chat -->
     </Navbar>
 
     <Messagebar
@@ -86,7 +94,7 @@
         textareaId="messageTextarea"
         resizable={false}
     >
-        <a href="/" class="link icon-only -top-2" slot="inner-end" onclick={sendMessage}>
+        <a href="/" class="link icon-only" slot="inner-end" onclick={sendMessage}>
             <Icon ios="f7:arrow_up_circle_fill" md="material:send" size={36} />
         </a>
     </Messagebar>
@@ -127,26 +135,4 @@
             </Message>
         {/each}
     </Messages>
-
-    <!-- <Messagebar
-        placeholder="Type a message&hellip;"
-        resizable={false}
-        textareaId="messageTextarea"
-        bind:value={messageText}
-        class="sticky bottom-0 w-full gap-2 p-4"
-    >
-        <button
-            slot="inner-end"
-            class="rounded-full bg-transparent ring-1 ring-gray-700 flex flex-row items-center justify-center w-10 h-10 hover:bg-gray-700 hover:text-white ml-4"
-            onclick={() => console.log("send")}
-        >
-            <PaperPlaneTilt
-                weight="fill"
-                size={24}
-                class="text-gray-400 p-0 m-0 hover:text-white"
-            />
-        </button>
-    </Messagebar> -->
-
-    <!-- <RespondPanel {pubkey} /> -->
 </Page>

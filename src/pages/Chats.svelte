@@ -18,7 +18,7 @@
     import { nameFromMetadata } from "../utils/nostr";
     import { formatMessageTime } from "../utils/time";
     import Avatar from "../components/Avatar.svelte";
-    import { Checks } from "phosphor-svelte";
+    import { Checks, LockKey, Warning } from "phosphor-svelte";
 
     let isLoading = $state(true);
     let selectedChat: string | undefined = $state(undefined);
@@ -85,18 +85,28 @@
             }, 300);
         }
     };
+
+    let warningTooltip: any;
 </script>
 
 <Page
     class="chats-page bg-gray-900"
     on:pageAfterIn={async () => {
+        warningTooltip = f7.tooltip.create({
+            targetEl: ".warning-tooltip",
+            text: "This is a NIP-04 encrypted message.<br /><em>All metadata is publicly visible.</em>",
+        });
+        console.log("pageAfterIn");
         await getLegacyChats();
         unlisten = await listen<string>("identity_change", (_event) => getLegacyChats());
     }}
     on:pageReinit={async () => {
+        console.log("reinit");
         await getLegacyChats();
     }}
     on:pageBeforeRemove={() => {
+        console.log("pageBeforeRemove");
+        if (warningTooltip) f7.tooltip.destroy(warningTooltip);
         unlisten();
     }}
 >
@@ -119,7 +129,6 @@
                     modalTitle: "New Chat",
                     onContactSelect,
                 }}
-                class="top-2"
             />
         </Navbar>
     {:else}
@@ -131,7 +140,6 @@
                 routeProps={{
                     modalTitle: "New Chat",
                 }}
-                class="top-2"
             />
         </Navbar>
     {/if}
@@ -139,8 +147,6 @@
         {#each Object.entries(chats) as [pubkey, chat] (pubkey)}
             <ListItem
                 link="/chats/{pubkey}/"
-                title={nameFromMetadata(chat.metadata, pubkey)}
-                after={formatMessageTime(chat.latest)}
                 swipeout
                 class="hover:bg-gray-800 {selectedChat === pubkey
                     ? 'bg-gray-800'
@@ -150,12 +156,34 @@
                 }}
             >
                 <Avatar slot="media" picture={chat.metadata.picture} {pubkey} pxSize={48} />
-                <span slot="text" class="flex flex-row items-center gap-2">
-                    {#if chat.events[chat.events.length - 1].pubkey === $currentIdentity}
-                        <Checks class="text-green-500 w-4 h-4 shrink-0" />
-                    {/if}
-                    {chat.events[chat.events.length - 1].content}
-                </span>
+                <div slot="title" class="flex flex-col items-start justify-start gap-0">
+                    <span class="">{nameFromMetadata(chat.metadata, pubkey)}</span>
+                    <span
+                        class="text-gray-400 font-normal text-base flex flex-row items-center gap-2"
+                    >
+                        {#if chat.events[chat.events.length - 1].pubkey === $currentIdentity}
+                            <Checks class="text-green-500 w-4 h-4 shrink-0" />
+                        {/if}
+                        {chat.events[chat.events.length - 1].content}
+                    </span>
+                </div>
+                <span slot="text" class=""> </span>
+                <div slot="after" class="flex flex-col items-end justify-start gap-0">
+                    <span>{formatMessageTime(chat.latest)}</span>
+                    <span class="z-50">
+                        {#if [4, 14].includes(chat.events[0].kind)}
+                            <Warning
+                                weight="fill"
+                                size={18}
+                                class="warning-tooltip {chat.events[0].kind === 4
+                                    ? 'text-red-500'
+                                    : 'text-yellow-400'}"
+                            />
+                        {:else}
+                            <LockKey weight="fill" size={18} class="text-green-500" />
+                        {/if}
+                    </span>
+                </div>
                 <SwipeoutActions left>
                     <SwipeoutButton close overswipe color="blue" onClick={swipeoutUnread}>
                         <Icon f7="chat_bubble_fill" />

@@ -1,5 +1,6 @@
 use anyhow::Result;
 use nostr_group_data::NostrGroupData;
+use nostr_sdk::prelude::*;
 use openmls::prelude::*;
 
 pub fn create_group(

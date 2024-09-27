@@ -1,6 +1,7 @@
 import { writable, get } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
 import type { NUsers } from "../types/nostr";
+import { ndkStore } from "../stores/ndk";
 
 export type Accounts = {
     accounts: NUsers;
@@ -127,4 +128,8 @@ export async function login(nsecOrHex: string): Promise<void> {
 function updateIdentities(accounts: Accounts): void {
     identities.set(accounts.accounts || {});
     currentIdentity.set(accounts.current_identity || "");
+
+    if (currentIdentity) {
+        ndkStore.activeUser = ndkStore.getUser({ pubkey: accounts.current_identity });
+    }
 }
