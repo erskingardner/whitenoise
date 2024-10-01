@@ -1,3 +1,5 @@
+import type { NDKUserProfile } from "@nostr-dev-kit/ndk";
+
 // These are types that map to the rust-nostr types from the rust backend
 export type HexPubkey = string & { readonly __brand: unique symbol };
 
@@ -11,13 +13,15 @@ export function isValidNpub(value: string): value is Npub {
     return /^npub1[a-zA-Z0-9]{59}$/.test(value);
 }
 
+export type EnrichedContact = {
+    metadata: NMetadata;
+    nip17: boolean;
+    nip104: boolean;
+    inbox_relays: string[];
+};
+
 export type NUsers = {
-    [keys: string]: {
-        metadata: NMetadata;
-        nip17: boolean;
-        nip104: boolean;
-        inbox_relays: string[];
-    };
+    [keys: string]: EnrichedContact;
 };
 
 export type NMetadata = {

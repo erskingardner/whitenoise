@@ -19,6 +19,7 @@
     import { formatMessageTime } from "../utils/time";
     import Avatar from "../components/Avatar.svelte";
     import { Checks, LockKey, Warning } from "phosphor-svelte";
+    import type { Router as F7Router } from "framework7/types";
 
     let isLoading = $state(true);
     let selectedChat: string | undefined = $state(undefined);
@@ -26,7 +27,7 @@
 
     let unlisten: UnlistenFn;
 
-    let { f7router } = $props();
+    let { f7router }: { f7router: F7Router.Router } = $props();
 
     async function getLegacyChats(): Promise<void> {
         isLoading = true;
@@ -66,7 +67,6 @@
         f7.dialog.alert("Archive");
     }
     const onContactSelect = (pubkey: string, metadata: NMetadata) => {
-        console.log("start new chat with", pubkey);
         if (chats[pubkey]) {
             setTimeout(() => {
                 f7router.navigate(`/chats/${pubkey}/`, {
@@ -96,7 +96,6 @@
             targetEl: ".warning-tooltip",
             text: "This is a NIP-04 encrypted message.<br /><em>All metadata is publicly visible.</em>",
         });
-        console.log("pageAfterIn");
         await getLegacyChats();
         unlisten = await listen<string>("identity_change", (_event) => getLegacyChats());
     }}

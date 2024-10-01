@@ -1,6 +1,6 @@
 <script lang="ts">
     import { Page, Navbar, Link, f7, BlockTitle, List, ListItem, Button } from "framework7-svelte";
-    import { Binoculars, Key, Skull, Users, SignIn, PlusCircle } from "phosphor-svelte";
+    import { Binoculars, Key, Skull, Users, SignIn, PlusCircle, Trash } from "phosphor-svelte";
     import Avatar from "../components/Avatar.svelte";
     import {
         identities,
@@ -14,7 +14,6 @@
     import { nameFromMetadata, npubFromPubkey } from "../utils/nostr";
     import ndk from "../stores/ndk";
     import type { NDKEvent } from "@nostr-dev-kit/ndk";
-    import { MLSCiphersuites } from "../types/mls";
 
     let keyPackages: unknown[] = $state([]);
     let showAccounts = $state(false);
@@ -43,6 +42,7 @@
         );
     }
 
+    // Fetch key packages from Nostr and parse them
     async function fetchKeyPackages(): Promise<void> {
         const keyPackageEvents = await $ndk.fetchEvents({
             kinds: [443 as number],
@@ -54,6 +54,20 @@
             const keyPackage = await invoke("parse_key_package", { keyPackageHex: event.content });
             keyPackages.push(keyPackage);
         });
+    }
+
+    // Publish delete requests for all key package events on relays
+    async function deleteKeyPackages() {
+        await invoke("delete_key_packages")
+            .then(() => (keyPackages = []))
+            .catch((error) => {
+                f7.toast.create({
+                    text: error.message,
+                    closeTimeout: 2500,
+                    position: "top",
+                });
+                console.error(error);
+            });
     }
 </script>
 
@@ -87,7 +101,7 @@
         {/each}
     </List>
 
-    <Button onClick={() => (showLogin = !showLogin)} class="flex md:w-1/2 md:mx-auto"
+    <Button tonal on:click={() => (showLogin = !showLogin)} class="flex md:w-1/2 md:mx-auto"
         >Login or create new account</Button
     >
     {#if showLogin}
@@ -148,6 +162,9 @@
         </ListItem>
         <ListItem link title="Publish Prekey Event" onClick={generateAndPublishKeyPackage}>
             <Key slot="media" size={24} />
+        </ListItem>
+        <ListItem link title="Delete all Prekey Events" onClick={deleteKeyPackages}>
+            <Trash slot="media" size={24} />
         </ListItem>
     </List>
 

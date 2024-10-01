@@ -6,7 +6,7 @@ import LoginScreen from "framework7/components/login-screen";
 // import Popover from "framework7/components/popover";
 // import Actions from "framework7/components/actions";
 // import Sheet from "framework7/components/sheet";
-// import Toast from "framework7/components/toast";
+import Toast from "framework7/components/toast";
 // import Preloader from "framework7/components/preloader";
 // import Progressbar from "framework7/components/progressbar";
 // import Sortable from "framework7/components/sortable";
@@ -60,7 +60,7 @@ Framework7.use([
     // Popover,
     // Actions,
     // Sheet,
-    // Toast,
+    Toast,
     // Preloader,
     // Progressbar,
     // Sortable,

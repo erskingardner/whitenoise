@@ -10,11 +10,11 @@
 		0CE144C06BDDA26AC5E1619A /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = C26FD33373FE1956CAAA228E /* LaunchScreen.storyboard */; };
 		31A25D0B14D6A409D2210CED /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6E34C725FF7514A5529CCF31 /* MetalKit.framework */; };
 		454D466D966B73EB3CA3421B /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 796CB328C116FCF5532FA59E /* QuartzCore.framework */; };
-		53D3C1C652B9DE61574A0A66 /* libwhitenoise_lib.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 9898EA5F59393386AE8261B0 /* libwhitenoise_lib.a */; };
 		5FBF8B61A5F107A152292EA7 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B90A97802C6C3ED4E7D708DD /* CoreGraphics.framework */; };
 		6039EDCB89CD57CBBFEDC49A /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C155538E3225C5CF6581437 /* Metal.framework */; };
 		746F926B07F60B6C8A7A5F6A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DE61E10042B039181A054D94 /* Assets.xcassets */; };
 		84B5EAA84B5F91CAC44ADC0E /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AC07A55688DF191EF3097F24 /* Security.framework */; };
+		93F6EAF7F68C2CE88FF2C553 /* libapp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3042DB441B5678F3F7D1FCB0 /* libapp.a */; };
 		A9CC8D38E262067148C82983 /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = 3AA0B921FAD54ABD891D33E4 /* main.mm */; };
 		D6CD417A67917E8BE5D247A9 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = AD53EB7691CBBA4D98B03ADC /* assets */; };
 		DF4FAA406DA4F726E0805AB4 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 59599F9EA2F93942C2A112E2 /* WebKit.framework */; };
@@ -25,6 +25,7 @@
 		0F3C29C0EE901608F7788C61 /* accounts.rs */ = {isa = PBXFileReference; path = accounts.rs; sourceTree = "<group>"; };
 		2A657F933170E5C3A40A0827 /* image_cache.rs */ = {isa = PBXFileReference; path = image_cache.rs; sourceTree = "<group>"; };
 		2C1D8ADC6FF896BB7D84AF1E /* nostr_group_data.rs */ = {isa = PBXFileReference; path = nostr_group_data.rs; sourceTree = "<group>"; };
+		3042DB441B5678F3F7D1FCB0 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
 		3AA0B921FAD54ABD891D33E4 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
 		46ADA3EE74D6B4812DC798FF /* groups.rs */ = {isa = PBXFileReference; path = groups.rs; sourceTree = "<group>"; };
 		4C155538E3225C5CF6581437 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
@@ -34,7 +35,6 @@
 		6E34C725FF7514A5529CCF31 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
 		796CB328C116FCF5532FA59E /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
 		86A0D82C2BF1FCD7943B885A /* database.rs */ = {isa = PBXFileReference; path = database.rs; sourceTree = "<group>"; };
-		9898EA5F59393386AE8261B0 /* libwhitenoise_lib.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libwhitenoise_lib.a; sourceTree = "<group>"; };
 		A221768B33430349B755EB68 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
 		A727AB6D416B7750DB7A4CFF /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		AA10FE581C70E936618D3981 /* whitenoise_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = whitenoise_iOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -58,7 +58,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				53D3C1C652B9DE61574A0A66 /* libwhitenoise_lib.a in Frameworks */,
+				93F6EAF7F68C2CE88FF2C553 /* libapp.a in Frameworks */,
 				5FBF8B61A5F107A152292EA7 /* CoreGraphics.framework in Frameworks */,
 				6039EDCB89CD57CBBFEDC49A /* Metal.framework in Frameworks */,
 				31A25D0B14D6A409D2210CED /* MetalKit.framework in Frameworks */,
@@ -115,7 +115,7 @@
 			isa = PBXGroup;
 			children = (
 				B90A97802C6C3ED4E7D708DD /* CoreGraphics.framework */,
-				9898EA5F59393386AE8261B0 /* libwhitenoise_lib.a */,
+				3042DB441B5678F3F7D1FCB0 /* libapp.a */,
 				4C155538E3225C5CF6581437 /* Metal.framework */,
 				6E34C725FF7514A5529CCF31 /* MetalKit.framework */,
 				796CB328C116FCF5532FA59E /* QuartzCore.framework */,
@@ -178,27 +178,6 @@
 				AA10FE581C70E936618D3981 /* whitenoise_iOS.app */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		"TEMP_63A948D1-7746-49C2-B3E4-DA2B63526A99" /* arm64 */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = arm64;
-			sourceTree = "<group>";
-		};
-		"TEMP_C444300F-4297-4C2E-9237-56E1E97CC10D" /* arm64-sim */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = "arm64-sim";
-			sourceTree = "<group>";
-		};
-		"TEMP_E1B9D4CD-02BF-4123-8A71-B811DF5AEAF8" /* x86_64 */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = x86_64;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -278,9 +257,9 @@
 			outputFileListPaths = (
 			);
 			outputPaths = (
-				"$(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libwhitenoise_lib.a",
-				"$(SRCROOT)/Externals/arm64/${CONFIGURATION}/libwhitenoise_lib.a",
-				"$(SRCROOT)/Externals/arm64-sim/${CONFIGURATION}/libwhitenoise_lib.a",
+				"$(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a",
+				"$(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a",
+				"$(SRCROOT)/Externals/arm64-sim/${CONFIGURATION}/libapp.a",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -390,7 +369,7 @@
 				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
 				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
 				PRODUCT_BUNDLE_IDENTIFIER = chat.whitenoise.dev;
-				PRODUCT_NAME = whitenoise;
+				PRODUCT_NAME = "White Noise";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALID_ARCHS = "arm64  arm64-sim";
@@ -425,7 +404,7 @@
 				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
 				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
 				PRODUCT_BUNDLE_IDENTIFIER = chat.whitenoise.dev;
-				PRODUCT_NAME = whitenoise;
+				PRODUCT_NAME = "White Noise";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALID_ARCHS = "arm64  arm64-sim";

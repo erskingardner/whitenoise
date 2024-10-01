@@ -33,7 +33,76 @@ pub struct EnrichedContact {
     pub inbox_relays: Vec<String>,
 }
 
+pub fn is_valid_hex_pubkey(pubkey: &str) -> bool {
+    pubkey.len() == 64 && pubkey.chars().all(|c| c.is_ascii_hexdigit())
+}
+
 // --- Commands ---
+
+#[tauri::command]
+pub async fn get_contact(
+    pubkey: String,
+    wn: State<'_, Whitenoise>,
+) -> Result<EnrichedContact, String> {
+    let public_key = PublicKey::from_hex(&pubkey).unwrap();
+    let metadata = wn
+        .nostr
+        .metadata(public_key)
+        .await
+        .unwrap_or(Metadata::default());
+
+    let mut enriched_contact = EnrichedContact {
+        metadata,
+        nip17: false,
+        nip104: false,
+        inbox_relays: Vec::new(),
+    };
+
+    // Prepare filters for messaging capabilities
+    let dm_relay_list_filter = Filter::new().kind(Kind::Custom(10050)).author(public_key);
+    let prekey_filter = Filter::new().kind(Kind::Custom(443)).author(public_key);
+
+    // Fetch messaging capabilities for all contacts in a single query
+    let messaging_capabilities_events = wn
+        .nostr
+        .get_events_of(
+            vec![dm_relay_list_filter, prekey_filter],
+            EventSource::Both {
+                timeout: Some(DEFAULT_TIMEOUT),
+                specific_relays: None,
+            },
+        )
+        .await
+        .expect("Failed to fetch messaging capabilities");
+
+    // Process messaging capabilities
+    for event in &messaging_capabilities_events {
+        match event.kind() {
+            Kind::Replaceable(10050) => {
+                enriched_contact.nip17 = true;
+                enriched_contact.inbox_relays.extend(
+                    event
+                        .tags
+                        .iter()
+                        .filter(|tag| tag.kind() == TagKind::Relay)
+                        .filter_map(|tag| tag.content())
+                        .map(|s| s.to_string()),
+                );
+            }
+            Kind::Custom(443) => {
+                if event
+                    .get_tag_content(TagKind::Custom("mls_protocol_version".into()))
+                    .is_some()
+                {
+                    enriched_contact.nip104 = true;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Ok(enriched_contact)
+}
 
 #[tauri::command]
 pub async fn get_contacts(
@@ -174,7 +243,6 @@ pub async fn get_legacy_chats(
     let signer_pubkey = signer.public_key().await.unwrap();
 
     for event in events {
-        debug!("event: {:?}", event);
         let (other_party_pubkey, decrypt_pubkey) = if event.author() == signer_pubkey {
             let other_pubkey = PublicKey::parse(
                 event
@@ -401,4 +469,44 @@ pub async fn fetch_dev_events(wn: State<'_, Whitenoise>) -> Result<HashMap<Strin
     events_map.insert("database_chats".to_string(), database_chats.len());
 
     Ok(events_map) // Return the events_map wrapped in Ok
+}
+
+#[tauri::command]
+pub async fn decrypt_content(
+    content: String,
+    pubkey: String,
+    wn: State<'_, Whitenoise>,
+) -> Result<String, String> {
+    let author_pubkey = PublicKey::from_hex(&pubkey).unwrap();
+    let signer = wn.nostr.signer().await.unwrap();
+    let decrypted = signer.nip04_decrypt(author_pubkey, content).await.unwrap();
+    Ok(decrypted)
+}
+
+#[tauri::command]
+pub async fn delete_key_packages(wn: State<'_, Whitenoise>) -> Result<(), String> {
+    let current_pubkey = wn.nostr.signer().await.unwrap().public_key().await.unwrap();
+    let filter = Filter::new().kind(Kind::Custom(443)).author(current_pubkey);
+    let event_ids: Vec<EventId> = wn
+        .nostr
+        .get_events_of(
+            vec![filter],
+            EventSource::Both {
+                timeout: Some(DEFAULT_TIMEOUT),
+                specific_relays: None,
+            },
+        )
+        .await
+        .unwrap()
+        .iter()
+        .map(|event| event.id())
+        .collect();
+
+    let delete_event = EventBuilder::delete(event_ids);
+    wn.nostr
+        .send_event_builder(delete_event)
+        .await
+        .expect("Failed to publish delete event");
+
+    Ok(())
 }

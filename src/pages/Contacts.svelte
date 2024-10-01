@@ -1,6 +1,7 @@
 <script lang="ts">
     import {
         View,
+        Views,
         Link,
         List,
         ListGroup,
@@ -11,9 +12,10 @@
         Searchbar,
         Subnavbar,
     } from "framework7-svelte";
+    import { Dom7 } from "framework7";
     import { isValidHexPubkey } from "../types/nostr";
     import { UsersThree, User } from "phosphor-svelte";
-    import { npubFromPubkey } from "../utils/nostr";
+    import { npubFromPubkey, ndkUserProfileToNMetadata } from "../utils/nostr";
     import Avatar from "../components/Avatar.svelte";
     import Loader from "../components/Loader.svelte";
     import ndk from "../stores/ndk";
@@ -27,7 +29,22 @@
     let { modalTitle = "Contacts", onContactSelect }: Props = $props();
 
     let isLoading = $state(true);
+    let activePage: "contactsList" | "createGroup" | "newContact" = $state("contactsList");
+    let previousPage: "contactsList" | "createGroup" | "newContact" = $state("contactsList");
     let contacts: NDKUser[] = $state([]);
+
+    let searchQuery = $state("");
+
+    function onLinkClick(link: "contactsList" | "createGroup" | "newContact") {
+        if (previousPage !== activePage) {
+            previousPage = activePage;
+            return;
+        }
+        if (activePage === link) {
+            Dom7(`#view-${link}`)[0].f7View.router.back();
+        }
+        previousPage = link;
+    }
 
     $effect(() => {
         if ($ndk.activeUser) {
@@ -57,6 +74,31 @@
 
     let sortedContacts = $derived(getSortedContacts(contacts));
     let groups = $derived(getGroups(sortedContacts));
+    let filteredGroups: { [key: string]: NDKUser[] } = $state({});
+
+    $effect(() => {
+        if (searchQuery.length > 0) {
+            const lowercaseQuery = searchQuery.toLowerCase();
+            const filtered: { [key: string]: NDKUser[] } = {};
+
+            for (const [key, users] of Object.entries(groups)) {
+                const filteredUsers = users.filter(
+                    (user) =>
+                        user.profile?.name?.toLowerCase().includes(lowercaseQuery) ||
+                        user.profile?.displayName?.toLowerCase().includes(lowercaseQuery) ||
+                        user.pubkey.toLowerCase().includes(lowercaseQuery)
+                );
+
+                if (filteredUsers.length > 0) {
+                    filtered[key] = filteredUsers;
+                }
+            }
+
+            filteredGroups = filtered;
+        } else {
+            filteredGroups = groups;
+        }
+    });
 
     function getSortedContacts(contacts: NDKUser[]): NDKUser[] {
         return contacts.sort((a, b) => {
@@ -108,62 +150,98 @@
 </script>
 
 <Popup push>
-    <View>
-        <Page class="contacts-page bg-gray-900">
-            <Navbar title={modalTitle}>
-                <Link slot="right" popupClose>Cancel</Link>
-                <Subnavbar>
-                    <Searchbar searchContainer=".contacts-list" disableButton={false} />
-                </Subnavbar>
-            </Navbar>
-            <List strongIos outlineIos dividersIos class="searchbar-not-found">
-                <ListItem title="Nothing found" />
-            </List>
-            {#if isLoading}
-                <div class="flex items-start justify-center bg-gray-900 h-full pt-10">
-                    <Loader fullscreen={false} size={32} />
-                </div>
-            {:else}
-                <List
-                    contactsList
-                    noChevron
-                    dividers
-                    ul={false}
-                    class="searchbar-found bg-gray-900"
-                >
-                    <ListItem link noChevron class="list-none">
-                        <UsersThree slot="media" size={40} class="text-blue-700" />
-                        <span slot="title" class="text-color-primary"> New Group </span>
-                    </ListItem>
-                    <ListItem link noChevron class="list-none">
-                        <User slot="media" size={40} class="text-blue-700" />
-                        <span slot="title" class="text-color-primary"> New Contact </span>
-                    </ListItem>
-
-                    {#each Object.entries(groups) as [groupKey, contacts]}
-                        <ListGroup>
-                            <ListItem groupTitle title={groupKey} class="p-0 w-full" />
-                            {#each contacts as contact (contact.pubkey)}
+    <Views tabs class="safe-areas">
+        <View
+            tab
+            tabActive
+            id="contacts-popup-view"
+            onTabShow={() => (activePage = "contactsList")}
+        >
+            <Page class="contacts-page bg-gray-900">
+                <Navbar title={modalTitle}>
+                    <Link slot="right" popupClose>Cancel</Link>
+                    <Subnavbar>
+                        <Searchbar
+                            searchContainer="#contacts-list"
+                            searchIn=".contact-name"
+                            disableButton={false}
+                            clearButton
+                            customSearch={true}
+                            bind:value={searchQuery}
+                        />
+                    </Subnavbar>
+                </Navbar>
+                {#if isLoading}
+                    <div class="flex items-start justify-center bg-gray-900 h-full pt-10">
+                        <Loader fullscreen={false} size={32} />
+                    </div>
+                {:else}
+                    <div class="flex flex-col gap-2">
+                        <Link
+                            href="/groups/new/"
+                            class="flex flex-row gap-2 items-center w-full justify-start px-4 py-1"
+                        >
+                            <UsersThree size={40} class="text-blue-700" />
+                            <span class="text-color-primary"> New Group </span>
+                        </Link>
+                        <Link
+                            href="/contacts/new/"
+                            class="flex flex-row gap-2 items-center w-full justify-start px-4 py-1"
+                        >
+                            <User size={40} class="text-blue-700" />
+                            <span class="text-color-primary"> New Contact </span>
+                        </Link>
+                    </div>
+                    <List strongIos outlineIos dividersIos class="searchbar-not-found">
+                        <ListItem title="Nothing found" />
+                    </List>
+                    <List
+                        contactsList
+                        noChevron
+                        dividers
+                        ul={false}
+                        class="contacts-list searchbar-found bg-gray-900"
+                        id="contacts-list"
+                    >
+                        {#each Object.entries(filteredGroups) as [groupKey, contacts]}
+                            <ListGroup>
                                 <ListItem
-                                    link
-                                    title={contact.profile?.displayName ||
-                                        contact.profile?.name ||
-                                        npubFromPubkey(contact.pubkey)}
-                                    popupClose
-                                    on:click={() =>
-                                        onContactSelect(contact.pubkey, contact.profile)}
-                                >
-                                    <Avatar
-                                        slot="media"
-                                        picture={contact.profile?.image}
-                                        pubkey={contact.pubkey}
-                                    />
-                                </ListItem>
-                            {/each}
-                        </ListGroup>
-                    {/each}
-                </List>
-            {/if}
-        </Page>
-    </View>
+                                    groupTitle
+                                    title={groupKey}
+                                    class="list-group p-0 w-full"
+                                />
+                                {#each contacts as contact (contact.pubkey)}
+                                    <ListItem
+                                        link
+                                        class="contact-name"
+                                        title={contact.profile?.displayName ||
+                                            contact.profile?.name ||
+                                            npubFromPubkey(contact.pubkey)}
+                                        popupClose
+                                        on:click={() =>
+                                            onContactSelect(
+                                                contact.pubkey,
+                                                ndkUserProfileToNMetadata(contact.profile)
+                                            )}
+                                    >
+                                        <Avatar
+                                            slot="media"
+                                            picture={contact.profile?.image}
+                                            pubkey={contact.pubkey}
+                                        />
+                                    </ListItem>
+                                {/each}
+                            </ListGroup>
+                        {/each}
+                    </List>
+                {/if}
+            </Page>
+        </View>
+        <View
+            id="view-create-group"
+            onTabShow={() => (activePage = "createGroup")}
+            tab
+            url="/groups/new/"
+        />
+    </Views>
 </Popup>

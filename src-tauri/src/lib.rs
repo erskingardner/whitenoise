@@ -10,8 +10,10 @@ mod whitenoise;
 use crate::accounts::{create_identity, get_accounts, login, logout, set_current_identity};
 use crate::database::delete_app_data;
 use crate::nostr::{
-    fetch_dev_events, get_contacts, get_legacy_chats, get_metadata_for_pubkey, send_message,
+    decrypt_content, delete_key_packages, fetch_dev_events, get_contact, get_contacts,
+    get_legacy_chats, get_metadata_for_pubkey, send_message,
 };
+use crate::nostr_mls::groups::create_group;
 use crate::nostr_mls::key_packages::{generate_and_publish_key_package, parse_key_package};
 use crate::whitenoise::Whitenoise;
 use log::debug;
@@ -58,19 +60,23 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
+            create_group,
+            create_identity,
+            decrypt_content,
             delete_app_data,
+            delete_key_packages,
+            fetch_dev_events,
+            generate_and_publish_key_package,
             get_accounts,
-            set_current_identity,
+            get_contact,
+            get_contacts,
+            get_legacy_chats,
+            get_metadata_for_pubkey,
             login,
             logout,
-            get_contacts,
-            get_metadata_for_pubkey,
-            create_identity,
-            get_legacy_chats,
-            fetch_dev_events,
-            send_message,
-            generate_and_publish_key_package,
             parse_key_package,
+            send_message,
+            set_current_identity,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
