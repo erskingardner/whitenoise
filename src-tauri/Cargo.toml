@@ -39,8 +39,8 @@ anyhow = "1.0"
 tauri-plugin-store = "2.0.0-rc"
 tokio = { version = "1.40.0", features = ["full"] }
 openmls = "0.6"
+openmls_rust_crypto = "0.3"
 openmls_basic_credential = "0.3"
-openmls_libcrux_crypto = "0.1"
 tls_codec = "0.4"
 rand = "0.8"
 

@@ -5,7 +5,7 @@
     import { LoginScreen, LoginScreenTitle, Page, Button, Input } from "framework7-svelte";
 
     let nsecOrHex: string = $state("");
-    let { showLoginScreen } = $props();
+    let { showLoginScreen }: { showLoginScreen: boolean } = $props();
 
     async function handleCreateIdentity() {
         const accounts: Accounts = await invoke("create_identity");
@@ -33,6 +33,7 @@
                         placeholder="nsec1&hellip;"
                         autocorrect="off"
                         autocapitalize="off"
+                        inputStyle="padding: 0.875rem 1rem;"
                         class="text-lg"
                     ></Input>
                     <button

@@ -5,9 +5,10 @@ use crate::nostr::is_valid_hex_pubkey;
 use crate::whitenoise::Whitenoise;
 use anyhow::anyhow;
 use anyhow::Result;
-use log::debug;
+use log::{debug, error};
 use nostr_sdk::prelude::*;
 use openmls::prelude::*;
+use openmls_rust_crypto::OpenMlsRustCrypto;
 use std::ops::Add;
 use tauri::State;
 use tls_codec::Serialize;
@@ -74,7 +75,7 @@ pub async fn create_group(
         member_key_packages.push(key_package);
     }
 
-    let provider = &openmls_libcrux_crypto::Provider::default();
+    let provider: OpenMlsRustCrypto = OpenMlsRustCrypto::default();
 
     // Create default capabilities
     let capabilities: Capabilities = Capabilities::new(
@@ -110,7 +111,7 @@ pub async fn create_group(
         .expect("Couldn't set group context extensions")
         .build();
 
-    let mut group = MlsGroup::new(provider, &signer, &group_config, credential.clone())
+    let mut group = MlsGroup::new(&provider, &signer, &group_config, credential.clone())
         .expect("Couldn't create group");
 
     // Check out group data
@@ -126,12 +127,18 @@ pub async fn create_group(
     debug!(target: "nostr_mls::groups::create_group", "Member key packages: {:?}", member_key_packages.len());
     // Add members to the group
     let (_, welcome_out, _group_info) = group
-        .add_members(provider, &signer, &member_key_packages)
-        .unwrap();
+        .add_members(&provider, &signer, member_key_packages.as_slice())
+        .map_err(|e| {
+            error!(target: "nostr_mls::groups::create_group", "Failed to add members: {:?}", e);
+            e
+        })
+        .expect("Failed to add members");
+
+    debug!(target: "nostr_mls::groups::create_group", "Added members to group");
 
     // Merge the pending commit adding the memebers
     group
-        .merge_pending_commit(provider)
+        .merge_pending_commit(&provider)
         .expect("Failed to merge pending commit");
 
     // Serialize the welcome message and send it to the members
@@ -172,12 +179,19 @@ pub async fn create_group(
         // Create a timestamp 1 month in the future
         let one_month_future = Timestamp::now().add(30 * 24 * 60 * 60);
 
+        // TODO: We'll probably want to refactor this to be async eventually.
         let wrapped_event =
-            EventBuilder::gift_wrap(&keys, &member_pubkey, welcome_rumor, Some(one_month_future));
+            EventBuilder::gift_wrap(&keys, &member_pubkey, welcome_rumor, Some(one_month_future))
+                .expect("Failed to build gift wrapped welcome message");
+
+        wn.nostr
+            .send_event_to(vec!["ws://localhost:8080"], wrapped_event)
+            .await
+            .unwrap();
 
         debug!(target: "nostr_mls::groups::create_group",
-            "Sending welcome message to {:?}: {:?}",
-            &member_pubkey, &wrapped_event
+            "Published welcome message to {:?}",
+            &member_pubkey
         );
     }
     // TODO: save group to database

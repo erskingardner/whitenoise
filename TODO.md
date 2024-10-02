@@ -27,7 +27,6 @@
   - ✅ Load contacts from Nostr
   - ✅ Ensure that changing profiles updates the contacts list
   - ✅ search should filter your contacts by name, npub, nprofile, or hex pubkey
-  - Contacts list should group contacts by chats, nostr contacts, and OS contacts
   - Allow for inviting OS contacts to download the app
   - Allow for inviting Nostr contacts to download the app via NIP-17 or NIP-04
   - search should also search all of nostr for a user by npub, nprofile, name, or hex pubkey (NIP-50 + Primal cache)
@@ -39,6 +38,7 @@
 - NIP-104 (MLS)
   ✅ Create & publish prekey events
     - Adding someone manually with prekey event in person
+  - Create 1:1 DM group using prekeys
   - Show conversations in sidebar
   - Show conversation transcripts in main panel
   - Show participants in conversation (where do we put conversation details?)
@@ -49,13 +49,13 @@
   - ✅ Fetch contacts for user
   - ✅ Fetch NIP-04 DMs for user
   - Fetch NIP-17 DMs for user
-  - Fetch Prekey events for user
+  - ✅ Fetch Prekey events for user
 - Make sure that when current identity changes, we update the UI
   - ✅ Contacts
-  - Chats
+  - ✅ Chats
   - ✅ Legacy chats
 - Mobile
-  - Need to make sure the view collapses to mobile size properly
+  - ✅ Need to make sure the view collapses to mobile size properly
 
 ## 📑 Marketing website (https://whitenoise.chat)
   - Simple, clean, no-nonsense design
@@ -72,10 +72,17 @@
 
 ## 🆘 Errors
 
-- Where we do handle errors? 
-  - We use `anyhow` to propogate the error but at some point we have to handle/show it. I think the best option is to propogate to the UI layer via an error message or toast (and allow for a retry where possible).
+- ✅ Handle errors
+  - We use `anyhow` to propogate errors in rust methods.
+  - Errors from tauri commands propogate back to the UI layer as string errors. We show them where needed with f7 toasts.
 
 ## 🔐 Security 
 
-- investigate CSP in tuari.conf.json - Needs to be locked down as much as possible
+- CSP in tuari.conf.json - Needs to be locked down as much as possible
 - Isolation mode?
+
+## 💬 MLS
+
+- Grease values in prekeys, groups, etc.
+- Custom Nostr credential? 
+- 

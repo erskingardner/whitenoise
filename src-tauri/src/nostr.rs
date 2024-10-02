@@ -347,7 +347,7 @@ pub async fn update_nostr_identity(keys: Keys, wn: &State<'_, Whitenoise>) -> Re
         .get_contact_list_public_keys(Some(DEFAULT_TIMEOUT))
         .await
         .unwrap();
-    debug!(target: "whitenoise::nostr::update_nostr_identity", "Got contact list pubkeys: {:?}", contact_list_pubkeys);
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Got {:?} contact list pubkeys", contact_list_pubkeys.len());
     let metadata_filter = Filter::new()
         .kind(Kind::Metadata)
         .authors(contact_list_pubkeys);
@@ -490,7 +490,7 @@ pub async fn delete_key_packages(wn: State<'_, Whitenoise>) -> Result<(), String
     let event_ids: Vec<EventId> = wn
         .nostr
         .get_events_of(
-            vec![filter],
+            vec![filter.clone()],
             EventSource::Both {
                 timeout: Some(DEFAULT_TIMEOUT),
                 specific_relays: None,
@@ -502,6 +502,7 @@ pub async fn delete_key_packages(wn: State<'_, Whitenoise>) -> Result<(), String
         .map(|event| event.id())
         .collect();
 
+    // Send delete request to relays
     let delete_event = EventBuilder::delete(event_ids);
     wn.nostr
         .send_event_builder(delete_event)

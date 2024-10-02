@@ -217,21 +217,34 @@ pub async fn fetch_key_package_for_user(
 
     // Get the first valid key package
     let valid_key_package = key_packages.iter().find(|&kp| {
-        debug!(target: "nostr_mls::key_packages::fetch_key_package_for_user", "Key package ciphersuite: {:?}", kp.ciphersuite());
-        debug!(target: "nostr_mls::key_packages::fetch_key_package_for_user", "Default ciphersuite: {:?}", DEFAULT_CIPHERSUITE);
-        debug!(target: "nostr_mls::key_packages::fetch_key_package_for_user", "Key package extensions: {:?}", kp.extensions());
-        debug!(target: "nostr_mls::key_packages::fetch_key_package_for_user", "Default extensions: {:?}", DEFAULT_EXTENSIONS);
-
         // Check that the ciphersuite and extensions are the same
-        kp.ciphersuite() == DEFAULT_CIPHERSUITE &&
-        kp.extensions().iter().count() == DEFAULT_EXTENSIONS.len() &&
-        DEFAULT_EXTENSIONS.iter().all(|&ext_type| 
-            kp.extensions().iter().any(|ext| ext.extension_type() == ext_type)
-        )
+        kp.ciphersuite() == DEFAULT_CIPHERSUITE
+            && kp.leaf_node().capabilities().extensions().iter().count() == DEFAULT_EXTENSIONS.len()
+            && DEFAULT_EXTENSIONS.iter().all(|&ext_type| {
+                kp.leaf_node()
+                    .capabilities()
+                    .extensions()
+                    .iter()
+                    .any(|ext| ext == &ext_type)
+            })
     });
 
     match valid_key_package {
-        Some(kp) => Ok(Some(kp.clone())),
-        None => Ok(None),
+        Some(kp) => {
+            debug!(
+                target: "nostr_mls::key_packages::fetch_key_package_for_user",
+                "Found valid key package for user {:?}",
+                pubkey
+            );
+            Ok(Some(kp.clone()))
+        }
+        None => {
+            debug!(
+                target: "nostr_mls::key_packages::fetch_key_package_for_user",
+                "No valid key package found for user {:?}",
+                pubkey
+            );
+            Ok(None)
+        }
     }
 }

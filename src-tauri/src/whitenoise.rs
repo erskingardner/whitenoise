@@ -50,7 +50,6 @@ impl Whitenoise {
         debug!(target: "whitenoise::new", "Loading settings and accounts from database");
         let settings = AppSettings::from_database(&wdb)?;
         let accounts = Accounts::from_database(&wdb)?;
-        debug!(target: "whitenoise::new", "Accounts: {:?}", accounts);
 
         // Set up Nostrdb
         debug!(target: "whitenoise::new", "Setting up Nostrdb");
@@ -65,10 +64,10 @@ impl Whitenoise {
         let nostr = Client::builder().database(database).build();
 
         let relays = vec![
-            "wss://relay.damus.io",
-            "wss://relay.snort.social",
-            "wss://relay.primal.net",
-            "wss://nos.lol",
+            // "wss://relay.damus.io",
+            // "wss://relay.snort.social",
+            // "wss://relay.primal.net",
+            // "wss://nos.lol",
             "wss://purplepag.es",
             "ws://localhost:8080",
         ];

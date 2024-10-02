@@ -177,15 +177,21 @@
                     {#if event.content.length > 0}
                         {event.content}
                     {:else}
-                        <span class="italic text-gray-300">No content</span>
+                        <span class="italic">No content</span>
                     {/if}
                 </span>
                 <span
                     slot="text-footer"
-                    class="mt-1 mb-0 text-sm p-0 flex flex-row gap-2 justify-end"
+                    class="mt-1 mb-0 text-sm p-0 flex flex-row gap-2 justify-end
+                    {event.pubkey === $currentIdentity && f7.theme !== 'ios'
+                        ? 'text-blue-800/70'
+                        : 'text-gray-400'}
+                    {event.pubkey === $currentIdentity && f7.theme === 'ios'
+                        ? 'text-gray-100'
+                        : ''}"
                 >
                     {#if event.kind === 4}
-                        <Warning weight="fill" size={18} class="warning-tooltip text-red-400" />
+                        <Warning weight="fill" size={18} class="warning-tooltip" />
                     {/if}
                     {formatMessageTime(event.created_at)}
                 </span>

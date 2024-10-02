@@ -1,6 +1,6 @@
 import Framework7, { utils, getDevice } from "framework7/lite";
 
-// import Dialog from "framework7/components/dialog";
+import Dialog from "framework7/components/dialog";
 import Popup from "framework7/components/popup";
 import LoginScreen from "framework7/components/login-screen";
 // import Popover from "framework7/components/popover";
@@ -20,7 +20,7 @@ import Tabs from "framework7/components/tabs";
 import Panel from "framework7/components/panel";
 // import Card from "framework7/components/card";
 // import Chip from "framework7/components/chip";
-// import Form from "framework7/components/form";
+import Form from "framework7/components/form";
 import Input from "framework7/components/input";
 // import Checkbox from "framework7/components/checkbox";
 // import Radio from "framework7/components/radio";
@@ -54,7 +54,7 @@ import Tooltip from "framework7/components/tooltip";
 // import Typography from "framework7/components/typography";
 
 Framework7.use([
-    // Dialog,
+    Dialog,
     Popup,
     LoginScreen,
     // Popover,
@@ -74,7 +74,7 @@ Framework7.use([
     Panel,
     // Card,
     // Chip,
-    // Form,
+    Form,
     Input,
     // Checkbox,
     // Radio,

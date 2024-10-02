@@ -22,7 +22,7 @@
 
     const f7params = {
         routes,
-        theme: "ios",
+        theme: "auto",
         name: "White Noise",
         darkMode: "dark",
         themeColor: "#1d4ed8", // blue-600
