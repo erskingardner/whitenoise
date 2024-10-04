@@ -2971,6 +2971,7 @@ dependencies = [
 [[package]]
 name = "openmls-sled-storage"
 version = "0.0.1"
+source = "git+https://github.com/erskingardner/openmls-sled-storage?branch=master#58af3c32af9fcb924b2a4db3db47a62421011004"
 dependencies = [
  "log",
  "openmls_traits",
