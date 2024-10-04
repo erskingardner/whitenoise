@@ -7,7 +7,7 @@
         <Link slot="left" iconF7="bars" onClick={() => f7.panel.toggle("#menu-panel-left")} />
     </Navbar>
     <div
-        class="calls-page-content flex flex-col justify-center items-center h-screen text-gray-500"
+        class="calls-page-content flex flex-col justify-start items-center h-screen text-gray-500 mt-64"
     >
         Two Weeks™
     </div>

@@ -54,6 +54,18 @@
         }
     }
 
+    async function getWelcomeMessages() {
+        const welcomeMessages = await invoke("fetch_welcome_messages_for_user", {
+            pubkey: $currentIdentity,
+        });
+        console.log("Welcome messages:", welcomeMessages);
+    }
+
+    async function getEvents() {
+        await getLegacyChats();
+        await getWelcomeMessages();
+    }
+
     function swipeoutUnread() {
         f7.dialog.alert("Unread");
     }
@@ -96,12 +108,12 @@
             targetEl: ".warning-tooltip",
             text: "This is a NIP-04 encrypted message.<br /><em>All metadata is publicly visible.</em>",
         });
-        await getLegacyChats();
-        unlisten = await listen<string>("identity_change", (_event) => getLegacyChats());
+        await getEvents();
+        unlisten = await listen<string>("identity_change", (_event) => getEvents());
     }}
     on:pageReinit={async () => {
         console.log("reinit");
-        await getLegacyChats();
+        await getEvents();
     }}
     on:pageBeforeRemove={() => {
         console.log("pageBeforeRemove");

@@ -1,11 +1,9 @@
 [package]
 name = "whitenoise"
-version = "0.0.0"
-description = "A Tauri App"
-authors = ["you"]
+version = "0.0.1"
+description = "A secure messenger using MLS and Nostr"
+authors = ["White Noise Authors"]
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
 name = "whitenoise_lib"
@@ -18,31 +16,33 @@ tauri-build = { version = "2.0.0-rc", features = [] }
 tempfile = "3.8.1"
 
 [dependencies]
+anyhow = "1.0"
+env_logger = "0.11"
 derive_more = { version = "1.0.0", features = ["from"] }
 keyring = { version = "3.2.0", features = [
     "apple-native",
     "windows-native",
     "linux-native",
 ] }
+lazy_static = "1.5"
+log = "0.4"
 nostr-sdk = { version = "0.34", features = ["ndb"] }
+nostrdb = "0.3.4"
+openmls = "0.6"
+openmls_basic_credential = "0.3"
+openmls_rust_crypto = "0.3"
+openmls-sled-storage = { version = "0.0.1", path = "../../openmls-sled-storage" }
+parking_lot = "0.12"
+rand = "0.8"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sled = "0.34"
-log = "0.4"
-env_logger = "0.11"
-lazy_static = "1.5"
-parking_lot = "0.12"
-nostrdb = "0.3.4"
 tauri = { version = "2.0.0-rc", features = ["protocol-asset"] }
 tauri-plugin-shell = "2.0.0-rc"
-anyhow = "1.0"
 tauri-plugin-store = "2.0.0-rc"
-tokio = { version = "1.40.0", features = ["full"] }
-openmls = "0.6"
-openmls_rust_crypto = "0.3"
-openmls_basic_credential = "0.3"
 tls_codec = "0.4"
-rand = "0.8"
+tokio = { version = "1.40.0", features = ["full"] }
+
 
 [patch.crates-io]
 tungstenite = { git = "https://github.com/yukibtc/tungstenite-rs", branch = "tor" }

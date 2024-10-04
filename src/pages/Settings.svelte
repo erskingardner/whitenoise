@@ -10,7 +10,16 @@
         Button,
         Input,
     } from "framework7-svelte";
-    import { Binoculars, Key, Skull, Users, SignIn, PlusCircle, Trash } from "phosphor-svelte";
+    import {
+        Binoculars,
+        Key,
+        Skull,
+        Users,
+        SignIn,
+        PlusCircle,
+        Trash,
+        UserPlus,
+    } from "phosphor-svelte";
     import Avatar from "../components/Avatar.svelte";
     import {
         identities,
@@ -29,6 +38,7 @@
     let showAccounts = $state(false);
     let showLogin = $state(false);
     let nsecOrHex = $state("");
+    let welcomeMessages: unknown[] = $state([]);
 
     $effect(() => {
         // Do something when $currentIdentity changes
@@ -126,6 +136,12 @@
             }
         );
     }
+
+    async function fetchWelcomeMessages() {
+        welcomeMessages = await invoke("fetch_welcome_messages_for_user", {
+            pubkey: $currentIdentity,
+        });
+    }
 </script>
 
 <Page class="settings-page bg-gray-900">
@@ -220,6 +236,9 @@
         <ListItem link title="Delete all Prekey Events" onClick={deleteKeyPackages}>
             <Trash slot="media" size={24} />
         </ListItem>
+        <ListItem link title="Fetch Welcome Messages" onClick={fetchWelcomeMessages}>
+            <UserPlus slot="media" size={24} />
+        </ListItem>
     </List>
 
     {#if showAccounts}
@@ -242,6 +261,19 @@
 {JSON.stringify(keyPackage, null, 4)}
                     </code>
                 </pre>
+            </div>
+        {/each}
+    {/if}
+
+    {#if welcomeMessages.length > 0}
+        <BlockTitle>Welcome Messages</BlockTitle>
+        {#each welcomeMessages as welcomeMessage}
+            <div class="p-4 rounded-md bg-gray-800 ring-1 ring-gray-700 mx-4">
+                <pre class="overflow-x-scroll">
+                <code class="language-json whitespace-pre break-words font-mono">
+{JSON.stringify(welcomeMessage, null, 4)}
+                </code>
+            </pre>
             </div>
         {/each}
     {/if}

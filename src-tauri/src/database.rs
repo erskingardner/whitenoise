@@ -2,13 +2,13 @@ use crate::{app_settings::AppSettings, whitenoise::Whitenoise};
 use anyhow::Result;
 use log::debug;
 use sled::{Db, IVec};
-use std::{path::Path, sync::Arc};
+use std::path::Path;
 use tauri::State;
 const DB_NAME: &str = "wdb";
 
 #[derive(Debug)]
 pub struct Database {
-    db: Arc<Db>,
+    pub db: Db,
 }
 impl Database {
     /// Creates a new Database instance.
@@ -31,7 +31,7 @@ impl Database {
     pub fn new(path: &Path) -> Result<Self> {
         debug!(target: "database::new", "Opening database at: {:?}", path.to_string_lossy());
         let db = sled::open(format!("{}/{}", path.to_string_lossy(), DB_NAME))?;
-        Ok(Self { db: Arc::new(db) })
+        Ok(Self { db })
     }
 
     /// Inserts a key-value pair into the database.

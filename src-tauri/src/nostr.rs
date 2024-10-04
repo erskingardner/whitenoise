@@ -1,11 +1,20 @@
 use crate::whitenoise::Whitenoise;
-use log::debug;
+use log::{debug, error};
 use nostr_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
 use std::{collections::HashMap, time::Duration};
 use tauri::State;
+
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
+pub const DEFAULT_RELAYS: [&str; 2] = [
+    // "wss://relay.damus.io",
+    // "wss://relay.snort.social",
+    // "wss://relay.nostr.build",
+    // "wss://nos.lol",
+    "wss://purplepag.es",
+    "ws://localhost:8080",
+];
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Conversation {
@@ -31,6 +40,12 @@ pub struct EnrichedContact {
     pub nip17: bool,
     pub nip104: bool,
     pub inbox_relays: Vec<String>,
+}
+
+#[allow(dead_code)]
+pub struct WelcomeMessage {
+    pub sender: EnrichedContact,
+    pub welcome_message: String,
 }
 
 pub fn is_valid_hex_pubkey(pubkey: &str) -> bool {
@@ -317,30 +332,105 @@ pub async fn get_legacy_chats(
     Ok(sorted_chats.into_iter().collect())
 }
 
-pub async fn update_nostr_identity(keys: Keys, wn: &State<'_, Whitenoise>) -> Result<(), String> {
+/// Updates the Nostr identity with new keys and sets up subscriptions.
+///
+/// This function performs the following tasks:
+/// 1. Unsubscribes from all existing subscriptions
+/// 2. Updates the signer for the Nostr client with the new keys
+/// 3. Clears existing relays and adds default relays
+/// 4. Fetches and applies DM relay lists for the user
+/// 5. Sets up subscriptions for contacts, metadata, messaging, and gift-wrapped messages
+///
+/// # Arguments
+///
+/// * `keys` - The new Keys to be used for the Nostr identity
+/// * `wn` - A reference to the Whitenoise state
+///
+/// # Returns
+///
+/// Returns `Ok(())` if the update is successful, or an error if any step fails
+///
+/// # Errors
+///
+/// This function will return an error if:
+/// - Unsubscribing from existing subscriptions fails
+/// - Setting the new signer fails
+/// - Removing or adding relays fails
+/// - Fetching events or setting up new subscriptions fails
+pub async fn update_nostr_identity(keys: Keys, wn: &State<'_, Whitenoise>) -> Result<()> {
     debug!(target: "whitenoise::nostr::update_nostr_identity", "Updating nostr identity");
+
     // Unsubscribe from all existing subscriptions
     wn.nostr.unsubscribe_all().await;
     debug!(target: "whitenoise::nostr::update_nostr_identity", "Unsubscribed from all");
+
     // Update the signer for the Nostr client
     wn.nostr
         .set_signer(Some(NostrSigner::Keys(keys.clone())))
         .await;
     debug!(target: "whitenoise::nostr::update_nostr_identity", "Set signer");
-    // Event notification listener
-    // let mut notifications = wn.nostr.notifications();
 
-    // TODO: Update relays for new user
-    // Clear existing relays
-    // wn.nostr.remove_all_relays().await;
-    // Fetch relay lists for user and apply them.
+    // Clear existing relays and add default ones
+    wn.nostr.remove_all_relays().await?;
+    for relay in DEFAULT_RELAYS {
+        wn.nostr.add_relay(relay).await?;
+    }
 
+    // Fetch and apply DM relay lists for user
+    let relay_list_events = wn
+        .nostr
+        .get_events_of(
+            vec![Filter::new()
+                .kind(Kind::Replaceable(10050))
+                .author(keys.public_key())
+                .limit(1)],
+            EventSource::Both {
+                timeout: Some(DEFAULT_TIMEOUT),
+                specific_relays: None,
+            },
+        )
+        .await?;
+
+    if let Some(event) = relay_list_events.first() {
+        for tag in &event.tags {
+            if let TagKind::Relay = tag.kind() {
+                if let Some(relay_url) = tag.content() {
+                    if let Err(e) = wn.nostr.add_relay(relay_url).await {
+                        error!(target: "whitenoise::nostr::update_nostr_identity", "Failed to add relay {}: {}", relay_url, e);
+                    }
+                } else {
+                    error!(target: "whitenoise::nostr::update_nostr_identity", "DM Relay List tag has no content");
+                }
+            }
+        }
+    }
+
+    // Set up subscriptions
+    setup_subscriptions(&keys, wn).await?;
+
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Updated nostr identity & subscriptions for user {:?}", keys.public_key());
+
+    Ok(())
+}
+
+/// Sets up various subscriptions for the Nostr client
+///
+/// # Arguments
+///
+/// * `keys` - The Keys used for the current Nostr identity
+/// * `wn` - A reference to the Whitenoise state
+///
+/// # Returns
+///
+/// Returns `Ok(())` if all subscriptions are set up successfully, or an error if any subscription fails
+async fn setup_subscriptions(keys: &Keys, wn: &State<'_, Whitenoise>) -> Result<()> {
     // Subscribe for contacts
     let contacts_filter = Filter::new()
         .kind(Kind::ContactList)
         .author(keys.public_key());
     let _contacts_sub = wn.nostr.subscribe(vec![contacts_filter], None).await;
     debug!(target: "whitenoise::nostr::update_nostr_identity", "Subscribed for contacts list updates");
+
     // Subscribe for contact list metadata
     let contact_list_pubkeys = wn
         .nostr
@@ -353,19 +443,24 @@ pub async fn update_nostr_identity(keys: Keys, wn: &State<'_, Whitenoise>) -> Re
         .authors(contact_list_pubkeys);
     let _metadata_sub = wn.nostr.subscribe(vec![metadata_filter], None).await;
     debug!(target: "whitenoise::nostr::update_nostr_identity", "Subscribed for metadata updates");
+
     // Subscribe for messaging (NIP-04)
     let nip_4_sent = Filter::new()
         .kind(Kind::EncryptedDirectMessage)
         .author(keys.public_key());
-    debug!(target: "whitenoise::nostr::update_nostr_identity", "Created nip4 sent filter");
     let nip_4_received = Filter::new()
         .kind(Kind::EncryptedDirectMessage)
         .pubkeys(vec![keys.public_key()]);
-    debug!(target: "whitenoise::nostr::update_nostr_identity", "Created nip4 received filter");
     let _nip_4_sent_sub = wn.nostr.subscribe(vec![nip_4_sent], None).await;
     let _nip_4_received_sub = wn.nostr.subscribe(vec![nip_4_received], None).await;
     debug!(target: "whitenoise::nostr::update_nostr_identity", "Subscribed for nip4 messaging");
-    debug!(target: "whitenoise::nostr::update_nostr_identity", "Updated nostr identity & subscriptions for user {:?}", keys.public_key());
+
+    // Subscribe for Gift-wrapped messages
+    let gift_wrap_filter = Filter::new()
+        .kind(Kind::GiftWrap)
+        .pubkeys(vec![keys.public_key()]);
+    let _gift_wrap_sub = wn.nostr.subscribe(vec![gift_wrap_filter], None).await;
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Subscribed for gift wrapped messages");
 
     Ok(())
 }

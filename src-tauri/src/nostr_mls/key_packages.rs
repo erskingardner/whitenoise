@@ -1,5 +1,5 @@
 use crate::nostr::DEFAULT_TIMEOUT;
-use crate::nostr_mls::{NostrMls, DEFAULT_CIPHERSUITE, DEFAULT_EXTENSIONS};
+use crate::nostr_mls::{DEFAULT_CIPHERSUITE, DEFAULT_EXTENSIONS};
 use crate::whitenoise::Whitenoise;
 use anyhow::Result;
 use log::debug;
@@ -29,16 +29,18 @@ use tauri::State;
 /// This function will panic if:
 /// * It fails to generate a signature key pair.
 /// * It fails to store the signature key pair in the crypto provider's storage.
-pub fn generate_credential_with_key(identity: String) -> (CredentialWithKey, SignatureKeyPair) {
-    let nostr_mls = NostrMls::default();
+pub fn generate_credential_with_key(
+    identity: String,
+    wn: State<'_, Whitenoise>,
+) -> (CredentialWithKey, SignatureKeyPair) {
     let credential = BasicCredential::new(identity.clone().into());
-    let signature_keypair = SignatureKeyPair::new(nostr_mls.ciphersuite.signature_algorithm())
+    let signature_keypair = SignatureKeyPair::new(wn.nostr_mls.ciphersuite.signature_algorithm())
         .expect("Error generating a signature keypair");
 
     debug!("MLS Credential keypair generated for {:?}", &identity);
 
     signature_keypair
-        .store(nostr_mls.crypto_provider.storage())
+        .store(wn.nostr_mls.provider.storage())
         .expect("Error storing the signature keypair");
 
     (
@@ -73,24 +75,12 @@ pub fn generate_credential_with_key(identity: String) -> (CredentialWithKey, Sig
 /// - The key package cannot be serialized.
 /// - There's an error publishing the Nostr event.
 ///
-/// # Example
-///
-/// ```no_run
-/// use tauri::State;
-/// use your_crate::Whitenoise;
-///
-/// #[tauri::command]
-/// async fn example_command(pubkey: String, wn: State<'_, Whitenoise>) -> Result<(), String> {
-///     generate_and_publish_key_package(pubkey, wn).await
-/// }
-/// ```
 #[tauri::command]
 pub async fn generate_and_publish_key_package(
     pubkey: String,
     wn: State<'_, Whitenoise>,
 ) -> Result<(), String> {
-    let nostr_mls = NostrMls::default();
-    let (credential, signer) = generate_credential_with_key(pubkey);
+    let (credential, signer) = generate_credential_with_key(pubkey, wn.clone());
 
     let capabilities: Capabilities = Capabilities::new(
         None,
@@ -103,8 +93,8 @@ pub async fn generate_and_publish_key_package(
     let key_package_bundle = KeyPackage::builder()
         .leaf_node_capabilities(capabilities)
         .build(
-            nostr_mls.ciphersuite,
-            &nostr_mls.crypto_provider,
+            wn.nostr_mls.ciphersuite,
+            &wn.nostr_mls.provider,
             &signer,
             credential,
         )
@@ -125,11 +115,11 @@ pub async fn generate_and_publish_key_package(
             Tag::custom(TagKind::Custom("mls_protocol_version".into()), ["1.0"]),
             Tag::custom(
                 TagKind::Custom("ciphersuite".into()),
-                [nostr_mls.ciphersuite_value().to_string()],
+                [wn.nostr_mls.ciphersuite_value().to_string()],
             ),
             Tag::custom(
                 TagKind::Custom("extensions".into()),
-                [nostr_mls.extensions_value()],
+                [wn.nostr_mls.extensions_value()],
             ),
             Tag::custom(TagKind::Custom("client".into()), ["whitenoise"]),
             Tag::custom(TagKind::Custom("relays".into()), ["ws://localhost:8080"]),
@@ -168,30 +158,47 @@ pub async fn generate_and_publish_key_package(
 /// - The KeyPackage cannot be deserialized
 /// - The KeyPackage fails validation (it's not an MLS 1.0 KeyPackage)
 ///
-/// # Example
-///
-/// ```
-/// let key_package_hex = "..."; // Hexadecimal representation of a KeyPackage
-/// match parse_key_package(key_package_hex) {
-///     Ok(key_package) => println!("Successfully parsed KeyPackage"),
-///     Err(e) => println!("Error parsing KeyPackage: {}", e),
-/// }
-/// ```
 #[tauri::command]
-pub fn parse_key_package(key_package_hex: String) -> Result<KeyPackage, String> {
-    let nostr_mls = NostrMls::default();
+pub fn parse_key_package(
+    key_package_hex: String,
+    wn: State<'_, Whitenoise>,
+) -> Result<KeyPackage, String> {
     let key_package_bytes = hex::decode(key_package_hex).map_err(|e| e.to_string())?;
 
     let key_package_in = KeyPackageIn::tls_deserialize(&mut key_package_bytes.as_slice())
         .map_err(|e| format!("Could not deserialize KeyPackage: {}", e))?;
 
     let key_package = key_package_in
-        .validate(nostr_mls.crypto_provider.crypto(), ProtocolVersion::Mls10)
+        .validate(wn.nostr_mls.provider.crypto(), ProtocolVersion::Mls10)
         .map_err(|e| format!("Invalid KeyPackage: {}", e))?;
 
     Ok(key_package)
 }
 
+/// Fetches a valid key package for a given user from the Nostr network.
+///
+/// This function retrieves key package events for a specified user, parses them,
+/// and returns the first valid key package that matches the default ciphersuite
+/// and extensions.
+///
+/// # Arguments
+///
+/// * `pubkey` - A string slice containing the public key of the user.
+/// * `wn` - A Tauri state containing the Whitenoise instance.
+///
+/// # Returns
+///
+/// * `Result<Option<KeyPackage>, String>` - A Result containing:
+///   - `Some(KeyPackage)` if a valid key package is found
+///   - `None` if no valid key package is found
+///   - An error message as a String if an error occurs during the process
+///
+/// # Errors
+///
+/// This function will return an error if:
+/// - The public key is invalid
+/// - There's an error fetching prekey events from the Nostr network
+///
 pub async fn fetch_key_package_for_user(
     pubkey: &str,
     wn: State<'_, Whitenoise>,
@@ -212,7 +219,7 @@ pub async fn fetch_key_package_for_user(
 
     let key_packages: Vec<KeyPackage> = prekey_events
         .iter()
-        .filter_map(|event| parse_key_package(event.content().to_string()).ok())
+        .filter_map(|event| parse_key_package(event.content().to_string(), wn.clone()).ok())
         .collect();
 
     // Get the first valid key package

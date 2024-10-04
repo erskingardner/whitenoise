@@ -4,22 +4,21 @@ import { writable } from "svelte/store";
 import NDKSvelte from "@nostr-dev-kit/ndk-svelte";
 
 let cacheAdapter: NDKCacheAdapter | undefined = undefined;
-// cacheAdapter = new NDKCacheAdapterDexie({ dbName: "whitenoise" });
+cacheAdapter = new NDKCacheAdapterDexie({ dbName: "whitenoise" });
 
 export const ndkStore = new NDKSvelte({
     explicitRelayUrls: [
-        // "wss://relay.nostr.band",
-        // "wss://nos.lol",
         // "wss://relay.snort.social",
         // "wss://relay.damus.io",
         // "wss://relay.primal.net",
+        // "wss://nos.lol",
         "wss://purplepag.es",
         "ws://localhost:8080",
     ],
     outboxRelayUrls: ["wss://purplepag.es", "ws://localhost:8080"],
     autoConnectUserRelays: true,
     autoFetchUserMutelist: true,
-    enableOutboxModel: true,
+    enableOutboxModel: false,
     cacheAdapter: cacheAdapter,
     clientName: "White Noise",
 });

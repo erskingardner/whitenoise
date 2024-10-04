@@ -65,10 +65,6 @@ impl Accounts {
     /// # Returns
     ///
     /// A `Result` indicating success or failure of the save operation
-    ///
-    /// # TODO
-    ///
-    /// Improve error handling and propagate errors to the UI layer
     pub fn save(&self, database: &Database) -> Result<()> {
         let json = serde_json::to_string(self)?;
         database.insert(ACCOUNTS_KEY, json.as_str())?;
@@ -208,7 +204,9 @@ pub async fn login(
         debug!(target: "whitenoise::accounts::login", "Saved private key to secrets store");
     }
 
-    nostr::update_nostr_identity(keys, &wn).await?;
+    nostr::update_nostr_identity(keys, &wn)
+        .await
+        .expect("Failed to update Nostr identity");
 
     app_handle
         .emit("identity_change", ())
@@ -296,7 +294,9 @@ pub async fn set_current_identity(
     debug!(target: "whitenoise::accounts::set_current_identity", "Setting current identity to: {:?}", pubkey);
 
     let keys = secrets_store::get_nostr_keys_for_pubkey(&pubkey).map_err(|e| e.to_string())?;
-    nostr::update_nostr_identity(keys, &wn).await?;
+    nostr::update_nostr_identity(keys, &wn)
+        .await
+        .expect("Failed to update Nostr identity");
 
     let mut accounts = wn.accounts.lock().map_err(|e| e.to_string())?;
     accounts.current_identity = Some(pubkey);

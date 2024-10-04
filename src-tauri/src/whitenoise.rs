@@ -1,6 +1,8 @@
 use crate::accounts::Accounts;
 use crate::app_settings::AppSettings;
 use crate::database::Database;
+use crate::nostr::DEFAULT_RELAYS;
+use crate::nostr_mls::NostrMls;
 use anyhow::Result;
 use log::debug;
 use nostr_sdk::prelude::*;
@@ -17,6 +19,8 @@ pub struct Whitenoise {
     pub ndb: Ndb,
     /// The Nostr client for Nostr protocol operations.
     pub nostr: Client,
+    /// The Nostr MLS client for Nostr MLS protocol operations.
+    pub nostr_mls: NostrMls,
     /// Application settings.
     #[allow(dead_code)]
     pub settings: Mutex<AppSettings>,
@@ -41,10 +45,10 @@ impl Whitenoise {
     /// - The Database initialization fails
     /// - The Ndb initialization fails
     /// - Loading settings or accounts from the database fails
-    pub async fn new(app_data_dir: &Path) -> Result<Self> {
+    pub async fn new(data_dir: &Path) -> Result<Self> {
         // Set up the database
-        debug!(target: "whitenoise::new", "Initializing Whitenoise with data dir: {:?}", app_data_dir);
-        let wdb = Database::new(app_data_dir)?;
+        debug!(target: "whitenoise::new", "Initializing Whitenoise with data dir: {:?}", data_dir);
+        let wdb = Database::new(data_dir)?;
 
         // Set up settings and accounts from database
         debug!(target: "whitenoise::new", "Loading settings and accounts from database");
@@ -55,7 +59,7 @@ impl Whitenoise {
         debug!(target: "whitenoise::new", "Setting up Nostrdb");
         let mut config = Config::new();
         config.set_ingester_threads(4);
-        let ndb_path = format!("{}/{}", app_data_dir.to_string_lossy(), "ndb");
+        let ndb_path = format!("{}/{}", data_dir.to_string_lossy(), "ndb");
         let ndb = Ndb::new(&ndb_path, &config)?;
 
         // Set up Nostr client
@@ -63,18 +67,13 @@ impl Whitenoise {
         let database = NdbDatabase::open(&ndb_path).expect("Failed to open database");
         let nostr = Client::builder().database(database).build();
 
-        let relays = vec![
-            // "wss://relay.damus.io",
-            // "wss://relay.snort.social",
-            // "wss://relay.primal.net",
-            // "wss://nos.lol",
-            "wss://purplepag.es",
-            "ws://localhost:8080",
-        ];
-
-        for relay in relays {
+        for relay in DEFAULT_RELAYS {
             let _ = nostr.add_relay(relay).await;
         }
+
+        // Set up Nostr MLS client
+        debug!(target: "whitenoise::new", "Setting up Nostr MLS client");
+        let nostr_mls = NostrMls::new(data_dir.to_path_buf());
 
         nostr.connect().await;
 
@@ -82,6 +81,7 @@ impl Whitenoise {
             wdb,
             ndb,
             nostr,
+            nostr_mls,
             settings: Mutex::new(settings),
             accounts: Mutex::new(accounts),
         })

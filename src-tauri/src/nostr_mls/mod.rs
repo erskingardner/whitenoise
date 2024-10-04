@@ -1,8 +1,11 @@
 pub mod groups;
 pub mod key_packages;
 pub mod nostr_group_data;
+pub mod welcome_messages;
 use openmls::prelude::*;
-use openmls_rust_crypto::OpenMlsRustCrypto;
+use openmls_rust_crypto::RustCrypto;
+use openmls_sled_storage::SledStorage;
+use std::path::PathBuf;
 
 const DEFAULT_CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 const DEFAULT_EXTENSIONS: &[ExtensionType] = &[
@@ -19,16 +22,54 @@ const GREASE: &[u16] = &[
 pub struct NostrMls {
     ciphersuite: Ciphersuite,
     extensions: Vec<ExtensionType>,
-    crypto_provider: OpenMlsRustCrypto,
+    provider: NostrMlsProvider,
+}
+
+pub struct NostrMlsProvider {
+    crypto: RustCrypto,
+    key_store: SledStorage,
+}
+
+impl OpenMlsProvider for NostrMlsProvider {
+    type CryptoProvider = RustCrypto;
+    type RandProvider = RustCrypto;
+    type StorageProvider = SledStorage;
+
+    fn storage(&self) -> &Self::StorageProvider {
+        &self.key_store
+    }
+
+    fn crypto(&self) -> &Self::CryptoProvider {
+        &self.crypto
+    }
+
+    fn rand(&self) -> &Self::RandProvider {
+        &self.crypto
+    }
+}
+
+impl NostrMlsProvider {
+    pub fn new(storage: SledStorage) -> Self {
+        Self {
+            key_store: storage,
+            crypto: RustCrypto::default(),
+        }
+    }
 }
 
 impl NostrMls {
-    pub fn new() -> Self {
-        let crypto_provider = OpenMlsRustCrypto::default();
+    pub fn new(storage_path: PathBuf) -> Self {
+        let storage = SledStorage::new_from_path(format!(
+            "{}/{}",
+            storage_path.to_string_lossy(),
+            "mls_storage"
+        ))
+        .expect("Failed to create MLS storage");
+        let provider: NostrMlsProvider = NostrMlsProvider::new(storage);
         Self {
             ciphersuite: DEFAULT_CIPHERSUITE,
             extensions: DEFAULT_EXTENSIONS.to_vec(),
-            crypto_provider,
+            provider,
         }
     }
 
@@ -42,12 +83,6 @@ impl NostrMls {
             .map(|e| format!("{:?}", e))
             .collect::<Vec<String>>()
             .join(",")
-    }
-}
-
-impl Default for NostrMls {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

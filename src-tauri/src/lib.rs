@@ -15,6 +15,7 @@ use crate::nostr::{
 };
 use crate::nostr_mls::groups::create_group;
 use crate::nostr_mls::key_packages::{generate_and_publish_key_package, parse_key_package};
+use crate::nostr_mls::welcome_messages::fetch_welcome_messages_for_user;
 use crate::whitenoise::Whitenoise;
 use log::debug;
 use tauri::Manager;
@@ -66,6 +67,7 @@ pub fn run() {
             delete_app_data,
             delete_key_packages,
             fetch_dev_events,
+            fetch_welcome_messages_for_user,
             generate_and_publish_key_package,
             get_accounts,
             get_contact,

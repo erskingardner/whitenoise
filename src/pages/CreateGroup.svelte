@@ -9,12 +9,8 @@
 
     // 2. Set group name
     // 3. Set group description
-    // 4. Set group image
+    // 4. Group image is just letters of name + derived color
     // 5. Create group
-    // - create MLS group
-    // - invite people to the group
-    // - send welcome messages
-
     // 6. Redirect to the group chat page
 </script>
 
@@ -24,18 +20,6 @@
     </Navbar>
     <BlockTitle>Create Group</BlockTitle>
     <List>
-        <ListItem>1. Search for contacts to add to the group</ListItem>
-        <ListItem>2. Set group name</ListItem>
-        <ListItem>3. Set group description</ListItem>
-        <ListItem>4. Set group image</ListItem>
-        <ListItem>
-            5. Create MLS group
-            <List>
-                <ListItem>Create credentials and group with each members prekeys</ListItem>
-                <ListItem>Send first commit</ListItem>
-                <ListItem>Send welcome messages</ListItem>
-            </List>
-        </ListItem>
-        <ListItem>6. Redirect to the group chat page</ListItem>
+        <ListItem>Didn't I already say? Two Weeks™.</ListItem>
     </List>
 </Page>

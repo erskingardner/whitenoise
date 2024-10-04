@@ -87,7 +87,7 @@ pub async fn create_group(
     );
 
     // This also stores the signer secret key in the keystore
-    let (credential, signer) = generate_credential_with_key(creator_pubkey.clone());
+    let (credential, signer) = generate_credential_with_key(creator_pubkey.clone(), wn.clone());
 
     // Create the nostr group data extension and serialize it
     let group_data = NostrGroupDataExtension::new(group_name, description, admin_pubkeys);
