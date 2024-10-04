@@ -1,6 +1,7 @@
 use super::key_packages::{fetch_key_package_for_user, generate_credential_with_key};
 use super::nostr_group_data::NostrGroupDataExtension;
 use super::{DEFAULT_CIPHERSUITE, DEFAULT_EXTENSIONS};
+use crate::database::Database;
 use crate::nostr::is_valid_hex_pubkey;
 use crate::whitenoise::Whitenoise;
 use anyhow::anyhow;
@@ -8,10 +9,96 @@ use anyhow::Result;
 use log::{debug, error};
 use nostr_sdk::prelude::*;
 use openmls::prelude::*;
-use openmls_rust_crypto::OpenMlsRustCrypto;
+use serde::{Deserialize, Serialize};
 use std::ops::Add;
+use std::str::from_utf8;
 use tauri::State;
-use tls_codec::Serialize;
+use tls_codec::Serialize as TlsSerialize;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct NostrMlsGroup {
+    /// This is the MLS group ID, this will serve as the PK in the DB
+    mls_group_id: Vec<u8>,
+    /// Hex encoded (same value as the NostrGroupDataExtension)
+    nostr_group_id: String,
+    /// UTF-8 encoded (same value as the NostrGroupDataExtension)
+    group_name: String,
+    /// UTF-8 encoded (same value as the NostrGroupDataExtension)
+    description: String,
+    /// Hex encoded (same value as the NostrGroupDataExtension)
+    admin_pubkeys: Vec<String>,
+    /// Hex encoded Nostr event ID of the last message in the group
+    last_message_id: Option<String>,
+    /// Timestamp of the last message in the group
+    last_message_at: Option<Timestamp>,
+    /// URLs of the Nostr relays this group is using
+    relay_urls: Vec<String>,
+    /// Chat transscript
+    transcript: Vec<UnsignedEvent>,
+}
+
+impl NostrMlsGroup {
+    pub fn new(mls_group_id: Vec<u8>, nostr_group_data: NostrGroupDataExtension) -> Self {
+        Self {
+            mls_group_id,
+            nostr_group_id: nostr_group_data.nostr_group_id(),
+            group_name: nostr_group_data.name(),
+            description: nostr_group_data.description(),
+            admin_pubkeys: nostr_group_data.admin_identities(),
+            relay_urls: nostr_group_data.relays(),
+            last_message_id: None,
+            last_message_at: None,
+            transcript: Vec::new(),
+        }
+    }
+
+    pub fn set_group_name(&mut self, name: String) {
+        self.group_name = name;
+    }
+
+    pub fn set_description(&mut self, description: String) {
+        self.description = description;
+    }
+
+    pub fn set_admin_pubkeys(&mut self, admin_pubkeys: Vec<String>) {
+        self.admin_pubkeys = admin_pubkeys;
+    }
+
+    pub fn set_relay_urls(&mut self, relay_urls: Vec<String>) {
+        self.relay_urls = relay_urls;
+    }
+
+    pub fn set_last_message_id(&mut self, message_id: String) {
+        self.last_message_id = Some(message_id);
+    }
+
+    pub fn set_last_message_at(&mut self, timestamp: Timestamp) {
+        self.last_message_at = Some(timestamp);
+    }
+
+    pub fn add_to_transcript(&mut self, event: UnsignedEvent) {
+        self.transcript.push(event);
+    }
+
+    pub fn save(&self, db: Database) -> Result<()> {
+        let key: &str = from_utf8(&self.mls_group_id)?;
+        let json = serde_json::to_string(self)?;
+        db.insert_in_tree("groups", key, json.as_str())?;
+        Ok(())
+    }
+
+    pub fn get_group(db: Database, mls_group_id: Vec<u8>) -> Result<Option<Self>> {
+        let key: &str = from_utf8(&mls_group_id)?;
+        let results = db.get_from_tree("groups", key)?;
+        match results {
+            Some(results) => {
+                let group = from_utf8(&results)?;
+                Ok(Some(serde_json::from_str(&group)?))
+            }
+            None => Ok(None),
+        }
+    }
+}
 
 #[tauri::command]
 pub async fn create_group(
@@ -75,8 +162,6 @@ pub async fn create_group(
         member_key_packages.push(key_package);
     }
 
-    let provider: OpenMlsRustCrypto = OpenMlsRustCrypto::default();
-
     // Create default capabilities
     let capabilities: Capabilities = Capabilities::new(
         None,
@@ -111,23 +196,34 @@ pub async fn create_group(
         .expect("Couldn't set group context extensions")
         .build();
 
-    let mut group = MlsGroup::new(&provider, &signer, &group_config, credential.clone())
-        .expect("Couldn't create group");
+    let mut group = MlsGroup::new(
+        &wn.nostr_mls.provider,
+        &signer,
+        &group_config,
+        credential.clone(),
+    )
+    .expect("Couldn't create group");
+
+    debug!(target: "nostr_mls::groups::create_group", "Group created: ID = {:?}", group.group_id());
 
     // Check out group data
     let group_data = NostrGroupDataExtension::from_group(&group).expect("Failed to get group data");
-    debug!(target: "nostr_mls::groups::create_group", "Group ID: {:?}", group_data.get_id());
-    debug!(target: "nostr_mls::groups::create_group", "Group name: {:?}", group_data.get_name());
-    debug!(target: "nostr_mls::groups::create_group", "Group description: {:?}", group_data.get_description());
+    debug!(target: "nostr_mls::groups::create_group", "Nostr Group ID: {:?}", group_data.nostr_group_id());
+    debug!(target: "nostr_mls::groups::create_group", "Group name: {:?}", group_data.name());
+    debug!(target: "nostr_mls::groups::create_group", "Group description: {:?}", group_data.description());
     debug!(target: "nostr_mls::groups::create_group",
         "Group admin identities: {:?}",
-        group_data.get_admin_identities()
+        group_data.admin_identities()
     );
 
     debug!(target: "nostr_mls::groups::create_group", "Member key packages: {:?}", member_key_packages.len());
     // Add members to the group
     let (_, welcome_out, _group_info) = group
-        .add_members(&provider, &signer, member_key_packages.as_slice())
+        .add_members(
+            &wn.nostr_mls.provider,
+            &signer,
+            member_key_packages.as_slice(),
+        )
         .map_err(|e| {
             error!(target: "nostr_mls::groups::create_group", "Failed to add members: {:?}", e);
             e
@@ -138,7 +234,7 @@ pub async fn create_group(
 
     // Merge the pending commit adding the memebers
     group
-        .merge_pending_commit(&provider)
+        .merge_pending_commit(&wn.nostr_mls.provider)
         .expect("Failed to merge pending commit");
 
     // Serialize the welcome message and send it to the members
@@ -147,6 +243,7 @@ pub async fn create_group(
         .expect("Failed to serialize welcome message");
 
     // TODO: need to have a good way to get/keep relay data around.
+    // TODO: need to include the ratchet tree in the welcome message so the client can bootstrap
 
     let signer = wn
         .nostr
@@ -194,8 +291,11 @@ pub async fn create_group(
             &member_pubkey
         );
     }
-    // TODO: save group to database
 
+    let nostr_group = NostrMlsGroup::new(group.group_id().to_vec(), group_data);
+    nostr_group.save(wn.wdb);
+
+    // TODO: Render a group in the UI for the saved nostr_group
     Ok(())
 }
 

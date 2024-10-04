@@ -19,10 +19,11 @@ use tls_codec::{TlsDeserialize, TlsDeserializeBytes, TlsSerialize, TlsSerializeB
     TlsSize,
 )]
 pub struct NostrGroupDataExtension {
-    pub id: [u8; 32],
+    pub nostr_group_id: [u8; 32],
     pub name: Vec<u8>,
     pub description: Vec<u8>,
     pub admin_identities: Vec<Vec<u8>>,
+    pub relays: Vec<Vec<u8>>,
 }
 
 impl NostrGroupDataExtension {
@@ -30,19 +31,25 @@ impl NostrGroupDataExtension {
         0xFF69
     }
 
-    pub fn new(name: String, description: String, admin_identities: Vec<String>) -> Self {
+    pub fn new(
+        name: String,
+        description: String,
+        admin_identities: Vec<String>,
+        relays: Vec<String>,
+    ) -> Self {
         // Generate a random 32-byte group ID
         let mut rng = rand::thread_rng();
         let random_bytes: [u8; 32] = rng.gen();
 
         Self {
-            id: random_bytes,
-            name: name.into(),
-            description: description.into(),
+            nostr_group_id: random_bytes,
+            name: name.into_bytes(),
+            description: description.into_bytes(),
             admin_identities: admin_identities
                 .into_iter()
-                .map(|identity| identity.into())
+                .map(|identity| identity.into_bytes())
                 .collect(),
+            relays: relays.into_iter().map(|relay| relay.into_bytes()).collect(),
         }
     }
 
@@ -63,22 +70,29 @@ impl NostrGroupDataExtension {
         Ok(deserialized)
     }
 
-    pub fn get_id(&self) -> String {
-        hex::encode(self.id)
+    pub fn nostr_group_id(&self) -> String {
+        hex::encode(self.nostr_group_id)
     }
 
-    pub fn get_name(&self) -> String {
+    pub fn name(&self) -> String {
         String::from_utf8_lossy(&self.name).to_string()
     }
 
-    pub fn get_description(&self) -> String {
+    pub fn description(&self) -> String {
         String::from_utf8_lossy(&self.description).to_string()
     }
 
-    pub fn get_admin_identities(&self) -> Vec<String> {
+    pub fn admin_identities(&self) -> Vec<String> {
         self.admin_identities
             .iter()
             .map(|identity| String::from_utf8_lossy(identity).to_string())
+            .collect()
+    }
+
+    pub fn relays(&self) -> Vec<String> {
+        self.relays
+            .iter()
+            .map(|relay| String::from_utf8_lossy(relay).to_string())
             .collect()
     }
 }

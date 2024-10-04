@@ -59,6 +59,13 @@ impl Database {
         Ok(result)
     }
 
+    /// Use this when you want a namespaced tree for the data
+    pub fn insert_in_tree(&self, tree: &str, key: &str, value: &str) -> Result<Option<IVec>> {
+        let tree = self.db.open_tree(tree)?;
+        let result = tree.insert(key, value.as_bytes())?;
+        Ok(result)
+    }
+
     /// Retrieves a value from the database for a given key.
     ///
     /// This function takes a string key and attempts to retrieve the corresponding value
@@ -80,6 +87,12 @@ impl Database {
     /// encounters an error during the get operation.
     pub fn get(&self, key: &str) -> Result<Option<IVec>> {
         let result = self.db.get(key)?;
+        Ok(result)
+    }
+
+    pub fn get_from_tree(&self, tree: &str, key: &str) -> Result<Option<IVec>> {
+        let tree = self.db.open_tree(tree)?;
+        let result = tree.get(key)?;
         Ok(result)
     }
 
