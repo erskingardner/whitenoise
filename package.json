@@ -19,10 +19,11 @@
     "@tauri-apps/api": "2.0.0-rc.5",
     "@tauri-apps/plugin-shell": "2.0.0-rc.1",
     "@tauri-apps/plugin-store": "2.0.0-rc.1",
+    "@tauri-apps/plugin-window-state": "^2.0.0-rc",
     "dom7": "^4.0.6",
+    "framework7": "^8.3.4",
     "framework7-icons": "^5.0.5",
-    "framework7-svelte": "^8.3.4",
-    "framework7": "^8.3.4"
+    "framework7-svelte": "^8.3.4"
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.5",

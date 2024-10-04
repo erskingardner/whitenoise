@@ -25,6 +25,7 @@ pub fn run() {
     env_logger::init();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_window_state::Builder::new().build())
         .setup(|app| {
             tauri::async_runtime::block_on(async move {
                 let data_dir = app
