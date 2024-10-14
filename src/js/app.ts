@@ -11,6 +11,6 @@ import "../css/app.css";
 Framework7.use(Framework7Svelte);
 
 // Mount Svelte App
-const app = new mount(App, { target: document.body });
+const app = mount(App, { target: document.body });
 
 export default app;

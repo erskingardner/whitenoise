@@ -3,24 +3,11 @@ import Calls from "../pages/Calls.svelte";
 import Settings from "../pages/Settings.svelte";
 import CreateGroup from "../pages/CreateGroup.svelte";
 
+// Order matters here
 const routes = [
     {
         path: "/chats/",
         component: Chats,
-    },
-    {
-        path: "/chats/:pubkey/",
-        asyncComponent: () => import("../pages/Messages.svelte"),
-    },
-    {
-        path: "/contacts/",
-        popup: {
-            asyncComponent: () => import("../pages/Contacts.svelte"),
-        },
-    },
-    {
-        path: "/groups/new/",
-        component: CreateGroup,
     },
     {
         path: "/calls/",
@@ -29,6 +16,36 @@ const routes = [
     {
         path: "/settings/",
         component: Settings,
+    },
+    {
+        path: "/groups/new/",
+        component: CreateGroup,
+    },
+    {
+        path: "/chats/:pubkey/",
+        asyncComponent: () => import("../pages/LegacyChat.svelte"),
+    },
+    {
+        path: "/chats/:pubkey/info",
+        popup: {
+            asyncComponent: () => import("../pages/LegacyChatInfo.svelte"),
+        },
+    },
+    {
+        path: "/groups/:mls_group_id/",
+        asyncComponent: () => import("../pages/MlsGroup.svelte"),
+    },
+    {
+        path: "/groups/:mls_group_id/group_info",
+        popup: {
+            asyncComponent: () => import("../pages/MlsGroupInfo.svelte"),
+        },
+    },
+    {
+        path: "/contacts/",
+        popup: {
+            asyncComponent: () => import("../pages/Contacts.svelte"),
+        },
     },
 ];
 

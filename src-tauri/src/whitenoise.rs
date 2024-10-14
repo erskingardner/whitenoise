@@ -3,12 +3,14 @@ use crate::app_settings::AppSettings;
 use crate::database::Database;
 use crate::nostr::DEFAULT_RELAYS;
 use crate::nostr_mls::NostrMls;
+use crate::secrets_store::remove_private_key_for_pubkey;
 use anyhow::Result;
 use log::debug;
 use nostr_sdk::prelude::*;
 use nostrdb::{Config, Ndb};
 use std::path::Path;
 use std::sync::Mutex;
+use tauri::State;
 
 /// Represents the main Whitenoise application structure.
 pub struct Whitenoise {
@@ -100,4 +102,57 @@ impl Whitenoise {
         self.nostr.set_signer(Some(signer)).await;
         Ok(())
     }
+
+    /// Clears all data associated with the application.
+    ///
+    /// This function performs the following actions:
+    /// 1. Clears the local app database
+    /// 2. Clears the Nostr MLS store
+    /// 3. Clears the accounts data
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if:
+    /// - It fails to clear the app database
+    /// - It fails to clear the Nostr MLS store
+    /// - It fails to acquire the lock on the accounts or clear the accounts data
+    pub async fn clear_all_data(&self) -> Result<()> {
+        debug!(target: "whitenoise::clear_all_data", "Clearing all data");
+        // Clear the local app database
+        self.wdb.delete_data().expect("Couldn't clear app database");
+        // Clear the Nostr MLS store
+        self.nostr_mls
+            .delete_data()
+            .expect("Couldn't clear Nostr MLS store");
+        // Clear all nostr stuff
+        self.nostr.unsubscribe_all().await;
+        self.nostr.remove_all_relays().await?;
+        // Clear the private keys
+        let accounts = self.accounts.lock().unwrap().clone().accounts;
+        if let Some(accounts) = accounts {
+            for pubkey in accounts.keys() {
+                remove_private_key_for_pubkey(pubkey).expect("Couldn't remove private key");
+            }
+        }
+        // Clear the accounts data
+        self.accounts
+            .lock()
+            .unwrap()
+            .delete_data(&self.wdb)
+            .expect("Couldn't clear accounts");
+        *self.accounts.lock().unwrap() = Accounts::default();
+        // Clear the app settings
+        self.settings
+            .lock()
+            .unwrap()
+            .delete_data(&self.wdb)
+            .expect("Couldn't clear app settings");
+        *self.settings.lock().unwrap() = AppSettings::default();
+        Ok(())
+    }
+}
+
+#[tauri::command]
+pub async fn delete_data(wn: State<'_, Whitenoise>) -> Result<(), String> {
+    wn.clear_all_data().await.map_err(|e| e.to_string())
 }

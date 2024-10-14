@@ -36,12 +36,14 @@ export type NMetadata = {
     lud16?: string;
 };
 
+export type NChats = {
+    [key: string]: NChat;
+};
+
 export type NChat = {
-    [key: string]: {
-        latest: number;
-        metadata: NMetadata;
-        events: NEvent[];
-    };
+    latest: number;
+    metadata: NMetadata;
+    events: NEvent[];
 };
 
 export type NEvent = {
@@ -51,5 +53,23 @@ export type NEvent = {
     kind: number;
     tags: string[][];
     content: string;
-    sig: string;
+    sig?: string;
 };
+
+export type NostrMlsGroup = {
+    mls_group_id: Uint8Array;
+    nostr_group_id: string;
+    group_name: string;
+    description: string;
+    admin_pubkeys: string[];
+    last_message_at: number;
+    last_message_id: string;
+    relay_urls: string[];
+    group_type: NostrMlsGroupType;
+    transcript: NEvent[];
+};
+
+export enum NostrMlsGroupType {
+    DirectMessage = "DirectMessage",
+    Group = "Group",
+}

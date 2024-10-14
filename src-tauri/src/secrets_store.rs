@@ -59,7 +59,9 @@ pub fn get_nostr_keys_for_pubkey(pubkey: &str) -> Result<Keys> {
 
 /// Removes the private key associated with a given public key from the system's keyring.
 ///
-/// This function deletes the entry in the system's keyring that corresponds to the provided public key.
+/// This function attempts to delete the credential entry for the specified public key
+/// from the system's keyring. If the entry doesn't exist or the deletion fails, the
+/// function will still return Ok(()) to maintain idempotency.
 ///
 /// # Arguments
 ///
@@ -67,16 +69,18 @@ pub fn get_nostr_keys_for_pubkey(pubkey: &str) -> Result<Keys> {
 ///
 /// # Returns
 ///
-/// * `Result<()>` - Ok(()) if the operation was successful, or an error if it failed.
+/// * `Result<()>` - Ok(()) if the operation was successful or if the key didn't exist,
+///                  or an error if the Entry creation fails.
 ///
 /// # Errors
 ///
 /// This function will return an error if:
 /// * The Entry creation fails
-/// * Deleting the credential from the keyring fails
 pub fn remove_private_key_for_pubkey(pubkey: &str) -> Result<()> {
-    let entry = Entry::new("whitenoise", pubkey)?;
-    entry.delete_credential()?;
+    let entry = Entry::new("whitenoise", pubkey);
+    if let Ok(entry) = entry {
+        let _ = entry.delete_credential();
+    }
     Ok(())
 }
 

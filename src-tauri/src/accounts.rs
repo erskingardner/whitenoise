@@ -1,5 +1,5 @@
 use crate::nostr;
-use crate::nostr::{EnrichedContact, DEFAULT_TIMEOUT};
+use crate::nostr::{update_nostr_identity, EnrichedContact, DEFAULT_TIMEOUT};
 use crate::secrets_store;
 use crate::{database::Database, whitenoise::Whitenoise};
 use anyhow::Result;
@@ -15,7 +15,7 @@ use tauri::State;
 const ACCOUNTS_KEY: &str = "accounts";
 
 /// Represents the accounts and current identity information
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Accounts {
     /// List of account identifiers
     pub accounts: Option<HashMap<String, EnrichedContact>>,
@@ -80,6 +80,25 @@ impl Accounts {
             None => Ok(None),
         }
     }
+
+    /// Deletes all account data and resets to default
+    ///
+    /// This method clears all existing account data and resets the accounts
+    /// to the default empty state in the database.
+    ///
+    /// # Arguments
+    ///
+    /// * `database` - A reference to the `Database` instance to save to
+    ///
+    /// # Returns
+    ///
+    /// A `Result` indicating success or an error if saving fails
+    pub fn delete_data(&self, database: &Database) -> Result<()> {
+        debug!(target: "accounts::delete_data", "Deleting accounts");
+        let accounts = Accounts::default();
+        accounts.save(database)?;
+        Ok(())
+    }
 }
 
 /// Retrieves the current accounts data
@@ -119,11 +138,17 @@ pub fn get_accounts(wn: State<'_, Whitenoise>) -> Result<Accounts, String> {
 #[tauri::command]
 pub async fn login(
     nsec_or_hex: String,
+    source: String,
     wn: State<'_, Whitenoise>,
     app_handle: tauri::AppHandle,
 ) -> Result<Accounts, String> {
-    debug!(target: "whitenoise::accounts::login", "Logging in with nsec or hex");
+    debug!(target: "whitenoise::accounts::login", "Logging in with nsec or hex from {:?}", source);
     let keys = Keys::parse(nsec_or_hex).map_err(|e| e.to_string())?;
+
+    update_nostr_identity(keys.clone(), &wn)
+        .await
+        .map_err(|e| e.to_string())?;
+
     let metadata = wn
         .nostr
         .metadata(keys.public_key())
@@ -206,7 +231,7 @@ pub async fn login(
 
     nostr::update_nostr_identity(keys, &wn)
         .await
-        .expect("Failed to update Nostr identity");
+        .map_err(|e| e.to_string())?;
 
     app_handle
         .emit("identity_change", ())
@@ -244,15 +269,16 @@ pub fn logout(
     pubkey: String,
     wn: State<'_, Whitenoise>,
     app_handle: tauri::AppHandle,
-) -> Result<Accounts, String> {
+) -> Result<(), String> {
     debug!(target: "whitenoise::accounts::logout", "Logging out pubkey: {:?}", pubkey);
     let mut accounts = wn.accounts.lock().map_err(|e| e.to_string())?;
 
+    debug!(target: "whitenoise::accounts::logout", "Before remove: {:?}", accounts);
     // Remove the passed pubkey from the accounts map
     if let Some(accounts_map) = &mut accounts.accounts {
         accounts_map.remove(&pubkey);
     }
-
+    debug!(target: "whitenoise::accounts::logout", "After remove: {:?}", accounts);
     // Remove the private key from the secrets store
     secrets_store::remove_private_key_for_pubkey(&pubkey).map_err(|e| e.to_string())?;
 
@@ -262,6 +288,10 @@ pub fn logout(
             .accounts
             .as_ref()
             .and_then(|map| map.keys().next().cloned());
+
+        debug!(target: "whitenoise::accounts::logout", "Current identity was logged out. New current identity: {:?}", accounts.current_identity);
+    } else {
+        debug!(target: "whitenoise::accounts::logout", "Logged out identity was not the current identity. Current identity remains: {:?}", accounts.current_identity);
     }
 
     // Save the accounts
@@ -272,7 +302,7 @@ pub fn logout(
         .emit("identity_change", ())
         .map_err(|e| e.to_string())?;
 
-    Ok(accounts.clone())
+    Ok(())
 }
 
 /// Sets the current active identity
@@ -330,7 +360,13 @@ pub async fn create_identity(
     app_handle: tauri::AppHandle,
 ) -> Result<Accounts, String> {
     let keys = Keys::generate();
-    let accounts = login(keys.secret_key().unwrap().to_string(), wn, app_handle).await?;
+    let accounts = login(
+        keys.secret_key().unwrap().to_string(),
+        "create_identity".to_string(),
+        wn,
+        app_handle,
+    )
+    .await?;
     Ok(accounts)
 }
 
@@ -410,6 +446,46 @@ mod tests {
         accounts.current_identity = None;
         let no_keys = accounts.get_nostr_keys_for_current_identity()?;
         assert!(no_keys.is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_delete_data() -> Result<()> {
+        use tempfile::tempdir;
+
+        // Create a temporary directory for the test database
+        let temp_dir = tempdir()?;
+        let db_path = temp_dir.path().join("test.db");
+        let db = Database::new(&db_path)?;
+
+        // Create and populate an Accounts instance
+        let mut accounts = Accounts::default();
+        let mut test_accounts = HashMap::new();
+        let enriched_contact = EnrichedContact {
+            metadata: Metadata::new(),
+            nip17: false,
+            nip104: false,
+            inbox_relays: vec![],
+        };
+        test_accounts.insert("pubkey1".to_string(), enriched_contact);
+        accounts.accounts = Some(test_accounts);
+        accounts.current_identity = Some("pubkey1".to_string());
+
+        // Save accounts to the database
+        accounts.save(&db)?;
+
+        // Verify that the accounts data is in the database
+        let retrieved_accounts = Accounts::from_database(&db)?;
+        assert!(retrieved_accounts.accounts.is_some());
+        assert!(retrieved_accounts.current_identity.is_some());
+
+        // Delete the data
+        accounts.delete_data(&db)?;
+
+        // Verify that the accounts data has been deleted
+        let deleted_accounts = Accounts::from_database(&db)?;
+        assert_eq!(deleted_accounts, Accounts::default());
 
         Ok(())
     }

@@ -8,15 +8,14 @@ mod whitenoise;
 
 // --- Imports ---
 use crate::accounts::{create_identity, get_accounts, login, logout, set_current_identity};
-use crate::database::delete_app_data;
 use crate::nostr::{
     decrypt_content, delete_key_packages, fetch_dev_events, get_contact, get_contacts,
     get_legacy_chats, get_metadata_for_pubkey, send_message,
 };
-use crate::nostr_mls::groups::create_group;
+use crate::nostr_mls::groups::{create_group, get_group_member_pubkeys, get_groups};
 use crate::nostr_mls::key_packages::{generate_and_publish_key_package, parse_key_package};
 use crate::nostr_mls::welcome_messages::fetch_welcome_messages_for_user;
-use crate::whitenoise::Whitenoise;
+use crate::whitenoise::{delete_data, Whitenoise};
 use log::debug;
 use tauri::Manager;
 
@@ -25,7 +24,7 @@ pub fn run() {
     env_logger::init();
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_window_state::Builder::new().build())
+        // .plugin(tauri_plugin_window_state::Builder::new().build())
         .setup(|app| {
             tauri::async_runtime::block_on(async move {
                 let data_dir = app
@@ -65,7 +64,7 @@ pub fn run() {
             create_group,
             create_identity,
             decrypt_content,
-            delete_app_data,
+            delete_data,
             delete_key_packages,
             fetch_dev_events,
             fetch_welcome_messages_for_user,
@@ -73,7 +72,9 @@ pub fn run() {
             get_accounts,
             get_contact,
             get_contacts,
+            get_groups,
             get_legacy_chats,
+            get_group_member_pubkeys,
             get_metadata_for_pubkey,
             login,
             logout,

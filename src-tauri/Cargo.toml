@@ -28,10 +28,15 @@ lazy_static = "1.5"
 log = "0.4"
 nostr-sdk = { version = "0.34", features = ["ndb"] }
 nostrdb = "0.3.4"
-openmls = "0.6"
-openmls_basic_credential = "0.3"
-openmls_rust_crypto = "0.3"
-openmls-sled-storage = { version = "0.0.1", git = "https://github.com/erskingardner/openmls-sled-storage", branch = "master" }
+# openmls = "0.6"
+# openmls_basic_credential = "0.3"
+# openmls_rust_crypto = "0.3"
+# openmls_memory_storage = "0.3"
+openmls = { version = "0.6", path = "../../openmls/openmls" }
+openmls_basic_credential = { version = "0.3", path = "../../openmls/basic_credential" }
+openmls_rust_crypto = { version = "0.3", path = "../../openmls/openmls_rust_crypto" }
+# openmls-sled-storage = { version = "0.0.1", git = "https://github.com/erskingardner/openmls-sled-storage", branch = "master" }
+openmls-sled-storage = { version = "0.0.1", path = "../../openmls-sled-storage" }
 parking_lot = "0.12"
 rand = "0.8"
 serde = { version = "1", features = ["derive"] }
@@ -42,6 +47,7 @@ tauri-plugin-shell = "2.0.0-rc"
 tauri-plugin-store = "2.0.0-rc"
 tls_codec = "0.4"
 tokio = { version = "1.40.0", features = ["full"] }
+hex = "0.4"
 
 
 [patch.crates-io]

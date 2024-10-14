@@ -36,12 +36,16 @@
 - ✅ NIP-04
 - NIP-17
 - NIP-104 (MLS)
-  ✅ Create & publish prekey events
+  - ✅ Create & publish prekey events
     - Adding someone manually with prekey event in person
-  - Create 1:1 DM group using prekeys
-  - Show conversations in sidebar
-  - Show conversation transcripts in main panel
-  - Show participants in conversation (where do we put conversation details?)
+  - ✅ Create 1:1 DM group using prekeys
+  - ✅ Create & Publish welcome message
+  - ✅ Create nostr group struct and store it locally in the database
+  - Handle receiving welcome message from MLS
+  - ✅ Show conversations list
+  - Show conversation transcript
+  - ✅ Show conversation details when tapping on conversation header
+  - More complete relay handling
 - Simple 1-2 step onboarding flow
 - Link to help docs (where?)
 - Once logged in and AppSettings are loaded, start the main app
@@ -85,4 +89,16 @@
 
 - Grease values in prekeys, groups, etc.
 - Custom Nostr credential? 
+
+
+## 📱 Mobile
+
+### Android
+
+- Nav bars need to have the hamburger removed 
+- Contact + button needs to be on the same level as the title
+
+### iOS
+
+- Need to be able to build to phone
 - 

@@ -372,11 +372,16 @@ pub async fn update_nostr_identity(keys: Keys, wn: &State<'_, Whitenoise>) -> Re
 
     // Clear existing relays and add default ones
     wn.nostr.remove_all_relays().await?;
+
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Removed all relays");
     for relay in DEFAULT_RELAYS {
+        debug!(target: "whitenoise::nostr::update_nostr_identity", "Adding relay: {}", relay);
         wn.nostr.add_relay(relay).await?;
     }
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Added default relays");
 
     // Fetch and apply DM relay lists for user
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Fetching DM relay lists");
     let relay_list_events = wn
         .nostr
         .get_events_of(
@@ -389,21 +394,32 @@ pub async fn update_nostr_identity(keys: Keys, wn: &State<'_, Whitenoise>) -> Re
                 specific_relays: None,
             },
         )
-        .await?;
-
+        .await
+        .expect("Failed to fetch DM relay lists");
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Fetched DM relay lists");
     if let Some(event) = relay_list_events.first() {
-        for tag in &event.tags {
-            if let TagKind::Relay = tag.kind() {
-                if let Some(relay_url) = tag.content() {
-                    if let Err(e) = wn.nostr.add_relay(relay_url).await {
-                        error!(target: "whitenoise::nostr::update_nostr_identity", "Failed to add relay {}: {}", relay_url, e);
+        let relay_tags = event
+            .tags
+            .iter()
+            .filter(|tag| matches!(tag.kind(), TagKind::Relay));
+        for tag in relay_tags {
+            if let Some(relay_url) = tag.content() {
+                match wn.nostr.add_relay(relay_url).await {
+                    Ok(_) => {
+                        debug!(target: "whitenoise::nostr::update_nostr_identity", "Added relay: {}", relay_url)
                     }
-                } else {
-                    error!(target: "whitenoise::nostr::update_nostr_identity", "DM Relay List tag has no content");
+                    Err(e) => {
+                        error!(target: "whitenoise::nostr::update_nostr_identity", "Failed to add relay {}: {}", relay_url, e)
+                    }
                 }
+            } else {
+                error!(target: "whitenoise::nostr::update_nostr_identity", "DM Relay List tag has no content");
             }
         }
+    } else {
+        debug!(target: "whitenoise::nostr::update_nostr_identity", "No DM relay list events found");
     }
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Added DM relay lists");
 
     // Set up subscriptions
     setup_subscriptions(&keys, wn).await?;
@@ -424,6 +440,7 @@ pub async fn update_nostr_identity(keys: Keys, wn: &State<'_, Whitenoise>) -> Re
 ///
 /// Returns `Ok(())` if all subscriptions are set up successfully, or an error if any subscription fails
 async fn setup_subscriptions(keys: &Keys, wn: &State<'_, Whitenoise>) -> Result<()> {
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Setting up subscriptions");
     // Subscribe for contacts
     let contacts_filter = Filter::new()
         .kind(Kind::ContactList)

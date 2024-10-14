@@ -24,6 +24,7 @@
     import {
         identities,
         currentIdentity,
+        updateIdentities,
         logout,
         login,
         createIdentity,
@@ -31,14 +32,25 @@
     } from "../stores/accounts";
     import { invoke } from "@tauri-apps/api/core";
     import { nameFromMetadata, npubFromPubkey } from "../utils/nostr";
+    import type { EnrichedContact } from "../types/nostr";
     import ndk from "../stores/ndk";
     import type { NDKEvent } from "@nostr-dev-kit/ndk";
+    import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+    import type { Router as F7Router } from "framework7/types";
+
+    let { f7router }: { f7router: F7Router.Router } = $props();
+    let unlisten: UnlistenFn;
 
     let keyPackages: unknown[] = $state([]);
     let showAccounts = $state(false);
     let showLogin = $state(false);
     let nsecOrHex = $state("");
     let welcomeMessages: unknown[] = $state([]);
+    let loginLoading = $state(false);
+
+    let accounts: [pubkey: string, identity: EnrichedContact][] = $derived(
+        Object.entries($identities)
+    );
 
     $effect(() => {
         // Do something when $currentIdentity changes
@@ -53,24 +65,39 @@
     );
 
     async function handleLogin() {
-        await login(nsecOrHex);
+        if (loginLoading) return;
+        loginLoading = true;
+        await login(nsecOrHex, "settings");
         nsecOrHex = ""; // Clear the input field
         showLogin = false;
+        loginLoading = false;
     }
 
     async function handleCreateIdentity() {
+        if (loginLoading) return;
+        loginLoading = true;
         await createIdentity();
         showLogin = false;
+        loginLoading = false;
+    }
+
+    async function handleLogout(pubkey: string) {
+        await logout(pubkey);
+        if (!!!$currentIdentity) {
+            f7.loginScreen.get("#login-screen").open();
+        }
     }
 
     async function nukeAll() {
         f7.dialog.confirm(
-            "Are you sure you want to delete all app data and settings?",
+            "Are you sure you want to delete all message data and app settings?",
             "Delete all data",
             async () => {
-                await invoke("delete_app_data");
-                $identities = {};
-                $currentIdentity = "";
+                await invoke("delete_data");
+                updateIdentities({ accounts: {}, current_identity: "" });
+                $ndk.activeUser = undefined;
+                f7.loginScreen.get("#login-screen").open();
+                f7router.navigate("/chats/");
             }
         );
     }
@@ -107,11 +134,10 @@
     async function fetchKeyPackages(): Promise<void> {
         const keyPackageEvents = await $ndk.fetchEvents({
             kinds: [443 as number],
-            authors: [$currentIdentity],
+            authors: [$currentIdentity as string],
         });
         keyPackages = [];
         keyPackageEvents.forEach(async (event: NDKEvent) => {
-            console.log(event);
             const keyPackage = await invoke("parse_key_package", { keyPackageHex: event.content });
             keyPackages.push(keyPackage);
         });
@@ -142,15 +168,37 @@
             pubkey: $currentIdentity,
         });
     }
+
+    async function identityUpdate() {
+        console.log("identityUpdate");
+    }
 </script>
 
-<Page class="settings-page bg-gray-900">
+<Page
+    class="settings-page bg-gray-900"
+    on:pageInit={async () => {
+        console.log("pageInit: Settings");
+    }}
+    on:pageTabShow={async () => {
+        console.log("pageTabShow: Settings");
+        unlisten = await listen<string>("identity_change", (_event) => identityUpdate());
+    }}
+    on:pageBeforeRemove={() => {
+        console.log("pageBeforeRemove: Settings");
+        if (unlisten) unlisten();
+    }}
+>
     <Navbar title="Settings" large transparent>
-        <Link slot="left" iconF7="bars" onClick={() => f7.panel.toggle("#menu-panel-left")} />
+        <Link
+            slot="left"
+            iconF7="bars"
+            on:click={() => f7.panel.toggle("#menu-panel-left")}
+            style={!f7.device.desktop ? "display: none;" : ""}
+        />
     </Navbar>
     <BlockTitle>Profiles</BlockTitle>
     <List dividers outline mediaList class="profile-settings-list">
-        {#each Object.entries($identities) as [pubkey, identity] (pubkey)}
+        {#each accounts as [pubkey, identity] (pubkey)}
             <ListItem
                 mediaItem
                 noChevron
@@ -169,7 +217,7 @@
                 <div slot="footer" class="font-mono truncate">
                     {npubFromPubkey(pubkey)}
                 </div>
-                <Button slot="after" tonal onClick={() => logout(pubkey)}>Log out</Button>
+                <Button slot="after" tonal on:click={() => handleLogout(pubkey)}>Log out</Button>
             </ListItem>
         {/each}
     </List>
@@ -217,26 +265,26 @@
 
     <BlockTitle>Privacy</BlockTitle>
     <List dividers outline mediaList class="privacy-settings-list">
-        <ListItem link title="Delete all app data" onClick={nukeAll}>
+        <ListItem link title="Delete all app data" on:click={nukeAll}>
             <Skull slot="media" size={24} />
         </ListItem>
     </List>
 
     <BlockTitle>Developer Settings</BlockTitle>
     <List dividers outline mediaList class="developer-settings-list">
-        <ListItem link title="Inspect Account" onClick={() => (showAccounts = !showAccounts)}>
+        <ListItem link title="Inspect Account" on:click={() => (showAccounts = !showAccounts)}>
             <Users slot="media" size={24} />
         </ListItem>
-        <ListItem link title="Fetch Prekey Events" onClick={fetchKeyPackages}>
+        <ListItem link title="Fetch Prekey Events" on:click={fetchKeyPackages}>
             <Binoculars slot="media" size={24} />
         </ListItem>
-        <ListItem link title="Publish Prekey Event" onClick={generateAndPublishKeyPackage}>
+        <ListItem link title="Publish Prekey Event" on:click={generateAndPublishKeyPackage}>
             <Key slot="media" size={24} />
         </ListItem>
-        <ListItem link title="Delete all Prekey Events" onClick={deleteKeyPackages}>
+        <ListItem link title="Delete all Prekey Events" on:click={deleteKeyPackages}>
             <Trash slot="media" size={24} />
         </ListItem>
-        <ListItem link title="Fetch Welcome Messages" onClick={fetchWelcomeMessages}>
+        <ListItem link title="Fetch Welcome Messages" on:click={fetchWelcomeMessages}>
             <UserPlus slot="media" size={24} />
         </ListItem>
     </List>
@@ -246,7 +294,7 @@
         <div class="p-4 rounded-md bg-gray-800 ring-1 ring-gray-700 mx-4">
             <pre class="overflow-x-scroll">
                 <code class="language-json whitespace-pre font-mono">
-{JSON.stringify($identities[$currentIdentity], null, 4)}
+{JSON.stringify($identities[$currentIdentity as string], null, 4)}
                 </code>
             </pre>
         </div>

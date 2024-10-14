@@ -1,5 +1,6 @@
 use crate::database::Database;
 use anyhow::Result;
+use log::debug;
 use serde::{Deserialize, Serialize};
 use std::str::from_utf8;
 
@@ -54,12 +55,25 @@ impl AppSettings {
     /// # Returns
     /// * `Ok(())` - If the settings were successfully saved
     /// * `Err` - If there was an error saving the settings
-    ///
-    /// # TODO
-    /// Handle errors better and return them to the UI layer
+    #[allow(dead_code)]
     pub fn save(&self, database: &Database) -> Result<()> {
         let json = serde_json::to_string(self)?;
         database.insert(SETTINGS_KEY, json.as_str())?;
+        Ok(())
+    }
+
+    /// Deletes the current app settings from the database and replaces them with default settings
+    ///
+    /// # Arguments
+    /// * `database` - A reference to the `Database` instance
+    ///
+    /// # Returns
+    /// * `Ok(())` - If the settings were successfully deleted and replaced with defaults
+    /// * `Err` - If there was an error during the process
+    pub fn delete_data(&self, database: &Database) -> Result<()> {
+        debug!(target: "app_settings::delete_data", "Deleting app settings");
+        let settings = AppSettings::default();
+        settings.save(database)?;
         Ok(())
     }
 }

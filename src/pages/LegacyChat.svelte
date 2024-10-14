@@ -12,20 +12,17 @@
     } from "framework7-svelte";
     import Avatar from "../components/Avatar.svelte";
     import Name from "../components/Name.svelte";
-    import type { NMetadata, NEvent, EnrichedContact } from "../types/nostr";
+    import type { NChat, NEvent, EnrichedContact, NostrMlsGroup } from "../types/nostr";
     import { currentIdentity } from "../stores/accounts";
     import { formatMessageTime } from "../utils/time";
     import { Warning, WarningOctagon, ArrowCircleUp } from "phosphor-svelte";
     import { invoke } from "@tauri-apps/api/core";
     import { nameFromMetadata, isInsecure } from "../utils/nostr";
+    import { hexMlsGroupId } from "../utils/group";
+    import type { Router as F7Router } from "framework7/types";
 
-    type Chat = {
-        latest: number | undefined;
-        metadata: NMetadata;
-        events: NEvent[];
-    };
-
-    let { pubkey, chat }: { pubkey: string; chat: Chat } = $props();
+    let { pubkey, chat, f7router }: { pubkey: string; chat: NChat; f7router: F7Router.Router } =
+        $props();
 
     let enrichedContact: EnrichedContact | undefined = $state(undefined);
     let groupError: string | undefined = $state(undefined);
@@ -52,17 +49,6 @@
 
     let warningTooltip: any;
 
-    function onPageInit() {
-        warningTooltip = f7.tooltip.create({
-            targetEl: ".warning-tooltip",
-            text: "This is a NIP-04 encrypted message.<br /><em>All metadata is publicly visible.</em>",
-        });
-    }
-
-    function onPageBeforeRemove() {
-        if (warningTooltip) f7.tooltip.destroy(warningTooltip);
-    }
-
     function messageTypeForEvent(event: NEvent) {
         return $currentIdentity === event.pubkey ? "sent" : "received";
     }
@@ -84,8 +70,7 @@
     let isNewChatPopupOpen = $state(false);
 
     async function startSecureChat() {
-        console.log("Start secure chat");
-
+        console.log("Starting secure chat with: ", nameFromMetadata(chat.metadata));
         // This will fetch prekeys, validate them, create the group, and invite the other party
         invoke("create_group", {
             creatorPubkey: $currentIdentity,
@@ -94,8 +79,14 @@
             groupName: "Secure DM",
             description: "",
         })
-            .then(() => {
-                // DO more stuff
+            .then((group) => {
+                const nostrMlsGroup = group as NostrMlsGroup;
+                console.log("Group created & welcome message sent");
+                f7.popup.close("#new-chat-popup");
+                f7router.navigate(`/groups/${hexMlsGroupId(nostrMlsGroup.mls_group_id)}/`, {
+                    browserHistory: false,
+                    props: { group: nostrMlsGroup },
+                });
             })
             .catch((error) => {
                 console.error(error);
@@ -118,12 +109,31 @@
     }
 </script>
 
-<Page class="messages-page bg-gray-900" noToolbar messagesContent {onPageInit} {onPageBeforeRemove}>
-    <Navbar class="messages-navbar justify-start py-8" backLink backLinkShowText={false}>
+<Page
+    class="messages-page bg-gray-900"
+    noToolbar
+    messagesContent
+    on:pageAfterIn={async () => {
+        console.log("pageAfterIn: LegacyChat");
+        warningTooltip = f7.tooltip.create({
+            targetEl: ".warning-tooltip",
+            text: "This is a NIP-04 encrypted message.<br /><em>All metadata is publicly visible.</em>",
+        });
+    }}
+    on:pageBeforeRemove={() => {
+        console.log("pageBeforeRemove: LegacyChat");
+        if (warningTooltip) f7.tooltip.destroy(warningTooltip);
+    }}
+>
+    <Navbar class="messages-navbar justify-start py-8" backLink backLinkUrl="/chats/">
         <Link
-            href={`/profile/${pubkey}/`}
+            href={`/chats/${pubkey}/info/`}
             slot="title"
             class="title-profile-link flex flex-row gap-2 items-center"
+            routeProps={{
+                chat,
+                enrichedContact,
+            }}
         >
             <Avatar picture={chat.metadata.picture} {pubkey} pxSize={32} />
             <div class="flex flex-col">
@@ -219,6 +229,8 @@
     </Messages>
 
     <Popup
+        push
+        id="new-chat-popup"
         bind:opened={isNewChatPopupOpen}
         onPopupClosed={() => {
             groupError = undefined;

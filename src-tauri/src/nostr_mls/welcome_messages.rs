@@ -55,8 +55,10 @@ pub async fn fetch_welcome_messages_for_user(
     let mut welcome_events: Vec<UnsignedEvent> = Vec::new();
 
     if let Ok(events) = gw_events {
+        debug!(target: "nostr_mls::welcome_messages::fetch_welcome_messages_for_user", "Found {:?} Gift-wrapped messages for user {:?}", events.len(), pubkey);
         for event in events {
             if let Ok(unwrapped) = extract_rumor(&keys, &event) {
+                debug!(target: "nostr_mls::welcome_messages::fetch_welcome_messages_for_user", "Unwrapped Gift-wrapped message: {:?}", unwrapped.rumor);
                 if unwrapped.rumor.kind == Kind::Custom(444) {
                     welcome_events.push(unwrapped.rumor);
                 }
@@ -66,6 +68,7 @@ pub async fn fetch_welcome_messages_for_user(
 
     let mut welcome_messages: Vec<WelcomeMessage> = Vec::new();
 
+    // TODO: We need to filter and only show the latest welcome message for a group (and also disregard any for groups we have already joined)
     for event in &welcome_events {
         let welcome =
             parse_welcome_message(event.content.clone()).expect("Failed to parse welcome message");

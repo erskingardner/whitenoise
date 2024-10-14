@@ -1,18 +1,18 @@
-import { writable, get } from "svelte/store";
+import { writable, type Writable, get } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
 import type { NUsers } from "../types/nostr";
 import { ndkStore } from "../stores/ndk";
 
 export type Accounts = {
     accounts: NUsers;
-    current_identity: string;
+    current_identity: string | null;
 };
 
 /** This is an object containing the hexpubkeys and metadata of all signed in identities */
-export const identities = writable({} as NUsers);
+export const identities: Writable<NUsers> = writable({} as NUsers);
 
 /** This is the hexpubkey of the currently selected identity */
-export const currentIdentity = writable("");
+export const currentIdentity: Writable<string | null> = writable(null);
 
 /** Basic matching patterns for hex and nsec keys */
 export const hexPattern = /^[a-fA-F0-9]{64}$/;
@@ -55,6 +55,7 @@ export async function fetchAccounts(): Promise<void> {
  * @returns A promise that resolves when the identity switch is complete.
  */
 export async function switchIdentity(pubkey: string): Promise<void> {
+    if (pubkey === get(currentIdentity)) return;
     const accounts: Accounts = await invoke("set_current_identity", { pubkey });
     updateIdentities(accounts);
 }
@@ -87,7 +88,8 @@ export async function createIdentity(): Promise<void> {
  * @returns A promise that resolves when the logout process is complete and stores are updated.
  */
 export async function logout(pubkey: string): Promise<void> {
-    const accounts: Accounts = await invoke("logout", { pubkey });
+    await invoke("logout", { pubkey });
+    const accounts: Accounts = await invoke("get_accounts");
     updateIdentities(accounts);
 }
 
@@ -105,12 +107,12 @@ export async function logout(pubkey: string): Promise<void> {
  * @throws {LoginError} If the private key is invalid or the login process fails.
  * @returns A promise that resolves when the login process is complete and stores are updated.
  */
-export async function login(nsecOrHex: string): Promise<void> {
+export async function login(nsecOrHex: string, source: string): Promise<void> {
     if (!nsecOrHex || (!hexPattern.test(nsecOrHex) && !nsecPattern.test(nsecOrHex))) {
         throw new LoginError("Invalid private key");
     }
 
-    const accounts: Accounts = await invoke("login", { nsecOrHex });
+    const accounts: Accounts = await invoke("login", { nsecOrHex, source });
     updateIdentities(accounts);
 }
 
@@ -125,11 +127,14 @@ export async function login(nsecOrHex: string): Promise<void> {
  *
  * @param accounts - The Accounts object containing updated identity information.
  */
-function updateIdentities(accounts: Accounts): void {
+export function updateIdentities(accounts: Accounts): void {
     identities.set(accounts.accounts || {});
-    currentIdentity.set(accounts.current_identity || "");
+    currentIdentity.set(accounts.current_identity);
 
-    if (currentIdentity) {
+    console.log("updateIdentities: accounts", get(identities));
+    console.log("updateIdentities: currentIdentity", get(currentIdentity));
+
+    if (accounts.current_identity) {
         ndkStore.activeUser = ndkStore.getUser({ pubkey: accounts.current_identity });
     }
 }

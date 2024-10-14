@@ -150,98 +150,87 @@
 </script>
 
 <Popup push>
-    <Views tabs class="safe-areas">
-        <View
-            tab
-            tabActive
-            id="contacts-popup-view"
-            onTabShow={() => (activePage = "contactsList")}
-        >
-            <Page class="contacts-page bg-gray-900">
-                <Navbar title={modalTitle}>
-                    <Link slot="right" popupClose>Cancel</Link>
-                    <Subnavbar>
-                        <Searchbar
-                            searchContainer="#contacts-list"
-                            searchIn=".contact-name"
-                            disableButton={false}
-                            clearButton
-                            customSearch={true}
-                            bind:value={searchQuery}
-                        />
-                    </Subnavbar>
-                </Navbar>
-                {#if isLoading}
-                    <div class="flex items-start justify-center bg-gray-900 h-full pt-10">
-                        <Loader fullscreen={false} size={32} />
-                    </div>
-                {:else}
-                    <div class="flex flex-col gap-2">
-                        <Link
-                            href="/groups/new/"
-                            class="flex flex-row gap-2 items-center w-full justify-start px-4 py-1"
-                        >
-                            <UsersThree size={40} class="text-blue-700" />
-                            <span class="text-color-primary"> New Group </span>
-                        </Link>
-                        <Link
-                            href="/contacts/new/"
-                            class="flex flex-row gap-2 items-center w-full justify-start px-4 py-1"
-                        >
-                            <User size={40} class="text-blue-700" />
-                            <span class="text-color-primary"> New Contact </span>
-                        </Link>
-                    </div>
-                    <List strongIos outlineIos dividersIos class="searchbar-not-found">
-                        <ListItem title="Nothing found" />
-                    </List>
-                    <List
-                        contactsList
-                        noChevron
-                        dividers
-                        ul={false}
-                        class="contacts-list searchbar-found bg-gray-900"
-                        id="contacts-list"
+    <View tab tabActive id="contacts-popup-view" onTabShow={() => (activePage = "contactsList")}>
+        <Page class="contacts-page bg-gray-900">
+            <Navbar title={modalTitle}>
+                <Link slot="right" popupClose>Cancel</Link>
+                <Subnavbar>
+                    <Searchbar
+                        searchContainer="#contacts-list"
+                        searchIn=".contact-name"
+                        disableButton={false}
+                        clearButton
+                        customSearch={true}
+                        bind:value={searchQuery}
+                    />
+                </Subnavbar>
+            </Navbar>
+            {#if isLoading}
+                <div class="flex items-start justify-center bg-gray-900 h-full pt-10">
+                    <Loader fullscreen={false} size={32} />
+                </div>
+            {:else}
+                <div class="flex flex-col gap-2">
+                    <Link
+                        href="/groups/new/"
+                        class="flex flex-row gap-2 items-center w-full justify-start px-4 py-1"
                     >
-                        {#each Object.entries(filteredGroups) as [groupKey, contacts]}
-                            <ListGroup>
+                        <UsersThree size={40} class="text-blue-700" />
+                        <span class="text-color-primary"> New Group </span>
+                    </Link>
+                    <Link
+                        href="/contacts/new/"
+                        class="flex flex-row gap-2 items-center w-full justify-start px-4 py-1"
+                    >
+                        <User size={40} class="text-blue-700" />
+                        <span class="text-color-primary"> New Contact </span>
+                    </Link>
+                </div>
+                <List strongIos outlineIos dividersIos class="searchbar-not-found">
+                    <ListItem title="Nothing found" />
+                </List>
+                <List
+                    contactsList
+                    noChevron
+                    dividers
+                    ul={false}
+                    class="contacts-list searchbar-found bg-gray-900"
+                    id="contacts-list"
+                >
+                    {#each Object.entries(filteredGroups) as [groupKey, contacts]}
+                        <ListGroup>
+                            <ListItem groupTitle title={groupKey} class="list-group p-0 w-full" />
+                            {#each contacts as contact (contact.pubkey)}
                                 <ListItem
-                                    groupTitle
-                                    title={groupKey}
-                                    class="list-group p-0 w-full"
-                                />
-                                {#each contacts as contact (contact.pubkey)}
-                                    <ListItem
-                                        link
-                                        class="contact-name"
-                                        title={contact.profile?.displayName ||
-                                            contact.profile?.name ||
-                                            npubFromPubkey(contact.pubkey)}
-                                        popupClose
-                                        on:click={() =>
-                                            onContactSelect(
-                                                contact.pubkey,
-                                                ndkUserProfileToNMetadata(contact.profile)
-                                            )}
-                                    >
-                                        <Avatar
-                                            slot="media"
-                                            picture={contact.profile?.image}
-                                            pubkey={contact.pubkey}
-                                        />
-                                    </ListItem>
-                                {/each}
-                            </ListGroup>
-                        {/each}
-                    </List>
-                {/if}
-            </Page>
-        </View>
-        <View
-            id="view-create-group"
-            onTabShow={() => (activePage = "createGroup")}
-            tab
-            url="/groups/new/"
-        />
-    </Views>
+                                    link
+                                    class="contact-name"
+                                    title={contact.profile?.displayName ||
+                                        contact.profile?.name ||
+                                        npubFromPubkey(contact.pubkey)}
+                                    popupClose
+                                    on:click={() =>
+                                        onContactSelect(
+                                            contact.pubkey,
+                                            ndkUserProfileToNMetadata(contact.profile)
+                                        )}
+                                >
+                                    <Avatar
+                                        slot="media"
+                                        picture={contact.profile?.image}
+                                        pubkey={contact.pubkey}
+                                    />
+                                </ListItem>
+                            {/each}
+                        </ListGroup>
+                    {/each}
+                </List>
+            {/if}
+        </Page>
+    </View>
+    <View
+        id="view-create-group"
+        onTabShow={() => (activePage = "createGroup")}
+        tab
+        url="/groups/new/"
+    />
 </Popup>

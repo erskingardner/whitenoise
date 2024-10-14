@@ -1,9 +1,9 @@
-use crate::{app_settings::AppSettings, whitenoise::Whitenoise};
 use anyhow::Result;
 use log::debug;
 use sled::{Db, IVec};
 use std::path::Path;
-use tauri::State;
+use std::time::Instant;
+
 const DB_NAME: &str = "wdb";
 
 #[derive(Debug)]
@@ -90,6 +90,28 @@ impl Database {
         Ok(result)
     }
 
+    /// Retrieves a value from a specific tree in the database for a given key.
+    ///
+    /// This function opens a tree with the specified name and attempts to retrieve
+    /// the corresponding value for the given key from that tree.
+    ///
+    /// # Arguments
+    ///
+    /// * `tree` - A string slice that holds the name of the tree to open.
+    /// * `key` - A string slice that holds the key to look up within the tree.
+    ///
+    /// # Returns
+    ///
+    /// Returns a Result containing an Option<IVec>. The Option will be:
+    /// - Some(IVec) containing the value if the key exists in the specified tree.
+    /// - None if the key does not exist in the specified tree.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The underlying sled database encounters an error while opening the tree.
+    /// - The get operation on the tree fails.
+    #[allow(dead_code)]
     pub fn get_from_tree(&self, tree: &str, key: &str) -> Result<Option<IVec>> {
         let tree = self.db.open_tree(tree)?;
         let result = tree.get(key)?;
@@ -120,52 +142,39 @@ impl Database {
         Ok(result)
     }
 
-    /// Clears all data from the database.
+    /// Deletes all data from the database.
     ///
-    /// This function removes all key-value pairs from the database, effectively resetting it
-    /// to an empty state.
+    /// This function removes all trees and clears all key-value pairs from the main database.
     ///
     /// # Returns
     ///
-    /// Returns a Result<()>. If the operation is successful, it returns Ok(()), otherwise
-    /// it returns an error.
+    /// Returns a Result indicating success (Ok(())) or an error if any operation fails.
     ///
     /// # Errors
     ///
-    /// This function will return an error if the underlying sled database encounters an error
-    /// during the clear operation.
-    pub fn clear(&self) -> Result<()> {
+    /// This function will return an error if:
+    /// - Retrieving tree names fails
+    /// - Dropping any tree fails
+    /// - Clearing the main database fails
+    pub fn delete_data(&self) -> Result<()> {
+        let start = Instant::now();
+        debug!(target: "database::delete_data", "Deleting all data");
+        let tree_names = self.db.tree_names();
+        for tree_name in tree_names {
+            let tree_name_string = String::from_utf8(tree_name.to_vec()).unwrap();
+            match tree_name_string.as_str() {
+                "__sled__default" => (),
+                _ => {
+                    debug!(target: "database::delete_data", "Deleting tree: {:#?}", tree_name_string);
+                    self.db.drop_tree(tree_name)?;
+                }
+            }
+        }
         self.db.clear()?;
+        self.db.flush()?;
+        debug!(target: "database::delete_data", "Main database cleared in {:#?}", start.elapsed());
         Ok(())
     }
-}
-
-/// --- Commands ---
-
-/// Deletes all application data and resets settings to default.
-///
-/// This function clears the entire database and then saves default settings.
-/// It should be used with caution as it will result in loss of all stored data.
-///
-/// # Arguments
-///
-/// * `state` - A State containing the AppState, which includes the database.
-///
-/// # Panics
-///
-/// This function will panic if:
-/// - It fails to clear the database
-/// - It fails to save the default settings
-///
-/// # Safety
-///
-/// This is a destructive operation that cannot be undone. Use with extreme caution.
-#[tauri::command]
-pub fn delete_app_data(state: State<'_, Whitenoise>) {
-    let db = &state.wdb;
-    db.clear().expect("Couldn't clear database");
-    let settings = AppSettings::default();
-    settings.save(db).expect("Couldn't save settings");
 }
 
 #[cfg(test)]
@@ -206,19 +215,29 @@ mod tests {
     }
 
     #[test]
-    fn test_clear() {
+    fn test_delete_data() {
         let db = setup_test_db().unwrap();
         let key1 = "test_key1";
+        let value1 = "test_value1";
         let key2 = "test_key2";
-        let value = "test_value";
+        let value2 = "test_value2";
 
-        db.insert(key1, value).expect("Failed to insert key1");
-        db.insert(key2, value).expect("Failed to insert key2");
-        db.clear().expect("Failed to clear database");
+        // Insert some test data
+        db.insert(key1, value1).expect("Failed to insert key1");
+        db.insert(key2, value2).expect("Failed to insert key2");
 
-        let result1 = db.get(key1).expect("Failed to get key1");
-        let result2 = db.get(key2).expect("Failed to get key2");
-        assert!(result1.is_none());
-        assert!(result2.is_none());
+        // Verify data was inserted
+        assert!(db.get(key1).unwrap().is_some());
+        assert!(db.get(key2).unwrap().is_some());
+
+        // Delete all data
+        db.delete_data().expect("Failed to delete data");
+
+        // Verify all data was deleted
+        assert!(db.get(key1).unwrap().is_none());
+        assert!(db.get(key2).unwrap().is_none());
+
+        // Verify all trees were dropped
+        assert!(db.db.tree_names().is_empty());
     }
 }

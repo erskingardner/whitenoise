@@ -2,9 +2,10 @@ pub mod groups;
 pub mod key_packages;
 pub mod nostr_group_data;
 pub mod welcome_messages;
+use log::debug;
 use openmls::prelude::*;
 use openmls_rust_crypto::RustCrypto;
-use openmls_sled_storage::SledStorage;
+use openmls_sled_storage::{SledStorage, SledStorageError};
 use std::path::PathBuf;
 
 const DEFAULT_CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
@@ -73,6 +74,11 @@ impl NostrMls {
         }
     }
 
+    pub fn delete_data(&self) -> Result<(), SledStorageError> {
+        debug!(target: "nostr_mls::delete_data", "Deleting Nostr MLS data");
+        self.provider.key_store.delete_all_data()
+    }
+
     pub fn ciphersuite_value(&self) -> u16 {
         self.ciphersuite.into()
     }
@@ -85,5 +91,3 @@ impl NostrMls {
             .join(",")
     }
 }
-
-// TODO: Add grease values to the ciphersuite and extensions
