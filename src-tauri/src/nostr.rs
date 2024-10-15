@@ -40,6 +40,7 @@ pub struct EnrichedContact {
     pub nip17: bool,
     pub nip104: bool,
     pub inbox_relays: Vec<String>,
+    pub key_package_relays: Vec<String>,
 }
 
 #[allow(dead_code)]
@@ -71,17 +72,19 @@ pub async fn get_contact(
         nip17: false,
         nip104: false,
         inbox_relays: Vec::new(),
+        key_package_relays: Vec::new(),
     };
 
     // Prepare filters for messaging capabilities
     let dm_relay_list_filter = Filter::new().kind(Kind::Custom(10050)).author(public_key);
     let prekey_filter = Filter::new().kind(Kind::Custom(443)).author(public_key);
+    let key_package_list_filter = Filter::new().kind(Kind::Custom(10051)).author(public_key);
 
     // Fetch messaging capabilities for all contacts in a single query
     let messaging_capabilities_events = wn
         .nostr
         .get_events_of(
-            vec![dm_relay_list_filter, prekey_filter],
+            vec![dm_relay_list_filter, prekey_filter, key_package_list_filter],
             EventSource::Both {
                 timeout: Some(DEFAULT_TIMEOUT),
                 specific_relays: None,
@@ -96,6 +99,16 @@ pub async fn get_contact(
             Kind::Replaceable(10050) => {
                 enriched_contact.nip17 = true;
                 enriched_contact.inbox_relays.extend(
+                    event
+                        .tags
+                        .iter()
+                        .filter(|tag| tag.kind() == TagKind::Relay)
+                        .filter_map(|tag| tag.content())
+                        .map(|s| s.to_string()),
+                );
+            }
+            Kind::Replaceable(10051) => {
+                enriched_contact.key_package_relays.extend(
                     event
                         .tags
                         .iter()
@@ -152,13 +165,16 @@ pub async fn get_contacts(
         .authors(contact_list_pubkeys.clone());
     let prekey_filter = Filter::new()
         .kind(Kind::Custom(443))
-        .authors(contact_list_pubkeys);
+        .authors(contact_list_pubkeys.clone());
+    let key_package_list_filter = Filter::new()
+        .kind(Kind::Custom(10051))
+        .authors(contact_list_pubkeys.clone());
 
     // Fetch messaging capabilities for all contacts in a single query
     let messaging_capabilities_events = wn
         .nostr
         .get_events_of(
-            vec![dm_relay_list_filter, prekey_filter],
+            vec![dm_relay_list_filter, prekey_filter, key_package_list_filter],
             EventSource::Both {
                 timeout: Some(DEFAULT_TIMEOUT),
                 specific_relays: None,
@@ -178,6 +194,7 @@ pub async fn get_contacts(
             nip17: false,
             nip104: false,
             inbox_relays: Vec::new(),
+            key_package_relays: Vec::new(),
         };
 
         // Process messaging capabilities
@@ -187,6 +204,16 @@ pub async fn get_contacts(
                     Kind::Replaceable(10050) => {
                         enriched_contact.nip17 = true;
                         enriched_contact.inbox_relays.extend(
+                            event
+                                .tags
+                                .iter()
+                                .filter(|tag| tag.kind() == TagKind::Relay)
+                                .filter_map(|tag| tag.content())
+                                .map(|s| s.to_string()),
+                        );
+                    }
+                    Kind::Replaceable(10051) => {
+                        enriched_contact.key_package_relays.extend(
                             event
                                 .tags
                                 .iter()
@@ -358,27 +385,37 @@ pub async fn get_legacy_chats(
 /// - Removing or adding relays fails
 /// - Fetching events or setting up new subscriptions fails
 pub async fn update_nostr_identity(keys: Keys, wn: &State<'_, Whitenoise>) -> Result<()> {
+    let mut start = Instant::now();
     debug!(target: "whitenoise::nostr::update_nostr_identity", "Updating nostr identity");
 
     // Unsubscribe from all existing subscriptions
     wn.nostr.unsubscribe_all().await;
-    debug!(target: "whitenoise::nostr::update_nostr_identity", "Unsubscribed from all");
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Unsubscribed from all in {:?}", start.elapsed());
+    start = Instant::now();
 
     // Update the signer for the Nostr client
     wn.nostr
         .set_signer(Some(NostrSigner::Keys(keys.clone())))
         .await;
-    debug!(target: "whitenoise::nostr::update_nostr_identity", "Set signer");
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Set signer in {:?}", start.elapsed());
+    start = Instant::now();
 
     // Clear existing relays and add default ones
     wn.nostr.remove_all_relays().await?;
 
-    debug!(target: "whitenoise::nostr::update_nostr_identity", "Removed all relays");
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Removed all relays in {:?}", start.elapsed());
+    start = Instant::now();
+
     for relay in DEFAULT_RELAYS {
         debug!(target: "whitenoise::nostr::update_nostr_identity", "Adding relay: {}", relay);
         wn.nostr.add_relay(relay).await?;
     }
-    debug!(target: "whitenoise::nostr::update_nostr_identity", "Added default relays");
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Added default relays in {:?}", start.elapsed());
+    start = Instant::now();
+
+    wn.nostr.connect().await;
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Connected to relays in {:?}", start.elapsed());
+    start = Instant::now();
 
     // Fetch and apply DM relay lists for user
     debug!(target: "whitenoise::nostr::update_nostr_identity", "Fetching DM relay lists");
@@ -396,7 +433,9 @@ pub async fn update_nostr_identity(keys: Keys, wn: &State<'_, Whitenoise>) -> Re
         )
         .await
         .expect("Failed to fetch DM relay lists");
-    debug!(target: "whitenoise::nostr::update_nostr_identity", "Fetched DM relay lists");
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Fetched DM relay lists in {:?}", start.elapsed());
+    start = Instant::now();
+
     if let Some(event) = relay_list_events.first() {
         let relay_tags = event
             .tags
@@ -419,12 +458,13 @@ pub async fn update_nostr_identity(keys: Keys, wn: &State<'_, Whitenoise>) -> Re
     } else {
         debug!(target: "whitenoise::nostr::update_nostr_identity", "No DM relay list events found");
     }
-    debug!(target: "whitenoise::nostr::update_nostr_identity", "Added DM relay lists");
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Added DM relay lists in {:?}", start.elapsed());
+    start = Instant::now();
 
     // Set up subscriptions
     setup_subscriptions(&keys, wn).await?;
 
-    debug!(target: "whitenoise::nostr::update_nostr_identity", "Updated nostr identity & subscriptions for user {:?}", keys.public_key());
+    debug!(target: "whitenoise::nostr::update_nostr_identity", "Updated nostr identity & subscriptions for user {:?} in {:?}", keys.public_key(), start.elapsed());
 
     Ok(())
 }
@@ -504,86 +544,6 @@ pub async fn send_message(
 }
 
 #[tauri::command]
-pub async fn fetch_dev_events(wn: State<'_, Whitenoise>) -> Result<HashMap<String, usize>, String> {
-    let keys = wn.nostr.signer().await.unwrap();
-
-    let relay_contacts = wn
-        .nostr
-        .get_contact_list_public_keys(Some(DEFAULT_TIMEOUT))
-        .await
-        .unwrap();
-
-    let database_contact_list_events = wn
-        .nostr
-        .database()
-        .query(
-            vec![Filter::new()
-                .kind(Kind::ContactList)
-                .author(keys.public_key().await.unwrap())
-                .limit(1)],
-            Order::Desc,
-        )
-        .await
-        .unwrap();
-    let database_contact_list_event = database_contact_list_events.first().unwrap();
-    let database_contacts = database_contact_list_event.get_tags_content(TagKind::SingleLetter(
-        SingleLetterTag::lowercase(Alphabet::P),
-    ));
-
-    let relay_chats = wn
-        .nostr
-        .get_events_of(
-            vec![
-                Filter::new()
-                    .kind(Kind::EncryptedDirectMessage)
-                    .author(keys.public_key().await.unwrap()),
-                Filter::new()
-                    .kind(Kind::EncryptedDirectMessage)
-                    .pubkeys(vec![keys.public_key().await.unwrap()]),
-            ],
-            EventSource::Relays {
-                timeout: Some(DEFAULT_TIMEOUT),
-                specific_relays: None,
-            },
-        )
-        .await
-        .unwrap();
-    let mut database_chats: Vec<Event> = Vec::new();
-    let sent_database_chats = wn
-        .nostr
-        .database()
-        .query(
-            vec![Filter::new()
-                .kind(Kind::EncryptedDirectMessage)
-                .author(keys.public_key().await.unwrap())],
-            Order::Desc,
-        )
-        .await
-        .unwrap();
-    let received_database_chats = wn
-        .nostr
-        .database()
-        .query(
-            vec![Filter::new()
-                .kind(Kind::EncryptedDirectMessage)
-                .pubkeys(vec![keys.public_key().await.unwrap()])],
-            Order::Desc,
-        )
-        .await
-        .unwrap();
-    database_chats.extend(sent_database_chats);
-    database_chats.extend(received_database_chats);
-
-    let mut events_map: HashMap<String, usize> = HashMap::new();
-    events_map.insert("database_contacts".to_string(), database_contacts.len());
-    events_map.insert("relay_contacts".to_string(), relay_contacts.len());
-    events_map.insert("relay_chats".to_string(), relay_chats.len());
-    events_map.insert("database_chats".to_string(), database_chats.len());
-
-    Ok(events_map) // Return the events_map wrapped in Ok
-}
-
-#[tauri::command]
 pub async fn decrypt_content(
     content: String,
     pubkey: String,
@@ -593,33 +553,4 @@ pub async fn decrypt_content(
     let signer = wn.nostr.signer().await.unwrap();
     let decrypted = signer.nip04_decrypt(author_pubkey, content).await.unwrap();
     Ok(decrypted)
-}
-
-#[tauri::command]
-pub async fn delete_key_packages(wn: State<'_, Whitenoise>) -> Result<(), String> {
-    let current_pubkey = wn.nostr.signer().await.unwrap().public_key().await.unwrap();
-    let filter = Filter::new().kind(Kind::Custom(443)).author(current_pubkey);
-    let event_ids: Vec<EventId> = wn
-        .nostr
-        .get_events_of(
-            vec![filter.clone()],
-            EventSource::Both {
-                timeout: Some(DEFAULT_TIMEOUT),
-                specific_relays: None,
-            },
-        )
-        .await
-        .unwrap()
-        .iter()
-        .map(|event| event.id())
-        .collect();
-
-    // Send delete request to relays
-    let delete_event = EventBuilder::delete(event_ids);
-    wn.nostr
-        .send_event_builder(delete_event)
-        .await
-        .expect("Failed to publish delete event");
-
-    Ok(())
 }

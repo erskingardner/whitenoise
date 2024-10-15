@@ -279,6 +279,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "98f7eed2b2781a6f0b5c903471d48e15f56fb4e1165df8a9a2337fd1a59d45ea"
 
 [[package]]
+name = "bincode"
+version = "1.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1f45e9417d87227c7a56d22e471c6206462cba514c7590c09aff4cf6d1ddcad"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "bindgen"
 version = "0.69.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2940,6 +2949,8 @@ dependencies = [
 [[package]]
 name = "openmls"
 version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f1295188c6665fb9e96466180ac0a919ef52b5861cf7e86523823661348a597"
 dependencies = [
  "log",
  "openmls_traits",
@@ -2952,6 +2963,7 @@ dependencies = [
 [[package]]
 name = "openmls-sled-storage"
 version = "0.0.1"
+source = "git+https://github.com/erskingardner/openmls-sled-storage?branch=master#d837a24bbadb0f3466daf2690d4ea3f8e39ce3fb"
 dependencies = [
  "hex",
  "log",
@@ -2965,6 +2977,8 @@ dependencies = [
 [[package]]
 name = "openmls_basic_credential"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "465874276a4e2a3e391b25a464059a224c70c5c77ca1e3f595032bb310ab8984"
 dependencies = [
  "ed25519-dalek",
  "openmls_traits",
@@ -2977,6 +2991,8 @@ dependencies = [
 [[package]]
 name = "openmls_memory_storage"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea9cc9eb04ed97262fa96382d7dbf0adfebd5ecde7dbafc7070f9231dd9cf08b"
 dependencies = [
  "log",
  "openmls_traits",
@@ -2988,6 +3004,8 @@ dependencies = [
 [[package]]
 name = "openmls_rust_crypto"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1038331eabb5e63f276c9f866c081167c3ec1448ece0bf2bd535d1ecb5083d39"
 dependencies = [
  "aes-gcm",
  "chacha20poly1305",
@@ -3011,6 +3029,8 @@ dependencies = [
 [[package]]
 name = "openmls_traits"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "443afa05406adc75fbfa0c3e04db93c5647b763861a474ae1aa8a99c362b80f8"
 dependencies = [
  "serde",
  "tls_codec",
@@ -5578,6 +5598,7 @@ name = "whitenoise"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "bincode",
  "derive_more 1.0.0",
  "env_logger",
  "hex",

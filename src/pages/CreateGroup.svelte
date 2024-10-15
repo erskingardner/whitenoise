@@ -1,7 +1,7 @@
 <script lang="ts">
     import { Page, Navbar, Link, BlockTitle, List, ListItem } from "framework7-svelte";
 
-    // Todo: Create group page
+    // TODO: Create group page
     // This allows you to create a new group with more than 1 other person
     // 1. Search/select contacts to add to the group
     // - should only show contacts that aren't already in the group

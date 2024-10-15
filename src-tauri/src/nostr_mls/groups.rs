@@ -58,6 +58,7 @@ impl NostrMlsGroup {
         };
         Ok(format!("{}{}", GROUPS_KEY, current_identity))
     }
+
     pub fn new(mls_group_id: Vec<u8>, nostr_group_data: NostrGroupDataExtension) -> Self {
         Self {
             mls_group_id,
@@ -358,7 +359,7 @@ pub async fn create_group(
         while retry_count < max_retries {
             match wn
                 .nostr
-                .send_event_to(vec!["ws://localhost:8080"], wrapped_event.clone())
+                .send_event_to(relay_urls.clone(), wrapped_event.clone())
                 .await
             {
                 Ok(_) => {

@@ -8,10 +8,10 @@ cacheAdapter = new NDKCacheAdapterDexie({ dbName: "whitenoise" });
 
 export const ndkStore = new NDKSvelte({
     explicitRelayUrls: [
-        // "wss://relay.snort.social",
-        // "wss://relay.damus.io",
-        // "wss://relay.primal.net",
-        // "wss://nos.lol",
+        "wss://relay.snort.social",
+        "wss://relay.damus.io",
+        "wss://relay.primal.net",
+        "wss://nos.lol",
         "wss://purplepag.es",
         "ws://localhost:8080",
     ],

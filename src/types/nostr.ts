@@ -18,6 +18,7 @@ export type EnrichedContact = {
     nip17: boolean;
     nip104: boolean;
     inbox_relays: string[];
+    key_package_relays: string[];
 };
 
 export type NUsers = {
@@ -54,6 +55,20 @@ export type NEvent = {
     tags: string[][];
     content: string;
     sig?: string;
+};
+
+export type WelcomeMessage = {
+    event: NEvent;
+    nostr_group_data: NostrMlsWelcomeGroupData;
+    invitee: string;
+};
+
+export type NostrMlsWelcomeGroupData = {
+    mls_group_id: Uint8Array;
+    name: string;
+    description: string;
+    admin_pubkeys: string[];
+    relays: string[];
 };
 
 export type NostrMlsGroup = {

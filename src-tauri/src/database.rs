@@ -54,15 +54,24 @@ impl Database {
     ///
     /// This function will return an error if the underlying sled database
     /// encounters an error during the insert operation.
-    pub fn insert(&self, key: &str, value: &str) -> Result<Option<IVec>> {
-        let result = self.db.insert(key, value.as_bytes())?;
+    pub fn insert<K, V>(&self, key: K, value: V) -> Result<Option<IVec>>
+    where
+        K: AsRef<[u8]>,
+        V: AsRef<[u8]>,
+    {
+        let result = self.db.insert(key, IVec::from(value.as_ref()))?;
         Ok(result)
     }
 
     /// Use this when you want a namespaced tree for the data
-    pub fn insert_in_tree(&self, tree: &str, key: &str, value: &str) -> Result<Option<IVec>> {
+    pub fn insert_in_tree<T, K, V>(&self, tree: T, key: K, value: V) -> Result<Option<IVec>>
+    where
+        T: AsRef<[u8]>,
+        K: AsRef<[u8]>,
+        V: AsRef<[u8]>,
+    {
         let tree = self.db.open_tree(tree)?;
-        let result = tree.insert(key, value.as_bytes())?;
+        let result = tree.insert(key, IVec::from(value.as_ref()))?;
         Ok(result)
     }
 

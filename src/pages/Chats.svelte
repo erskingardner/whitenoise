@@ -4,17 +4,18 @@
     import { invoke } from "@tauri-apps/api/core";
     import { currentIdentity } from "../stores/accounts";
     import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-    import type { NChats, NEvent, NMetadata, NostrMlsGroup } from "../types/nostr";
+    import type { NChats, WelcomeMessage, NMetadata, NostrMlsGroup } from "../types/nostr";
     import type { Router as F7Router } from "framework7/types";
     import LegacyChatListItem from "../components/LegacyChatListItem.svelte";
     import GroupListItem from "../components/GroupListItem.svelte";
+    import InviteListItem from "../components/InviteListItem.svelte";
 
     let isLoading = $state(true);
     let selectedChat: string | undefined = $state(undefined);
     let chats: NChats = $state({});
 
     let groups: NostrMlsGroup[] = $state([]);
-    let welcomes: NEvent[] = $state([]);
+    let welcomes: WelcomeMessage[] = $state([]);
 
     let unlisten: UnlistenFn;
 
@@ -160,6 +161,14 @@
     {/if}
 
     <List noChevron mediaList dividers ul={false}>
+        {#if welcomes.length > 0}
+            <ListGroup>
+                <ListItem groupTitle title="Invites" class="list-group p-0 w-full" />
+                {#each welcomes as welcome}
+                    <InviteListItem {welcome} />
+                {/each}
+            </ListGroup>
+        {/if}
         <ListGroup>
             <ListItem groupTitle title="Secure Chats" class="list-group p-0 w-full" />
             {#each groups as group}

@@ -1,7 +1,7 @@
-use crate::nostr::DEFAULT_TIMEOUT;
+use crate::nostr::{get_contact, DEFAULT_TIMEOUT};
 use crate::nostr_mls::{DEFAULT_CIPHERSUITE, DEFAULT_EXTENSIONS};
 use crate::whitenoise::Whitenoise;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use log::debug;
 use nostr_sdk::prelude::*;
 use openmls::prelude::{tls_codec::*, *};
@@ -52,6 +52,135 @@ pub fn generate_credential_with_key(
     )
 }
 
+/// Deletes a specific key package event from Nostr relays.
+///
+/// This function performs the following steps:
+/// 1. Retrieves the relays associated with key packages for the current identity.
+/// 2. Fetches the specific key package event from the Nostr network.
+/// 3. Verifies that the event is a valid key package event and is authored by the current user.
+/// 4. Creates and sends a delete event for the specified key package event.
+///
+/// # Arguments
+///
+/// * `event_id` - The `EventId` of the key package event to be deleted.
+/// * `wn` - A Tauri State containing a Whitenoise instance, which provides access to Nostr functionality.
+///
+/// # Returns
+///
+/// * `Result<()>` - A Result that is Ok(()) if the key package was successfully deleted,
+///   or an Err with a descriptive error message if any step of the process failed.
+///
+/// # Errors
+///
+/// This function may return an error if:
+/// - There's an error retrieving the key package relays for the current identity.
+/// - There's an error fetching the specified event from the Nostr network.
+/// - The specified event is not a key package event (Kind::Custom(443)).
+/// - The specified event is not authored by the current user.
+/// - There's an error creating or sending the delete event.
+pub async fn delete_key_package_from_relays(
+    event_id: EventId,
+    wn: State<'_, Whitenoise>,
+) -> Result<()> {
+    let prekey_relays = wn
+        .accounts
+        .lock()
+        .unwrap()
+        .get_key_package_relays_for_current_identity()?;
+    let key_package_events = wn
+        .nostr
+        .get_events_of(
+            vec![Filter::new().id(event_id)],
+            EventSource::Both {
+                timeout: Some(DEFAULT_TIMEOUT),
+                specific_relays: None,
+            },
+        )
+        .await?;
+
+    if let Some(event) = key_package_events.first() {
+        if event.kind() != Kind::Custom(443) {
+            return Err(anyhow!("Event is not a key package"));
+        }
+        if event.author()
+            != wn
+                .accounts
+                .lock()
+                .unwrap()
+                .get_nostr_keys_for_current_identity()?
+                .unwrap()
+                .public_key()
+        {
+            return Err(anyhow!("Event is not signed by the current user"));
+        }
+        let builder = EventBuilder::delete(vec![event.id()]);
+        wn.nostr
+            .send_event_builder_to(prekey_relays, builder)
+            .await?;
+    }
+    Ok(())
+}
+
+/// Deletes all key packages associated with the current user from Nostr relays.
+///
+/// This function performs the following steps:
+/// 1. Retrieves the current user's public key.
+/// 2. Fetches all events of kind 443 (custom kind for key packages) authored by the current user.
+/// 3. Collects the IDs of these events.
+/// 4. Creates a delete event for all collected event IDs.
+/// 5. Sends the delete event to the Nostr network.
+///
+/// # Arguments
+///
+/// * `wn` - A Tauri State containing a Whitenoise instance, which provides access to Nostr functionality.
+///
+/// # Returns
+///
+/// * `Result<(), String>` - A Result that is Ok(()) if all key packages were successfully deleted,
+///   or an Err with a descriptive error message if any step of the process failed.
+///
+/// # Errors
+///
+/// This function may return an error if:
+/// - There's an error retrieving the current user's public key.
+/// - There's an error fetching events from the Nostr network.
+/// - There's an error creating or sending the delete event.
+///
+#[tauri::command]
+pub async fn delete_key_packages(wn: State<'_, Whitenoise>) -> Result<(), String> {
+    let current_pubkey = wn.nostr.signer().await.unwrap().public_key().await.unwrap();
+    let key_package_relays = wn
+        .accounts
+        .lock()
+        .unwrap()
+        .get_key_package_relays_for_current_identity()
+        .expect("Couldn't fetch relays for key package deletion");
+    let filter = Filter::new().kind(Kind::Custom(443)).author(current_pubkey);
+    let event_ids: Vec<EventId> = wn
+        .nostr
+        .get_events_of(
+            vec![filter.clone()],
+            EventSource::Both {
+                timeout: Some(DEFAULT_TIMEOUT),
+                specific_relays: Some(key_package_relays.clone()),
+            },
+        )
+        .await
+        .unwrap()
+        .iter()
+        .map(|event| event.id())
+        .collect();
+
+    // Send delete request to relays
+    let delete_event = EventBuilder::delete(event_ids);
+    wn.nostr
+        .send_event_builder_to(key_package_relays, delete_event)
+        .await
+        .expect("Failed to publish delete event");
+
+    Ok(())
+}
+
 /// Generates and publishes a key package for a given public key.
 ///
 /// This function creates a new key package for the specified public key and publishes it
@@ -80,7 +209,7 @@ pub async fn generate_and_publish_key_package(
     pubkey: String,
     wn: State<'_, Whitenoise>,
 ) -> Result<(), String> {
-    let (credential, signer) = generate_credential_with_key(pubkey, wn.clone());
+    let (credential, signer) = generate_credential_with_key(pubkey.clone(), wn.clone());
 
     let capabilities: Capabilities = Capabilities::new(
         None,
@@ -92,6 +221,7 @@ pub async fn generate_and_publish_key_package(
 
     let key_package_bundle = KeyPackage::builder()
         .leaf_node_capabilities(capabilities)
+        .mark_as_last_resort()
         .build(
             wn.nostr_mls.ciphersuite,
             &wn.nostr_mls.provider,
@@ -108,6 +238,14 @@ pub async fn generate_and_publish_key_package(
 
     let key_package_hex = hex::encode(key_package_serialized);
 
+    let contact = get_contact(pubkey.clone(), wn.clone()).await.unwrap();
+
+    let relay_urls = if tauri::is_dev() {
+        vec!["ws://localhost:8080".to_string()]
+    } else {
+        contact.key_package_relays
+    };
+
     let event = EventBuilder::new(
         Kind::Custom(443),
         key_package_hex,
@@ -122,12 +260,12 @@ pub async fn generate_and_publish_key_package(
                 [wn.nostr_mls.extensions_value()],
             ),
             Tag::custom(TagKind::Custom("client".into()), ["whitenoise"]),
-            Tag::custom(TagKind::Custom("relays".into()), ["ws://localhost:8080"]),
+            Tag::custom(TagKind::Custom("relays".into()), relay_urls.clone()),
         ],
     );
 
     wn.nostr
-        .send_event_builder_to(vec!["ws://localhost:8080"], event)
+        .send_event_builder_to(relay_urls.clone(), event)
         .await
         .unwrap();
 
@@ -226,6 +364,7 @@ pub async fn fetch_key_package_for_user(
     let valid_key_package = key_packages.iter().find(|&kp| {
         // Check that the ciphersuite and extensions are the same
         kp.ciphersuite() == DEFAULT_CIPHERSUITE
+            && kp.last_resort()
             && kp.leaf_node().capabilities().extensions().iter().count() == DEFAULT_EXTENSIONS.len()
             && DEFAULT_EXTENSIONS.iter().all(|&ext_type| {
                 kp.leaf_node()

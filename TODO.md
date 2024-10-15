@@ -101,4 +101,9 @@
 ### iOS
 
 - Need to be able to build to phone
+
+## Refactoring
+
+- Need to improve how we fetch relays in get_contacts and get_contact
+- Need to improve how we handle relays in general
 - 

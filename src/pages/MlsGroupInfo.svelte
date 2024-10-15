@@ -72,7 +72,7 @@
                     <h2 class="text-xl font-bold">{group.description}</h2>
                     {#if group.group_type === NostrMlsGroupType.DirectMessage}
                         <p>
-                            Direct message with {groupName}
+                            Secure Direct Message with {groupName}
                         </p>
                         <div class="flex flex-col justify-start items-center gap-4">
                             <p class="text-gray-500 font-light flex flex-row gap-2 items-center">
@@ -88,7 +88,7 @@
                             </p>
                         </div>
                     {:else}
-                        <p>Group with {memberPubkeys.length} members</p>
+                        <p>Secure group chat with {memberPubkeys.length} members</p>
                     {/if}
                 </div>
             </Block>

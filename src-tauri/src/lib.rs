@@ -9,14 +9,15 @@ mod whitenoise;
 // --- Imports ---
 use crate::accounts::{create_identity, get_accounts, login, logout, set_current_identity};
 use crate::nostr::{
-    decrypt_content, delete_key_packages, fetch_dev_events, get_contact, get_contacts,
-    get_legacy_chats, get_metadata_for_pubkey, send_message,
+    decrypt_content, get_contact, get_contacts, get_legacy_chats, get_metadata_for_pubkey,
+    send_message,
 };
 use crate::nostr_mls::groups::{create_group, get_group_member_pubkeys, get_groups};
-use crate::nostr_mls::key_packages::{generate_and_publish_key_package, parse_key_package};
+use crate::nostr_mls::key_packages::{
+    delete_key_packages, generate_and_publish_key_package, parse_key_package,
+};
 use crate::nostr_mls::welcome_messages::fetch_welcome_messages_for_user;
 use crate::whitenoise::{delete_data, Whitenoise};
-use log::debug;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -32,14 +33,6 @@ pub fn run() {
                     .path()
                     .app_data_dir()
                     .expect("Failed to get app data dir");
-
-                // let cache_dir = app
-                //     .handle()
-                //     .path()
-                //     .cache_dir()
-                //     .expect("Failed to get cache dir");
-
-                debug!("Whitenoise data dir: {:?}", &data_dir.as_path());
 
                 // Initialize Whitenoise
                 let whitenoise = Whitenoise::new(data_dir.as_path()).await?;
@@ -66,7 +59,6 @@ pub fn run() {
             decrypt_content,
             delete_data,
             delete_key_packages,
-            fetch_dev_events,
             fetch_welcome_messages_for_user,
             generate_and_publish_key_package,
             get_accounts,

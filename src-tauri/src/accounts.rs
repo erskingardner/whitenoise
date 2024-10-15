@@ -1,5 +1,5 @@
 use crate::nostr;
-use crate::nostr::{update_nostr_identity, EnrichedContact, DEFAULT_TIMEOUT};
+use crate::nostr::{update_nostr_identity, EnrichedContact, DEFAULT_RELAYS, DEFAULT_TIMEOUT};
 use crate::secrets_store;
 use crate::{database::Database, whitenoise::Whitenoise};
 use anyhow::Result;
@@ -78,6 +78,36 @@ impl Accounts {
                 Ok(Some(keys))
             }
             None => Ok(None),
+        }
+    }
+
+    /// Retrieves the key package relays for the current identity
+    ///
+    /// This method returns a vector of relay URLs associated with the current identity's key package.
+    /// If no current identity is set or if the current identity has no specific relays,
+    /// it returns a default set of relays.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing either:
+    /// - A `Vec<String>` of relay URLs
+    /// - An error if any operation fails
+    ///
+    /// # Note
+    ///
+    /// This method assumes the existence of a `DEFAULT_RELAYS` constant,
+    /// which should be defined elsewhere in the codebase.
+    pub fn get_key_package_relays_for_current_identity(&self) -> Result<Vec<String>> {
+        match &self.current_identity {
+            Some(identity) => {
+                let relays = self
+                    .accounts
+                    .as_ref()
+                    .and_then(|accounts| accounts.get(identity))
+                    .map(|account| account.key_package_relays.clone());
+                Ok(relays.unwrap_or(DEFAULT_RELAYS.iter().map(|r| r.to_string()).collect()))
+            }
+            None => Ok(DEFAULT_RELAYS.iter().map(|r| r.to_string()).collect()),
         }
     }
 
@@ -160,6 +190,7 @@ pub async fn login(
         nip17: false,
         nip104: false,
         inbox_relays: vec![],
+        key_package_relays: vec![],
     };
 
     // Prepare filters for messaging capabilities
@@ -169,12 +200,15 @@ pub async fn login(
     let prekey_filter = Filter::new()
         .kind(Kind::Custom(443))
         .author(keys.public_key());
+    let key_package_list_filter = Filter::new()
+        .kind(Kind::Custom(10051))
+        .author(keys.public_key());
 
     // Fetch messaging capabilities for all contacts in a single query
     let messaging_capabilities_events = wn
         .nostr
         .get_events_of(
-            vec![dm_relay_list_filter, prekey_filter],
+            vec![dm_relay_list_filter, prekey_filter, key_package_list_filter],
             EventSource::Both {
                 timeout: Some(DEFAULT_TIMEOUT),
                 specific_relays: None,
@@ -189,6 +223,16 @@ pub async fn login(
             Kind::Replaceable(10050) => {
                 enriched_contact.nip17 = true;
                 enriched_contact.inbox_relays.extend(
+                    event
+                        .tags
+                        .iter()
+                        .filter(|tag| tag.kind() == TagKind::Relay)
+                        .filter_map(|tag| tag.content())
+                        .map(|s| s.to_string()),
+                );
+            }
+            Kind::Replaceable(10051) => {
+                enriched_contact.key_package_relays.extend(
                     event
                         .tags
                         .iter()
@@ -406,6 +450,7 @@ mod tests {
             nip17: false,
             nip104: false,
             inbox_relays: vec![],
+            key_package_relays: vec![],
         };
         test_accounts.insert("pubkey1".to_string(), enriched_contact);
         accounts.accounts = Some(test_accounts);
@@ -467,6 +512,7 @@ mod tests {
             nip17: false,
             nip104: false,
             inbox_relays: vec![],
+            key_package_relays: vec![],
         };
         test_accounts.insert("pubkey1".to_string(), enriched_contact);
         accounts.accounts = Some(test_accounts);

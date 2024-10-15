@@ -1,6 +1,8 @@
+use group_info::VerifiableGroupInfo;
 use nostr_sdk::util::hex;
 use openmls::prelude::*;
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 use tls_codec::{TlsDeserialize, TlsDeserializeBytes, TlsSerialize, TlsSerializeBytes, TlsSize};
 
 /// # Nostr Group Extension
@@ -12,6 +14,8 @@ use tls_codec::{TlsDeserialize, TlsDeserializeBytes, TlsSerialize, TlsSerializeB
     Eq,
     Clone,
     Debug,
+    Serialize,
+    Deserialize,
     TlsSerialize,
     TlsDeserialize,
     TlsDeserializeBytes,
@@ -51,6 +55,25 @@ impl NostrGroupDataExtension {
                 .collect(),
             relays: relays.into_iter().map(|relay| relay.into_bytes()).collect(),
         }
+    }
+
+    pub fn from_group_info(group_info: &VerifiableGroupInfo) -> Result<Self, anyhow::Error> {
+        let extensions = group_info.extensions();
+        log::debug!(target: "whitenoise::nostr_mls::nostr_group_data", "extensions: {:?}", extensions);
+        let group_data_extension = match group_info
+            .extensions()
+            .iter()
+            .find(|ext| ext.extension_type() == ExtensionType::Unknown(0xFF69))
+        {
+            Some(Extension::Unknown(_, ext)) => ext,
+            Some(_) => return Err(anyhow::anyhow!("Unexpected extension type")),
+            None => return Err(anyhow::anyhow!("Nostr group data extension not found")),
+        };
+
+        let (deserialized, _) = Self::tls_deserialize_bytes(&group_data_extension.0)
+            .map_err(|e| anyhow::anyhow!("Failed to deserialize extension: {}", e))?;
+
+        Ok(deserialized)
     }
 
     pub fn from_group(group: &MlsGroup) -> Result<Self, anyhow::Error> {
