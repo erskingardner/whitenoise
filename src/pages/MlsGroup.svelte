@@ -9,8 +9,12 @@
     import { invoke } from "@tauri-apps/api/core";
     import { nameFromMetadata } from "../utils/nostr";
     import { hexMlsGroupId } from "../utils/group";
+    import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
     let { group }: { group: NostrMlsGroup } = $props();
+
+    let unlistenMessageSent: UnlistenFn;
+    let unlistenMessageReceived: UnlistenFn;
 
     let counterpartyPubkey =
         group.group_type === NostrMlsGroupType.DirectMessage
@@ -81,7 +85,26 @@
     let isNewChatPopupOpen = $state(false);
 </script>
 
-<Page class="messages-page bg-gray-900" noToolbar messagesContent>
+<Page
+    class="messages-page bg-gray-900"
+    noToolbar
+    messagesContent
+    on:pageInit={async () => {
+        if (!unlistenMessageSent) {
+            unlistenMessageSent = await listen<string>("mls_message_sent", (event) => {
+                console.log("mls_message_sent event received in MlSGroup.svelte", event.payload);
+            });
+        }
+        if (!unlistenMessageReceived) {
+            unlistenMessageReceived = await listen<string>("mls_message_received", (event) => {
+                console.log(
+                    "mls_message_received event received in MlSGroup.svelte",
+                    event.payload
+                );
+            });
+        }
+    }}
+>
     <Navbar class="messages-navbar justify-start py-8" backLink backLinkShowText={false}>
         <Link
             href={`/groups/${hexMlsGroupId(group.mls_group_id)}/group_info/`}

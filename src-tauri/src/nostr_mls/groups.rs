@@ -13,6 +13,7 @@ use openmls_basic_credential::SignatureKeyPair;
 use serde::{Deserialize, Serialize};
 use std::ops::Add;
 use std::time::Instant;
+use tauri::Emitter;
 use tauri::State;
 use tls_codec::{Deserialize as TlsDeserialize, Serialize as TlsSerialize};
 use url::Url;
@@ -420,6 +421,7 @@ pub async fn send_mls_message(
     mut group: NostrMlsGroup,
     message: String,
     wn: State<'_, Whitenoise>,
+    app_handle: tauri::AppHandle,
 ) -> Result<UnsignedEvent, String> {
     let serialized_message: Vec<u8>;
     let mut mls_group: MlsGroup;
@@ -521,14 +523,17 @@ pub async fn send_mls_message(
     group.last_message_at = Some(Timestamp::now());
     group.save(wn.clone()).map_err(|e| e.to_string())?;
 
-    debug!(target: "nostr_mls::groups::send_message", "Event saved: {:?}", event);
-    debug!(target: "nostr_mls::groups::send_message", "Group transcript: {:?}", group.transcript);
+    app_handle
+        .emit("mls_message_sent", (group.clone(), event.clone()))
+        .expect("Couldn't emit event");
+
     Ok(event)
 }
 
 #[tauri::command]
 pub async fn fetch_and_process_mls_messages(
     wn: State<'_, Whitenoise>,
+    app_handle: tauri::AppHandle,
 ) -> Result<Vec<UnsignedEvent>, String> {
     debug!(target: "nostr_mls::groups::fetch_and_process_mls_messages", "Fetching and processing MLS messages");
     let nostr_groups = NostrMlsGroup::get_groups(wn.clone()).expect("Failed to get groups");
@@ -720,6 +725,12 @@ pub async fn fetch_and_process_mls_messages(
                                     nostr_group
                                         .save(wn.clone())
                                         .expect("Failed to save group state to database");
+                                    app_handle
+                                        .emit(
+                                            "mls_message_received",
+                                            (nostr_group.clone(), json_event.clone()),
+                                        )
+                                        .expect("Couldn't emit event");
                                 }
                             }
                             Err(e) => {

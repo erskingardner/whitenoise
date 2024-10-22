@@ -2,6 +2,7 @@
     import { fetchAccounts, identities, currentIdentity, switchIdentity } from "./stores/accounts";
     import Name from "./components/Name.svelte";
     import Avatar from "./components/Avatar.svelte";
+    import nostr from "./images/nostr.webp";
     import {
         App,
         BlockTitle,
@@ -131,7 +132,7 @@
                 </div>
                 <div class="flex flex-row gap-1 items-end mt-20">
                     Powered by
-                    <img src="../images/nostr.webp" alt="nostr" class="w-20" />
+                    <img src={nostr} alt="nostr" class="w-20" />
                 </div>
             </div>
         </Page>
