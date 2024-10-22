@@ -26,7 +26,7 @@ const routes = [
         asyncComponent: () => import("../pages/LegacyChat.svelte"),
     },
     {
-        path: "/chats/:pubkey/info",
+        path: "/chats/:pubkey/info/",
         popup: {
             asyncComponent: () => import("../pages/LegacyChatInfo.svelte"),
         },
@@ -36,9 +36,15 @@ const routes = [
         asyncComponent: () => import("../pages/MlsGroup.svelte"),
     },
     {
-        path: "/groups/:mls_group_id/group_info",
+        path: "/groups/:mls_group_id/group_info/",
         popup: {
             asyncComponent: () => import("../pages/MlsGroupInfo.svelte"),
+        },
+    },
+    {
+        path: "/groups/:mls_group_id/invite/",
+        popup: {
+            asyncComponent: () => import("../pages/MlsGroupInvite.svelte"),
         },
     },
     {

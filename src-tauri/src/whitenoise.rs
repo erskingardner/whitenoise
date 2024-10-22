@@ -8,7 +8,7 @@ use anyhow::Result;
 use log::debug;
 use nostr_sdk::prelude::*;
 use nostrdb::{Config, Ndb};
-use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::State;
 
@@ -47,10 +47,10 @@ impl Whitenoise {
     /// - The Database initialization fails
     /// - The Ndb initialization fails
     /// - Loading settings or accounts from the database fails
-    pub async fn new(data_dir: &Path) -> Result<Self> {
+    pub async fn new(data_dir: PathBuf) -> Result<Self> {
         // Set up the database
         debug!(target: "whitenoise::new", "Initializing Whitenoise with data dir: {:?}", data_dir);
-        let wdb = Database::new(data_dir)?;
+        let wdb = Database::new(data_dir.as_path())?;
 
         // Set up settings and accounts from database
         debug!(target: "whitenoise::new", "Loading settings and accounts from database");
@@ -75,7 +75,7 @@ impl Whitenoise {
 
         // Set up Nostr MLS client
         debug!(target: "whitenoise::new", "Setting up Nostr MLS client");
-        let nostr_mls = NostrMls::new(data_dir.to_path_buf());
+        let nostr_mls = NostrMls::new(data_dir.clone(), accounts.current_identity.clone());
 
         nostr.connect().await;
 
@@ -126,28 +126,42 @@ impl Whitenoise {
             .expect("Couldn't clear Nostr MLS store");
         // Clear all nostr stuff
         self.nostr.unsubscribe_all().await;
-        self.nostr.remove_all_relays().await?;
-        // Clear the private keys
-        let accounts = self.accounts.lock().unwrap().clone().accounts;
-        if let Some(accounts) = accounts {
-            for pubkey in accounts.keys() {
-                remove_private_key_for_pubkey(pubkey).expect("Couldn't remove private key");
-            }
+        for (url, _relay) in self.nostr.relays().await.iter() {
+            self.nostr.remove_relay(url).await?;
         }
+
         // Clear the accounts data
-        self.accounts
-            .lock()
-            .unwrap()
-            .delete_data(&self.wdb)
-            .expect("Couldn't clear accounts");
-        *self.accounts.lock().unwrap() = Accounts::default();
+        {
+            let mut accounts = self.accounts.lock().unwrap();
+
+            // Clear the private keys
+            if let Some(accounts) = &accounts.accounts {
+                for pubkey in accounts.keys() {
+                    remove_private_key_for_pubkey(pubkey).expect("Couldn't remove private key");
+                }
+            }
+
+            // Deletes the accounts data from the database
+            accounts
+                .delete_data(&self.wdb)
+                .expect("Couldn't clear accounts");
+
+            // Set the accounts state to the default value
+            *accounts = Accounts::default();
+        }
+
         // Clear the app settings
-        self.settings
-            .lock()
-            .unwrap()
-            .delete_data(&self.wdb)
-            .expect("Couldn't clear app settings");
-        *self.settings.lock().unwrap() = AppSettings::default();
+        {
+            let mut settings = self.settings.lock().unwrap();
+
+            // Deletes the app settings data from the database
+            settings
+                .delete_data(&self.wdb)
+                .expect("Couldn't clear app settings");
+
+            // Set the app settings state to the default value
+            *settings = AppSettings::default();
+        }
         Ok(())
     }
 }

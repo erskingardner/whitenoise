@@ -83,20 +83,19 @@
                 const nostrMlsGroup = group as NostrMlsGroup;
                 console.log("Group created & welcome message sent");
                 f7.popup.close("#new-chat-popup");
-                f7router.navigate(`/groups/${hexMlsGroupId(nostrMlsGroup.mls_group_id)}/`, {
-                    browserHistory: false,
-                    props: { group: nostrMlsGroup },
-                });
+                setTimeout(() => {
+                    f7router.back();
+                }, 150);
+                setTimeout(() => {
+                    f7router.navigate(`/groups/${hexMlsGroupId(nostrMlsGroup.mls_group_id)}/`, {
+                        props: { group: nostrMlsGroup },
+                    });
+                }, 150);
             })
             .catch((error) => {
                 console.error(error);
                 groupError = error;
             });
-        // TODO: Fetch prekey from other user
-        // TODO: Create group, invite the other party, send welcome message
-        //      - This group needs to be saved to the database
-        //      - We need to have a method for fetching groups from database/backend
-        // TODO: Create chat in the UI, move the view to that chat.
     }
 
     function inviteToWhiteNoise() {
@@ -160,6 +159,7 @@
         bind:value={messageText}
         textareaId="messageTextarea"
         resizable={false}
+        class="pl-4 py-1 border-t border-gray-700"
     >
         <a href="/" class="link icon-only" slot="inner-end" onclick={sendMessage}>
             <ArrowCircleUp size={36} weight="fill" />
@@ -209,7 +209,7 @@
         {/each}
         {#if chat.events.length === 0 || isInsecure(chat.events[0])}
             <div
-                class="text-center text-gray-400 mt-20 items-center flex flex-col gap-2 justify-center"
+                class="text-center text-gray-400 mt-20 mb-10 items-center flex flex-col gap-2 justify-center"
             >
                 <span class="text-red-500 flex flex-row gap-2 items-center">
                     <Warning size={18} class="warning-tooltip text-red-500" />
@@ -265,10 +265,13 @@
                     {/if}
                 {:else}
                     <p class="my-4 text-base">
-                        It doesn't look like {nameFromMetadata(chat.metadata)} has published a prekey
-                        yet. Prekeys are needed in order to start a secure chat.
+                        It doesn't look like {nameFromMetadata(chat.metadata)} has published a key package
+                        yet. Key packages are needed in order to start a secure chat.
                     </p>
-                    <p class="my-4 text-base">Do you want to invite them to use White Noise?</p>
+                    <p class="my-4 text-base">
+                        Do you want to invite them to use White Noise and we'll help them get set
+                        up?
+                    </p>
                     <Button fill on:click={inviteToWhiteNoise}
                         >Invite {nameFromMetadata(chat.metadata)} to White Noise</Button
                     >

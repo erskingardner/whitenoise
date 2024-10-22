@@ -28,7 +28,7 @@
   - ✅ Ensure that changing profiles updates the contacts list
   - ✅ search should filter your contacts by name, npub, nprofile, or hex pubkey
   - Allow for inviting OS contacts to download the app
-  - Allow for inviting Nostr contacts to download the app via NIP-17 or NIP-04
+  - ✅ Allow for inviting Nostr contacts to download the app via NIP-17 or NIP-04
   - search should also search all of nostr for a user by npub, nprofile, name, or hex pubkey (NIP-50 + Primal cache)
   - filter contacts by active conversations
   - sort contacts by last message, last seen, or name
@@ -44,9 +44,16 @@
   - Handle receiving welcome message from MLS
   - ✅ Show conversations list
   - Show conversation transcript
+  - Send & receive messages
+  - Parse nostr events in messages
+    - Kind: 1
+    - Reactions
+    - Replies (as quotes?)
+    - Media
   - ✅ Show conversation details when tapping on conversation header
-  - More complete relay handling
+  - ✅ More complete relay handling
 - Simple 1-2 step onboarding flow
+  - Help users set up 10051 relay list, create first key packages, etc.
 - Link to help docs (where?)
 - Once logged in and AppSettings are loaded, start the main app
   - ✅ Fetch profile for user
@@ -95,7 +102,7 @@
 
 ### Android
 
-- Nav bars need to have the hamburger removed 
+- ✅ Nav bars need to have the hamburger removed 
 - Contact + button needs to be on the same level as the title
 
 ### iOS
@@ -106,4 +113,5 @@
 
 - Need to improve how we fetch relays in get_contacts and get_contact
 - Need to improve how we handle relays in general
-- 
+- Replace all mentions of prekey with key package
+- Replace json with bincode

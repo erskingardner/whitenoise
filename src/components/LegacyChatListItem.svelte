@@ -61,7 +61,7 @@
     </div>
     <span slot="text" class=""> </span>
     <span slot="after">{formatMessageTime(chat.latest)}</span>
-    <SwipeoutActions left>
+    <!-- <SwipeoutActions left>
         <SwipeoutButton close overswipe color="blue" on:click={swipeoutUnread}>
             <Icon f7="chat_bubble_fill" />
             <span>Unread</span>
@@ -80,5 +80,5 @@
             <Icon f7="archivebox_fill" />
             <span>Archive</span>
         </SwipeoutButton>
-    </SwipeoutActions>
+    </SwipeoutActions> -->
 </ListItem>

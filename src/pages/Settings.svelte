@@ -45,7 +45,7 @@
     let showAccounts = $state(false);
     let showLogin = $state(false);
     let nsecOrHex = $state("");
-    let welcomeMessages: unknown[] = $state([]);
+    let invites: unknown[] = $state([]);
     let loginLoading = $state(false);
 
     let accounts: [pubkey: string, identity: EnrichedContact][] = $derived(
@@ -67,6 +67,7 @@
     async function handleLogin() {
         if (loginLoading) return;
         loginLoading = true;
+        // TODO: handle errors from this method and display them to the user
         await login(nsecOrHex, "settings");
         nsecOrHex = ""; // Clear the input field
         showLogin = false;
@@ -163,8 +164,8 @@
         );
     }
 
-    async function fetchWelcomeMessages() {
-        welcomeMessages = await invoke("fetch_welcome_messages_for_user", {
+    async function fetchInvites() {
+        invites = await invoke("fetch_invites_for_user", {
             pubkey: $currentIdentity,
         });
     }
@@ -284,7 +285,7 @@
         <ListItem link title="Delete all Prekey Events" on:click={deleteKeyPackages}>
             <Trash slot="media" size={24} />
         </ListItem>
-        <ListItem link title="Fetch Welcome Messages" on:click={fetchWelcomeMessages}>
+        <ListItem link title="Fetch Invites" on:click={fetchInvites}>
             <UserPlus slot="media" size={24} />
         </ListItem>
     </List>
@@ -313,13 +314,13 @@
         {/each}
     {/if}
 
-    {#if welcomeMessages.length > 0}
-        <BlockTitle>Welcome Messages</BlockTitle>
-        {#each welcomeMessages as welcomeMessage}
+    {#if invites.length > 0}
+        <BlockTitle>Invites</BlockTitle>
+        {#each invites as invite}
             <div class="p-4 rounded-md bg-gray-800 ring-1 ring-gray-700 mx-4">
                 <pre class="overflow-x-scroll">
                 <code class="language-json whitespace-pre break-words font-mono">
-{JSON.stringify(welcomeMessage, null, 4)}
+{JSON.stringify(invite, null, 4)}
                 </code>
             </pre>
             </div>

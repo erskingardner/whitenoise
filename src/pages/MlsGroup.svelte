@@ -7,7 +7,7 @@
     import { formatMessageTime } from "../utils/time";
     import { Warning, ArrowCircleUp } from "phosphor-svelte";
     import { invoke } from "@tauri-apps/api/core";
-    import { nameFromMetadata, isInsecure } from "../utils/nostr";
+    import { nameFromMetadata } from "../utils/nostr";
     import { hexMlsGroupId } from "../utils/group";
 
     let { group }: { group: NostrMlsGroup } = $props();
@@ -19,6 +19,9 @@
 
     let enrichedCounterparty: EnrichedContact | undefined = $state(undefined);
     let groupName = $state("");
+
+    let messages = $derived(group.transcript);
+    $inspect("messages", messages);
 
     $effect(() => {
         if (
@@ -48,6 +51,10 @@
 
         // TODO: Send message to the MLS group
         console.log("Send Message", messageText);
+        const message_event: NEvent = await invoke("send_mls_message", {
+            group,
+            message: messageText,
+        });
 
         // Clear the message input
         messageText = "";
@@ -102,6 +109,7 @@
         bind:value={messageText}
         textareaId="messageTextarea"
         resizable={false}
+        class="pl-4 py-1 border-t border-gray-700"
     >
         <a href="/" class="link icon-only" slot="inner-end" onclick={sendMessage}>
             <ArrowCircleUp size={36} weight="fill" />
@@ -116,7 +124,7 @@
                 <span>GM {groupName}!</span>
             </div>
         {/if}
-        {#each group.transcript as event, index}
+        {#each messages as event, index}
             <Message
                 data-key={index}
                 first={isMessageFirst(event)}

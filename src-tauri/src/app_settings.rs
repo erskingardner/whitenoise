@@ -94,7 +94,7 @@ mod tests {
     fn test_save_and_retrieve_settings() -> Result<()> {
         let temp_dir = tempdir()?;
         let db_path = temp_dir.path().join("test.db");
-        let db = Database::new(&db_path).unwrap();
+        let db = Database::new(&db_path).expect("Couldn't create database for test");
 
         let mut settings = AppSettings::default();
         settings.dark_theme = false;
@@ -113,7 +113,7 @@ mod tests {
     fn test_from_database_with_no_existing_settings() -> Result<()> {
         let temp_dir = tempdir()?;
         let db_path = temp_dir.path().join("test.db");
-        let db = Database::new(&db_path).unwrap();
+        let db = Database::new(&db_path).expect("Couldn't create database for test");
 
         let settings = AppSettings::from_database(&db)?;
         assert!(settings.dark_theme);

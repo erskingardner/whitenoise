@@ -1,18 +1,21 @@
 use super::key_packages::{fetch_key_package_for_user, generate_credential_with_key};
 use super::nostr_group_data::NostrGroupDataExtension;
 use super::{DEFAULT_CIPHERSUITE, DEFAULT_EXTENSIONS};
-use crate::nostr::{get_contact, is_valid_hex_pubkey};
+use crate::nostr::{get_contact, is_valid_hex_pubkey, DEFAULT_TIMEOUT};
+use crate::secrets_store::{get_export_secret_keys_for_group, store_mls_export_secret};
 use crate::whitenoise::Whitenoise;
 use anyhow::anyhow;
 use anyhow::Result;
 use log::{debug, error};
 use nostr_sdk::prelude::*;
 use openmls::prelude::*;
+use openmls_basic_credential::SignatureKeyPair;
 use serde::{Deserialize, Serialize};
 use std::ops::Add;
 use std::time::Instant;
 use tauri::State;
-use tls_codec::Serialize as TlsSerialize;
+use tls_codec::{Deserialize as TlsDeserialize, Serialize as TlsSerialize};
+use url::Url;
 
 /// Key used to store and retrieve groups data in the database
 const GROUPS_KEY: &str = "groups";
@@ -86,6 +89,21 @@ impl NostrMlsGroup {
         Ok(())
     }
 
+    pub fn export_secret_as_keys(
+        &self,
+        mls_group: &MlsGroup,
+        wn: &State<'_, Whitenoise>,
+    ) -> Result<Keys> {
+        let export_secret = mls_group.export_secret(
+            &*wn.nostr_mls.provider.lock().unwrap(),
+            "gw-key",
+            b"gw-key",
+            32,
+        )?;
+        let export_nostr_keys = Keys::parse(hex::encode(&export_secret))?;
+        Ok(export_nostr_keys)
+    }
+
     pub fn get_groups(wn: State<'_, Whitenoise>) -> Result<Vec<NostrMlsGroup>> {
         let group_tree = wn
             .wdb
@@ -100,7 +118,6 @@ impl NostrMlsGroup {
             })
             .collect::<Vec<NostrMlsGroup>>();
         debug!(target: "nostr_mls::groups::get_groups", "Loaded {:?} groups", groups.len());
-        debug!(target: "nostr_mls::groups::get_groups", "Groups: {:?}", groups.iter().map(|g| GroupId::from_slice(&g.mls_group_id)).collect::<Vec<GroupId>>());
         Ok(groups)
     }
 }
@@ -120,7 +137,8 @@ pub async fn get_group_member_pubkeys(
 ) -> Result<Vec<String>, String> {
     let group_id = GroupId::from_slice(&mls_group_id);
     debug!(target: "nostr_mls::groups::get_group_member_pubkeys", "Group ID: {:?}", group_id);
-    let mls_group = MlsGroup::load(wn.nostr_mls.provider.storage(), &group_id)
+
+    let mls_group = MlsGroup::load(wn.nostr_mls.provider.lock().unwrap().storage(), &group_id)
         .expect("Failed to load MLS group");
     debug!(target: "nostr_mls::groups::get_group_member_pubkeys", "MLS group loaded: {:?}", mls_group);
     let member_pubkeys: Vec<String> = match mls_group {
@@ -262,7 +280,7 @@ pub async fn create_group(
         .build();
 
     let mut group = MlsGroup::new(
-        &wn.nostr_mls.provider,
+        &*wn.nostr_mls.provider.lock().unwrap(),
         &signer,
         &group_config,
         credential.clone(),
@@ -285,7 +303,7 @@ pub async fn create_group(
     // Add members to the group
     let (_, welcome_out, _group_info) = group
         .add_members(
-            &wn.nostr_mls.provider,
+            &*wn.nostr_mls.provider.lock().unwrap(),
             &signer,
             member_key_packages.as_slice(),
         )
@@ -299,20 +317,13 @@ pub async fn create_group(
 
     // Merge the pending commit adding the memebers
     group
-        .merge_pending_commit(&wn.nostr_mls.provider)
+        .merge_pending_commit(&*wn.nostr_mls.provider.lock().unwrap())
         .expect("Failed to merge pending commit");
 
     // Serialize the welcome message and send it to the members
     let serialized_welcome_message = welcome_out
         .tls_serialize_detached()
         .expect("Failed to serialize welcome message");
-
-    let signer = wn
-        .nostr
-        .clone()
-        .signer()
-        .await
-        .expect("Failed to get nostr signer");
 
     let keys: Keys = wn
         .accounts
@@ -337,10 +348,13 @@ pub async fn create_group(
             Kind::Custom(444),
             hex::encode(&serialized_welcome_message),
             vec![Tag::from_standardized_without_cell(TagStandard::Relays(
-                relay_urls.iter().map(|r| r.to_string().into()).collect(),
+                relay_urls
+                    .iter()
+                    .filter_map(|r| Url::parse(r).ok())
+                    .collect(),
             ))],
         )
-        .to_unsigned_event(signer.public_key().await.unwrap());
+        .to_unsigned_event(keys.public_key());
 
         debug!(target: "nostr_mls::groups::create_group", "Welcome rumor: {:?}", welcome_rumor);
 
@@ -394,17 +408,343 @@ pub async fn create_group(
     let nostr_group = NostrMlsGroup::new(group.group_id().to_vec(), group_data);
     debug!(target: "nostr_mls::groups::create_group", "Saving group to database: {:?}", nostr_group);
     nostr_group
-        .save(wn)
+        .save(wn.clone())
         .expect("Failed to save nostr group state to database");
 
     // TODO: Render a group in the UI for the saved nostr_group
     Ok(nostr_group)
 }
 
-// #[tauri::command]
-// pub async fn process_welcome_message(
-//     welcome_message: String,
-//     wn: State<'_, Whitenoise>,
-// ) -> Result<(), String> {
-//     Ok(())
-// }
+#[tauri::command]
+pub async fn send_mls_message(
+    mut group: NostrMlsGroup,
+    message: String,
+    wn: State<'_, Whitenoise>,
+) -> Result<UnsignedEvent, String> {
+    let serialized_message: Vec<u8>;
+    let mut mls_group: MlsGroup;
+
+    let nostr_keys = wn
+        .accounts
+        .lock()
+        .unwrap()
+        .get_nostr_keys_for_current_identity()
+        .unwrap()
+        .unwrap();
+
+    // Create an unsigned nostr event with the message
+    let mut event = UnsignedEvent::new(
+        nostr_keys.public_key(),
+        Timestamp::now(),
+        Kind::TextNote,
+        Vec::new(),
+        message,
+    );
+
+    {
+        let provider = wn.nostr_mls.provider.lock().unwrap();
+
+        mls_group = MlsGroup::load(
+            provider.storage(),
+            &GroupId::from_slice(&group.mls_group_id),
+        )
+        .expect("Failed to load MLS group")
+        .unwrap();
+
+        // Ensure the event has an ID
+        event.ensure_id();
+
+        let json_event = serde_json::to_string(&event).map_err(|e| e.to_string())?;
+
+        let signer = SignatureKeyPair::read(
+            provider.storage(),
+            mls_group
+                .own_leaf()
+                .unwrap()
+                .signature_key()
+                .clone()
+                .as_slice(),
+            mls_group.ciphersuite().signature_algorithm(),
+        )
+        .unwrap();
+
+        let message_out = mls_group
+            .create_message(&*provider, &signer, json_event.as_bytes())
+            .map_err(|e| e.to_string())?;
+        // TODO: Handle the errors that can come from create_message. use after evict and pending proposal/commit
+
+        serialized_message = message_out
+            .tls_serialize_detached()
+            .map_err(|e| e.to_string())?;
+    }
+
+    let message_rumor = EventBuilder::new(
+        Kind::Custom(445),
+        hex::encode(serialized_message),
+        Vec::new(),
+    )
+    .to_unsigned_event(nostr_keys.public_key());
+
+    debug!(target: "nostr_mls::groups::send_message", "Message rumor: {:?}", message_rumor);
+
+    let export_nostr_keys = group
+        .export_secret_as_keys(&mls_group, &wn)
+        .expect("Failed to get export_secret as keys");
+
+    let wrapped_event = EventBuilder::gift_wrap_with_tags(
+        &nostr_keys,
+        &export_nostr_keys.public_key(),
+        message_rumor,
+        vec![Tag::custom(
+            TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::H)),
+            vec![group.nostr_group_id.clone()],
+        )],
+        None,
+    )
+    .expect("Failed to build gift wrapped message");
+
+    debug!(target: "nostr_mls::groups::send_message", "Publishing gift wrapped event to group relays");
+
+    let relays = if tauri::is_dev() {
+        vec!["ws://localhost:8080".to_string()]
+    } else {
+        group.relay_urls.clone()
+    };
+
+    wn.nostr
+        .send_event_to(relays, wrapped_event)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    group.transcript.push(event.clone());
+    group.last_message_id = Some(event.id.unwrap().to_string());
+    group.last_message_at = Some(Timestamp::now());
+    group.save(wn.clone()).map_err(|e| e.to_string())?;
+
+    debug!(target: "nostr_mls::groups::send_message", "Event saved: {:?}", event);
+    debug!(target: "nostr_mls::groups::send_message", "Group transcript: {:?}", group.transcript);
+    Ok(event)
+}
+
+#[tauri::command]
+pub async fn fetch_and_process_mls_messages(
+    wn: State<'_, Whitenoise>,
+) -> Result<Vec<UnsignedEvent>, String> {
+    debug!(target: "nostr_mls::groups::fetch_and_process_mls_messages", "Fetching and processing MLS messages");
+    let nostr_groups = NostrMlsGroup::get_groups(wn.clone()).expect("Failed to get groups");
+
+    let group_ids = &nostr_groups
+        .iter()
+        .map(|g| g.nostr_group_id.clone())
+        .collect::<Vec<String>>();
+
+    let group_messages_filter = Filter::new()
+        .kind(Kind::GiftWrap)
+        .custom_tag(SingleLetterTag::lowercase(Alphabet::H), group_ids);
+
+    // TODO: The created at fields here are not accurate. We need to unwrap the events,
+    // then get the created at from the unwrapped event and use that to sort them
+    let stored_events = wn
+        .nostr
+        .database()
+        .query(vec![group_messages_filter.clone()])
+        .await
+        .unwrap();
+
+    let relay_events = wn
+        .nostr
+        .fetch_events(vec![group_messages_filter.clone()], Some(DEFAULT_TIMEOUT))
+        .await
+        .unwrap();
+
+    let group_events = stored_events.merge(relay_events);
+
+    debug!(target: "nostr_mls::groups::fetch_and_process_mls_messages", "Found {:?} events", group_events.len());
+
+    // Vec of tuples of (mls_group, unwrapped_event)
+    let mut unwrapped_events_with_groups: Vec<(NostrMlsGroup, MlsGroup, UnsignedEvent)> =
+        Vec::new();
+
+    for event in group_events {
+        debug!(target: "nostr_mls::groups::fetch_and_process_mls_messages", "Unwrapping Message Event: {:?}", event.id);
+
+        let nostr_group_id = event
+            .tags
+            .find(TagKind::SingleLetter(SingleLetterTag::lowercase(
+                Alphabet::H,
+            )))
+            .unwrap()
+            .content()
+            .unwrap();
+
+        // Get the nostr_mls_group for this event. Log an error and continue if we don't have it
+        let nostr_group = match nostr_groups
+            .iter()
+            .find(|g| g.nostr_group_id == nostr_group_id)
+        {
+            Some(g) => g,
+            None => {
+                error!(target: "nostr_mls::groups::fetch_and_process_mls_messages", "No group found for nostr group id: {:?}", nostr_group_id);
+                continue;
+            }
+        };
+
+        // Get the MLS group for this nostr_mls_group. Log an error and continue if we don't have it
+        let mls_group = match MlsGroup::load(
+            wn.nostr_mls.provider.lock().unwrap().storage(),
+            &GroupId::from_slice(&nostr_group.mls_group_id),
+        ) {
+            Ok(Some(group)) => group,
+            Ok(None) => {
+                error!(target: "nostr_mls::groups::fetch_and_process_mls_messages", "No MLS group found for nostr group id: {:?}", nostr_group_id);
+                continue;
+            }
+            Err(e) => {
+                error!(target: "nostr_mls::groups::fetch_and_process_mls_messages", "Failed to load MLS group: {:?}", e);
+                continue;
+            }
+        };
+
+        // Get the export secret key for this group. If we don't have it, we need to export the secret and store it
+        // We do this now in case the message is a commit that will move the epoch forward
+        // We need to keep old epoch's secret keys to decrypt old messages if they arrive out of order
+        let export_secret_key = match get_export_secret_keys_for_group(
+            hex::encode(nostr_group.mls_group_id.clone()).as_str(),
+            mls_group.epoch().as_u64(),
+        ) {
+            Ok(keys) => keys,
+            Err(e) => {
+                error!(target: "nostr_mls::groups::fetch_and_process_mls_messages", "Failed to get export secret keys for group: {:?}", e);
+                // If we don't have the keys for this epoch, we need to export the secret and store it
+                let epoch = &mls_group.epoch().as_u64();
+                let export_nostr_keys = nostr_group
+                    .export_secret_as_keys(&mls_group, &wn)
+                    .expect("Failed to get export_secret as keys");
+                store_mls_export_secret(
+                    hex::encode(nostr_group.mls_group_id.clone()).as_str(),
+                    *epoch,
+                    export_nostr_keys.secret_key().to_secret_hex().as_str(),
+                )
+                .expect("Failed to store export secret");
+                export_nostr_keys
+            }
+        };
+
+        // TODO: We need to check the ids of the events we have in the transcript and skip them
+        // TODO: Do we need to try and order the created at of the events first? and  then we can more easily handle them in order
+
+        let unwrapped_event =
+            extract_rumor(&export_secret_key, &event).expect("Failed to unwrap event");
+
+        match unwrapped_event.rumor.kind {
+            Kind::Custom(445) => {
+                unwrapped_events_with_groups.push((
+                    nostr_group.clone(),
+                    mls_group,
+                    unwrapped_event.rumor,
+                ));
+            }
+            _ => {
+                debug!(target: "nostr_mls::groups::fetch_and_process_mls_messages", "Not processing event with kind: {:?}", unwrapped_event.rumor.kind);
+                continue;
+            }
+        }
+    }
+
+    // Sort the unwrapped events by created at and then by id to ensure order (specifically for commit messages)
+    unwrapped_events_with_groups.sort_by(|a, b| {
+        a.2.created_at.cmp(&b.2.created_at).then_with(|| {
+            match (
+                hex::decode(a.2.id.unwrap().to_string()),
+                hex::decode(b.2.id.unwrap().to_string()),
+            ) {
+                (Ok(bytes_a), Ok(bytes_b)) => bytes_a.cmp(&bytes_b),
+                _ => {
+                    error!(target: "nostr_mls::groups::fetch_and_process_mls_messages", "UNHANDLED Error: Found an incoming message with identical created_at and id values. This should never happen.");
+                    std::cmp::Ordering::Equal
+                }
+            }
+        })
+    });
+
+    // Process unwrapped events
+    for (mut nostr_group, mut mls_group, event) in unwrapped_events_with_groups {
+        debug!(target: "nostr_mls::groups::fetch_and_process_mls_messages", "Processing Message Event: {:?}", event.id);
+        let mls_message = MlsMessageIn::tls_deserialize_exact(hex::decode(&event.content).unwrap())
+            .expect("Failed to deserialize MLSMessageIn");
+
+        let protocol_message = mls_message
+            .try_into_protocol_message()
+            .expect("Failed to convert MLSMessageIn to ProtocolMessage");
+
+        match protocol_message.group_id() == mls_group.group_id() {
+            true => {
+                let processed_message = mls_group
+                    .process_message(&*wn.nostr_mls.provider.lock().unwrap(), protocol_message)
+                    .expect("Failed to process message");
+
+                let sender = BasicCredential::try_from(processed_message.credential().clone())
+                    .expect("Couldn't get sender credential");
+
+                if PublicKey::parse(hex::encode(sender.identity())).unwrap()
+                    == wn
+                        .accounts
+                        .lock()
+                        .unwrap()
+                        .get_nostr_keys_for_current_identity()
+                        .unwrap()
+                        .unwrap()
+                        .public_key()
+                {
+                    debug!(target: "nostr_mls::groups::fetch_and_process_mls_messages", "Sender is the current identity. Not processing message: {:?}", &event.id);
+                    continue;
+                }
+
+                // Handle the processed message based on its type
+                match processed_message.into_content() {
+                    ProcessedMessageContent::ApplicationMessage(application_message) => {
+                        // This is a message from a group member
+                        let message_bytes = application_message.into_bytes();
+                        debug!(target: "nostr_mls::groups::fetch_and_process_mls_messages", "Raw message bytes: {:?}", message_bytes);
+
+                        match serde_json::from_slice::<serde_json::Value>(&message_bytes) {
+                            Ok(json_value) => {
+                                debug!(target: "nostr_mls::groups::fetch_and_process_mls_messages", "Deserialized JSON message: {}", json_value);
+                                let json_str = json_value.to_string();
+                                let json_event = UnsignedEvent::from_json(&json_str).unwrap();
+                                // Check to make sure we don't already have this event in the transcript
+                                if !nostr_group.transcript.iter().any(|e| e.id == json_event.id) {
+                                    nostr_group.transcript.push(json_event);
+                                }
+                            }
+                            Err(e) => {
+                                error!(target: "nostr_mls::groups::fetch_and_process_mls_messages", "Failed to deserialize message into JSON: {}", e);
+                            }
+                        }
+                    }
+                    ProcessedMessageContent::ProposalMessage(staged_proposal) => {
+                        // This is a proposal message
+                        debug!(target: "nostr_mls::groups::fetch_and_process_mls_messages", "Received proposal message: {:?}", staged_proposal);
+                        // TODO: Handle proposal message
+                    }
+                    ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
+                        // This is a commit message
+                        debug!(target: "nostr_mls::groups::fetch_and_process_mls_messages", "Received commit message: {:?}", staged_commit);
+                        // TODO: Handle commit message
+                    }
+                    // TODO: Handle external join proposal
+                    _ => {
+                        // Handle any other cases
+                        debug!(target: "nostr_mls::groups::fetch_and_process_mls_messages", "Received unhandled message type");
+                    }
+                }
+            }
+            false => {
+                error!(target: "nostr_mls::groups::fetch_and_process_mls_messages", "ProtocolMessage GroupId doesn't match MlsGroup GroupId. Not processing rumor event: {:?}", &event.id);
+                continue;
+            }
+        }
+    }
+
+    Ok(Vec::new())
+}

@@ -9,3 +9,4 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 src-tauri/target
 stats.html
+/src-tauri/gen/android/keystore.properties

@@ -1,11 +1,12 @@
 use crate::nostr::{get_contact, DEFAULT_TIMEOUT};
 use crate::nostr_mls::{DEFAULT_CIPHERSUITE, DEFAULT_EXTENSIONS};
 use crate::whitenoise::Whitenoise;
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use log::debug;
 use nostr_sdk::prelude::*;
 use openmls::prelude::{tls_codec::*, *};
 use openmls_basic_credential::SignatureKeyPair;
+use openmls_traits::storage::StorageProvider;
 use tauri::State;
 
 /// Generates a credential with a key for MLS (Messaging Layer Security) operations.
@@ -40,7 +41,7 @@ pub fn generate_credential_with_key(
     debug!("MLS Credential keypair generated for {:?}", &identity);
 
     signature_keypair
-        .store(wn.nostr_mls.provider.storage())
+        .store(wn.nostr_mls.provider.lock().unwrap().storage())
         .expect("Error storing the signature keypair");
 
     (
@@ -79,41 +80,36 @@ pub fn generate_credential_with_key(
 /// - The specified event is not authored by the current user.
 /// - There's an error creating or sending the delete event.
 pub async fn delete_key_package_from_relays(
-    event_id: EventId,
-    wn: State<'_, Whitenoise>,
+    event_id: &EventId,
+    prekey_relays: &[String],
+    delete_mls_stored_keys: bool,
+    wn: &State<'_, Whitenoise>,
 ) -> Result<()> {
-    let prekey_relays = wn
-        .accounts
-        .lock()
-        .unwrap()
-        .get_key_package_relays_for_current_identity()?;
+    let current_pubkey = wn.nostr.signer().await.unwrap().public_key().await.unwrap();
     let key_package_events = wn
         .nostr
-        .get_events_of(
-            vec![Filter::new().id(event_id)],
-            EventSource::Both {
-                timeout: Some(DEFAULT_TIMEOUT),
-                specific_relays: None,
-            },
+        .fetch_events(
+            vec![Filter::new()
+                .id(*event_id)
+                .kind(Kind::Custom(443))
+                .author(current_pubkey)],
+            Some(DEFAULT_TIMEOUT),
         )
         .await?;
 
     if let Some(event) = key_package_events.first() {
-        if event.kind() != Kind::Custom(443) {
-            return Err(anyhow!("Event is not a key package"));
+        // Make sure we delete the private key material from MLS storage if requested
+        if delete_mls_stored_keys {
+            let key_package = parse_key_package(event.content.to_string(), wn.clone())
+                .expect("Failed to parse key package");
+
+            let provider = wn.nostr_mls.provider.lock().unwrap();
+            provider
+                .storage()
+                .delete_key_package(&key_package.hash_ref(provider.crypto())?)
+                .expect("Couldn't delete keys from MLS storage");
         }
-        if event.author()
-            != wn
-                .accounts
-                .lock()
-                .unwrap()
-                .get_nostr_keys_for_current_identity()?
-                .unwrap()
-                .public_key()
-        {
-            return Err(anyhow!("Event is not signed by the current user"));
-        }
-        let builder = EventBuilder::delete(vec![event.id()]);
+        let builder = EventBuilder::delete(vec![event.id]);
         wn.nostr
             .send_event_builder_to(prekey_relays, builder)
             .await?;
@@ -147,7 +143,7 @@ pub async fn delete_key_package_from_relays(
 /// - There's an error creating or sending the delete event.
 ///
 #[tauri::command]
-pub async fn delete_key_packages(wn: State<'_, Whitenoise>) -> Result<(), String> {
+pub async fn delete_all_key_packages_from_relays(wn: State<'_, Whitenoise>) -> Result<(), String> {
     let current_pubkey = wn.nostr.signer().await.unwrap().public_key().await.unwrap();
     let key_package_relays = wn
         .accounts
@@ -158,17 +154,11 @@ pub async fn delete_key_packages(wn: State<'_, Whitenoise>) -> Result<(), String
     let filter = Filter::new().kind(Kind::Custom(443)).author(current_pubkey);
     let event_ids: Vec<EventId> = wn
         .nostr
-        .get_events_of(
-            vec![filter.clone()],
-            EventSource::Both {
-                timeout: Some(DEFAULT_TIMEOUT),
-                specific_relays: Some(key_package_relays.clone()),
-            },
-        )
+        .fetch_events(vec![filter.clone()], Some(DEFAULT_TIMEOUT))
         .await
         .unwrap()
         .iter()
-        .map(|event| event.id())
+        .map(|event| event.id)
         .collect();
 
     // Send delete request to relays
@@ -209,60 +199,7 @@ pub async fn generate_and_publish_key_package(
     pubkey: String,
     wn: State<'_, Whitenoise>,
 ) -> Result<(), String> {
-    let (credential, signer) = generate_credential_with_key(pubkey.clone(), wn.clone());
-
-    let capabilities: Capabilities = Capabilities::new(
-        None,
-        Some(&[DEFAULT_CIPHERSUITE]),
-        Some(DEFAULT_EXTENSIONS),
-        None,
-        None,
-    );
-
-    let key_package_bundle = KeyPackage::builder()
-        .leaf_node_capabilities(capabilities)
-        .mark_as_last_resort()
-        .build(
-            wn.nostr_mls.ciphersuite,
-            &wn.nostr_mls.provider,
-            &signer,
-            credential,
-        )
-        .expect("Error generating key package");
-
-    // serialize the key package, then encode it to hex and put it in the content field
-    let key_package_serialized = key_package_bundle
-        .key_package()
-        .tls_serialize_detached()
-        .unwrap();
-
-    let key_package_hex = hex::encode(key_package_serialized);
-
-    let contact = get_contact(pubkey.clone(), wn.clone()).await.unwrap();
-
-    let relay_urls = if tauri::is_dev() {
-        vec!["ws://localhost:8080".to_string()]
-    } else {
-        contact.key_package_relays
-    };
-
-    let event = EventBuilder::new(
-        Kind::Custom(443),
-        key_package_hex,
-        [
-            Tag::custom(TagKind::Custom("mls_protocol_version".into()), ["1.0"]),
-            Tag::custom(
-                TagKind::Custom("ciphersuite".into()),
-                [wn.nostr_mls.ciphersuite_value().to_string()],
-            ),
-            Tag::custom(
-                TagKind::Custom("extensions".into()),
-                [wn.nostr_mls.extensions_value()],
-            ),
-            Tag::custom(TagKind::Custom("client".into()), ["whitenoise"]),
-            Tag::custom(TagKind::Custom("relays".into()), relay_urls.clone()),
-        ],
-    );
+    let (event, relay_urls) = create_key_package_event(pubkey, &wn).await?;
 
     wn.nostr
         .send_event_builder_to(relay_urls.clone(), event)
@@ -307,7 +244,10 @@ pub fn parse_key_package(
         .map_err(|e| format!("Could not deserialize KeyPackage: {}", e))?;
 
     let key_package = key_package_in
-        .validate(wn.nostr_mls.provider.crypto(), ProtocolVersion::Mls10)
+        .validate(
+            wn.nostr_mls.provider.lock().unwrap().crypto(),
+            ProtocolVersion::Mls10,
+        )
         .map_err(|e| format!("Invalid KeyPackage: {}", e))?;
 
     Ok(key_package)
@@ -345,19 +285,13 @@ pub async fn fetch_key_package_for_user(
     let prekey_filter = Filter::new().kind(Kind::Custom(443)).author(public_key);
     let prekey_events = wn
         .nostr
-        .get_events_of(
-            vec![prekey_filter],
-            EventSource::Both {
-                timeout: Some(DEFAULT_TIMEOUT),
-                specific_relays: None,
-            },
-        )
+        .fetch_events(vec![prekey_filter], Some(DEFAULT_TIMEOUT))
         .await
         .expect("Error fetching prekey events");
 
     let key_packages: Vec<KeyPackage> = prekey_events
         .iter()
-        .filter_map(|event| parse_key_package(event.content().to_string(), wn.clone()).ok())
+        .filter_map(|event| parse_key_package(event.content.to_string(), wn.clone()).ok())
         .collect();
 
     // Get the first valid key package
@@ -393,4 +327,66 @@ pub async fn fetch_key_package_for_user(
             Ok(None)
         }
     }
+}
+
+async fn create_key_package_event(
+    pubkey: String,
+    wn: &State<'_, Whitenoise>,
+) -> Result<(EventBuilder, Vec<String>), String> {
+    let (credential, signer) = generate_credential_with_key(pubkey.clone(), wn.clone());
+
+    let capabilities: Capabilities = Capabilities::new(
+        None,
+        Some(&[DEFAULT_CIPHERSUITE]),
+        Some(DEFAULT_EXTENSIONS),
+        None,
+        None,
+    );
+
+    let contact = get_contact(pubkey.clone(), wn.clone()).await.unwrap();
+
+    let relay_urls = if tauri::is_dev() {
+        vec!["ws://localhost:8080".to_string()]
+    } else {
+        contact.key_package_relays
+    };
+
+    let key_package_bundle = KeyPackage::builder()
+        .leaf_node_capabilities(capabilities)
+        .mark_as_last_resort()
+        .build(
+            wn.nostr_mls.ciphersuite,
+            &*wn.nostr_mls.provider.lock().unwrap(), // Dereference the MutexGuard
+            &signer,
+            credential,
+        )
+        .expect("Error generating key package");
+
+    // serialize the key package, then encode it to hex and put it in the content field
+    let key_package_serialized = key_package_bundle
+        .key_package()
+        .tls_serialize_detached()
+        .unwrap();
+
+    let key_package_hex = hex::encode(key_package_serialized);
+
+    let event = EventBuilder::new(
+        Kind::Custom(443),
+        key_package_hex,
+        [
+            Tag::custom(TagKind::Custom("mls_protocol_version".into()), ["1.0"]),
+            Tag::custom(
+                TagKind::Custom("ciphersuite".into()),
+                [wn.nostr_mls.ciphersuite_value().to_string()],
+            ),
+            Tag::custom(
+                TagKind::Custom("extensions".into()),
+                [wn.nostr_mls.extensions_value()],
+            ),
+            Tag::custom(TagKind::Custom("client".into()), ["whitenoise"]),
+            Tag::custom(TagKind::Custom("relays".into()), relay_urls.clone()),
+        ],
+    );
+
+    Ok((event, relay_urls))
 }

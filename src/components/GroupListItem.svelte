@@ -55,6 +55,7 @@
 </script>
 
 <ListItem
+    id="group-list-item-{hexMlsGroupId(group.mls_group_id)}"
     link="/groups/{hexMlsGroupId(group.mls_group_id)}/"
     swipeout
     class="hover:bg-gray-800 transition-colors duration-200"
@@ -94,7 +95,7 @@
     </div>
     <span slot="text" class=""> </span>
     <span slot="after">{formatMessageTime(group.last_message_at)}</span>
-    <SwipeoutActions left>
+    <!-- <SwipeoutActions left>
         <SwipeoutButton close overswipe color="blue" on:click={swipeoutUnread}>
             <Icon f7="chat_bubble_fill" />
             <span>Unread</span>
@@ -113,5 +114,5 @@
             <Icon f7="archivebox_fill" />
             <span>Archive</span>
         </SwipeoutButton>
-    </SwipeoutActions>
+    </SwipeoutActions> -->
 </ListItem>

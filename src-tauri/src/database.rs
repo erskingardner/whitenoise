@@ -151,6 +151,42 @@ impl Database {
         Ok(result)
     }
 
+    /// Deletes a key-value pair from a specific tree in the database.
+    ///
+    /// This function opens the specified tree and removes the entry for the given key.
+    ///
+    /// # Arguments
+    ///
+    /// * `tree` - The name of the tree to open. Can be any type that can be converted to a byte slice.
+    /// * `key` - The key to be deleted from the tree. Can be any type that can be converted to a byte slice.
+    ///
+    /// # Returns
+    ///
+    /// Returns a Result containing an Option<IVec>. The Option will be:
+    /// - Some(IVec) containing the value of the removed key if it existed in the tree.
+    /// - None if the key did not exist in the specified tree.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The underlying sled database encounters an error while opening the tree.
+    /// - The remove operation on the tree fails.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - The type of the tree name, must implement AsRef<[u8]>.
+    /// * `K` - The type of the key, must implement AsRef<[u8]>.
+    #[allow(dead_code)]
+    pub fn delete_from_tree<T, K>(&self, tree: T, key: K) -> Result<Option<IVec>>
+    where
+        T: AsRef<[u8]>,
+        K: AsRef<[u8]>,
+    {
+        let tree = self.db.open_tree(tree)?;
+        let result = tree.remove(key)?;
+        Ok(result)
+    }
+
     /// Deletes all data from the database.
     ///
     /// This function removes all trees and clears all key-value pairs from the main database.
@@ -170,7 +206,8 @@ impl Database {
         debug!(target: "database::delete_data", "Deleting all data");
         let tree_names = self.db.tree_names();
         for tree_name in tree_names {
-            let tree_name_string = String::from_utf8(tree_name.to_vec()).unwrap();
+            let tree_name_string = String::from_utf8(tree_name.to_vec())
+                .expect("Couldn't convert tree name to string");
             match tree_name_string.as_str() {
                 "__sled__default" => (),
                 _ => {
@@ -199,7 +236,7 @@ mod tests {
 
     #[test]
     fn test_insert_and_get() {
-        let db = setup_test_db().unwrap();
+        let db = setup_test_db().expect("Couldn't create database for test");
         let key = "test_key";
         let value = "test_value";
 
@@ -213,7 +250,7 @@ mod tests {
 
     #[test]
     fn test_delete() {
-        let db = setup_test_db().unwrap();
+        let db = setup_test_db().expect("Couldn't create database for test");
         let key = "test_key";
         let value = "test_value";
 
@@ -225,15 +262,15 @@ mod tests {
 
     #[test]
     fn test_delete_data() {
-        let db = setup_test_db().unwrap();
+        let db = setup_test_db().expect("Couldn't create database for test");
         let key1 = "test_key1";
         let value1 = "test_value1";
         let key2 = "test_key2";
         let value2 = "test_value2";
 
         // Insert some test data
-        db.insert(key1, value1).expect("Failed to insert key1");
-        db.insert(key2, value2).expect("Failed to insert key2");
+        db.insert(key1, value1).expect("Failed to insert");
+        db.insert(key2, value2).expect("Failed to insert");
 
         // Verify data was inserted
         assert!(db.get(key1).unwrap().is_some());
@@ -247,6 +284,7 @@ mod tests {
         assert!(db.get(key2).unwrap().is_none());
 
         // Verify all trees were dropped
-        assert!(db.db.tree_names().is_empty());
+        // Verify all trees were dropped
+        assert_eq!(db.db.tree_names().len(), 1); // Only the default tree should remain
     }
 }

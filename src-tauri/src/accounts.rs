@@ -1,10 +1,10 @@
-use crate::nostr;
+use crate::nostr::{self, subscribe_to_mls_group_messages};
 use crate::nostr::{update_nostr_identity, EnrichedContact, DEFAULT_RELAYS, DEFAULT_TIMEOUT};
 use crate::secrets_store;
 use crate::{database::Database, whitenoise::Whitenoise};
 use anyhow::Result;
 use log::debug;
-use nostr_sdk::{EventSource, Filter, Keys, Kind, Metadata, TagKind};
+use nostr_sdk::{Filter, Keys, Kind, Metadata, TagKind};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::str::from_utf8;
@@ -143,7 +143,11 @@ impl Accounts {
 #[tauri::command]
 pub fn get_accounts(wn: State<'_, Whitenoise>) -> Result<Accounts, String> {
     debug!(target: "whitenoise::accounts::get_accounts", "Getting accounts");
-    Ok(wn.accounts.lock().unwrap().clone())
+    Ok(wn
+        .accounts
+        .lock()
+        .expect("Couldn't lock accounts while fetching")
+        .clone())
 }
 
 /// Adds a new identity to the accounts using the provided secret key
@@ -181,7 +185,7 @@ pub async fn login(
 
     let metadata = wn
         .nostr
-        .metadata(keys.public_key())
+        .fetch_metadata(keys.public_key(), Some(DEFAULT_TIMEOUT))
         .await
         .unwrap_or_else(|_| Metadata::default());
 
@@ -207,19 +211,16 @@ pub async fn login(
     // Fetch messaging capabilities for all contacts in a single query
     let messaging_capabilities_events = wn
         .nostr
-        .get_events_of(
+        .fetch_events(
             vec![dm_relay_list_filter, prekey_filter, key_package_list_filter],
-            EventSource::Both {
-                timeout: Some(DEFAULT_TIMEOUT),
-                specific_relays: None,
-            },
+            Some(DEFAULT_TIMEOUT),
         )
         .await
         .expect("Failed to fetch messaging capabilities");
 
     // Process messaging capabilities
-    for event in &messaging_capabilities_events {
-        match event.kind() {
+    for event in messaging_capabilities_events {
+        match event.kind {
             Kind::Replaceable(10050) => {
                 enriched_contact.nip17 = true;
                 enriched_contact.inbox_relays.extend(
@@ -243,7 +244,8 @@ pub async fn login(
             }
             Kind::Custom(443) => {
                 if event
-                    .get_tag_content(TagKind::Custom("mls_protocol_version".into()))
+                    .tags
+                    .find(TagKind::Custom("mls_protocol_version".into()))
                     .is_some()
                 {
                     enriched_contact.nip104 = true;
@@ -255,34 +257,49 @@ pub async fn login(
 
     // Scope the MutexGuard to release it before the .await
     {
-        let mut accounts = wn.accounts.lock().map_err(|e| e.to_string())?;
-        match accounts.accounts.as_mut() {
-            Some(accounts) => {
-                accounts.insert(keys.public_key().to_string(), enriched_contact);
-            }
-            None => {
-                let mut new_accounts = HashMap::new();
-                new_accounts.insert(keys.public_key().to_string(), enriched_contact);
-                accounts.accounts = Some(new_accounts);
-            }
-        }
-        accounts.current_identity = Some(keys.public_key().to_string());
-        accounts.save(&wn.wdb).map_err(|e| e.to_string())?;
-        debug!(target: "whitenoise::accounts::login", "Saved accounts to database: {:?}", accounts);
-        secrets_store::store_private_key(&keys).map_err(|e| e.to_string())?;
+        let mut accounts = wn
+            .accounts
+            .lock()
+            .map_err(|e| format!("Failed to lock accounts: {}", e))?;
+        let pubkey = keys.public_key().to_hex();
+
+        // Update or create the accounts map
+        accounts
+            .accounts
+            .get_or_insert_with(HashMap::new)
+            .insert(pubkey.clone(), enriched_contact);
+
+        // Set current identity
+        accounts.current_identity = Some(pubkey);
+
+        // Save accounts to database
+        accounts
+            .save(&wn.wdb)
+            .map_err(|e| format!("Failed to save accounts: {}", e))?;
+        debug!(target: "whitenoise::accounts::login", "Saved accounts to database: {:#?}", accounts);
+
+        // Store private key in secrets store
+        secrets_store::store_private_key(&keys)
+            .map_err(|e| format!("Failed to store private key: {}", e))?;
         debug!(target: "whitenoise::accounts::login", "Saved private key to secrets store");
     }
 
-    nostr::update_nostr_identity(keys, &wn)
+    subscribe_to_mls_group_messages(&wn)
         .await
         .map_err(|e| e.to_string())?;
+
+    wn.nostr_mls
+        .update_provider_for_user(Some(keys.public_key().to_hex()));
 
     app_handle
         .emit("identity_change", ())
         .expect("Couldn't emit event");
 
     // Fetch and return the updated accounts
-    Ok(wn.accounts.lock().map_err(|e| e.to_string())?.clone())
+    wn.accounts
+        .lock()
+        .map_err(|e| format!("Failed to lock accounts: {}", e))
+        .map(|accounts| accounts.clone())
 }
 
 /// Logs out a user by removing their account and associated private key
@@ -341,6 +358,9 @@ pub fn logout(
     // Save the accounts
     accounts.save(&wn.wdb).map_err(|e| e.to_string())?;
 
+    wn.nostr_mls
+        .update_provider_for_user(accounts.current_identity.clone());
+
     // Emit an identity change event
     app_handle
         .emit("identity_change", ())
@@ -376,7 +396,9 @@ pub async fn set_current_identity(
     accounts.current_identity = Some(pubkey);
     accounts.save(&wn.wdb).map_err(|e| e.to_string())?;
     let accounts_clone = accounts.clone();
-    drop(accounts);
+
+    wn.nostr_mls
+        .update_provider_for_user(accounts.current_identity.clone());
 
     app_handle
         .emit("identity_change", ())
@@ -405,7 +427,7 @@ pub async fn create_identity(
 ) -> Result<Accounts, String> {
     let keys = Keys::generate();
     let accounts = login(
-        keys.secret_key().unwrap().to_string(),
+        keys.secret_key().to_secret_hex(),
         "create_identity".to_string(),
         wn,
         app_handle,

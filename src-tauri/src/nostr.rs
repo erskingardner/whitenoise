@@ -1,3 +1,4 @@
+use crate::nostr_mls::groups::NostrMlsGroup;
 use crate::whitenoise::Whitenoise;
 use log::{debug, error};
 use nostr_sdk::prelude::*;
@@ -7,11 +8,11 @@ use std::{collections::HashMap, time::Duration};
 use tauri::State;
 
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
-pub const DEFAULT_RELAYS: [&str; 2] = [
+pub const DEFAULT_RELAYS: [&str; 4] = [
     // "wss://relay.damus.io",
     // "wss://relay.snort.social",
-    // "wss://relay.nostr.build",
-    // "wss://nos.lol",
+    "wss://relay.primal.net",
+    "wss://nos.lol",
     "wss://purplepag.es",
     "ws://localhost:8080",
 ];
@@ -63,7 +64,7 @@ pub async fn get_contact(
     let public_key = PublicKey::from_hex(&pubkey).unwrap();
     let metadata = wn
         .nostr
-        .metadata(public_key)
+        .fetch_metadata(public_key, Some(DEFAULT_TIMEOUT))
         .await
         .unwrap_or(Metadata::default());
 
@@ -83,19 +84,16 @@ pub async fn get_contact(
     // Fetch messaging capabilities for all contacts in a single query
     let messaging_capabilities_events = wn
         .nostr
-        .get_events_of(
+        .fetch_events(
             vec![dm_relay_list_filter, prekey_filter, key_package_list_filter],
-            EventSource::Both {
-                timeout: Some(DEFAULT_TIMEOUT),
-                specific_relays: None,
-            },
+            Some(DEFAULT_TIMEOUT),
         )
         .await
         .expect("Failed to fetch messaging capabilities");
 
     // Process messaging capabilities
-    for event in &messaging_capabilities_events {
-        match event.kind() {
+    for event in messaging_capabilities_events {
+        match event.kind {
             Kind::Replaceable(10050) => {
                 enriched_contact.nip17 = true;
                 enriched_contact.inbox_relays.extend(
@@ -119,7 +117,8 @@ pub async fn get_contact(
             }
             Kind::Custom(443) => {
                 if event
-                    .get_tag_content(TagKind::Custom("mls_protocol_version".into()))
+                    .tags
+                    .find(TagKind::Custom("mls_protocol_version".into()))
                     .is_some()
                 {
                     enriched_contact.nip104 = true;
@@ -155,7 +154,7 @@ pub async fn get_contacts(
     let contacts = wn
         .nostr
         .database()
-        .query(vec![metadata_filter], Order::Asc)
+        .query(vec![metadata_filter])
         .await
         .expect("Failed to query metadata");
 
@@ -173,12 +172,9 @@ pub async fn get_contacts(
     // Fetch messaging capabilities for all contacts in a single query
     let messaging_capabilities_events = wn
         .nostr
-        .get_events_of(
+        .fetch_events(
             vec![dm_relay_list_filter, prekey_filter, key_package_list_filter],
-            EventSource::Both {
-                timeout: Some(DEFAULT_TIMEOUT),
-                specific_relays: None,
-            },
+            Some(DEFAULT_TIMEOUT),
         )
         .await
         .expect("Failed to fetch messaging capabilities");
@@ -186,8 +182,8 @@ pub async fn get_contacts(
     // Process contacts and messaging capabilities
     let mut contacts_map: HashMap<String, EnrichedContact> = HashMap::new();
     for contact in contacts {
-        let metadata = Metadata::from_json(contact.content()).expect("Failed to parse metadata");
-        let author = contact.author().to_string();
+        let metadata = Metadata::from_json(contact.content).expect("Failed to parse metadata");
+        let author = contact.pubkey.to_string();
 
         let mut enriched_contact = EnrichedContact {
             metadata,
@@ -198,9 +194,9 @@ pub async fn get_contacts(
         };
 
         // Process messaging capabilities
-        for event in &messaging_capabilities_events {
-            if event.author().to_string() == author {
-                match event.kind() {
+        for event in messaging_capabilities_events.clone() {
+            if event.pubkey.to_string() == author {
+                match event.kind {
                     Kind::Replaceable(10050) => {
                         enriched_contact.nip17 = true;
                         enriched_contact.inbox_relays.extend(
@@ -224,7 +220,8 @@ pub async fn get_contacts(
                     }
                     Kind::Custom(443) => {
                         if event
-                            .get_tag_content(TagKind::Custom("mls_protocol_version".into()))
+                            .tags
+                            .find(TagKind::Custom("mls_protocol_version".into()))
                             .is_some()
                         {
                             enriched_contact.nip104 = true;
@@ -249,7 +246,7 @@ pub async fn get_metadata_for_pubkey(
     let public_key = PublicKey::from_hex(pubkey).unwrap();
     Ok(wn
         .nostr
-        .metadata(public_key)
+        .fetch_metadata(public_key, Some(DEFAULT_TIMEOUT))
         .await
         .unwrap_or(Metadata::default()))
 }
@@ -263,7 +260,7 @@ pub async fn get_legacy_chats(
     let current_pubkey = PublicKey::from_hex(&pubkey).expect("Invalid pubkey");
     let events = wn
         .nostr
-        .get_events_of(
+        .fetch_events(
             vec![
                 Filter::new()
                     .kind(Kind::EncryptedDirectMessage)
@@ -272,7 +269,7 @@ pub async fn get_legacy_chats(
                     .kind(Kind::EncryptedDirectMessage)
                     .pubkeys(vec![current_pubkey]),
             ],
-            EventSource::both(Some(DEFAULT_TIMEOUT)),
+            Some(DEFAULT_TIMEOUT),
         )
         .await
         .unwrap();
@@ -285,39 +282,42 @@ pub async fn get_legacy_chats(
     let signer_pubkey = signer.public_key().await.unwrap();
 
     for event in events {
-        let (other_party_pubkey, decrypt_pubkey) = if event.author() == signer_pubkey {
+        let (other_party_pubkey, decrypt_pubkey) = if event.pubkey == signer_pubkey {
             let other_pubkey = PublicKey::parse(
                 event
-                    .get_tag_content(TagKind::SingleLetter(SingleLetterTag::lowercase(
+                    .tags
+                    .find(TagKind::SingleLetter(SingleLetterTag::lowercase(
                         Alphabet::P,
                     )))
+                    .unwrap()
+                    .content()
                     .unwrap(),
             )
             .unwrap();
             (other_pubkey, other_pubkey)
         } else {
-            (event.author(), event.author())
+            (event.pubkey, event.pubkey)
         };
 
-        if let Ok(decrypted) = signer.nip04_decrypt(decrypt_pubkey, event.content()).await {
+        if let Ok(decrypted) = signer.nip04_decrypt(&decrypt_pubkey, &event.content).await {
             let raw_event = RawEvent {
-                id: event.id().to_string(),
-                created_at: event.created_at(),
+                id: event.id.to_string(),
+                created_at: event.created_at,
                 content: decrypted,
-                kind: event.kind(),
-                tags: event.tags().to_vec(),
-                pubkey: event.author(),
-                sig: event.signature(),
+                kind: event.kind,
+                tags: event.tags.to_vec(),
+                pubkey: event.pubkey,
+                sig: event.sig,
             };
 
             chats
                 .entry(other_party_pubkey.to_string())
                 .and_modify(|conv| {
                     conv.events.push(raw_event.clone());
-                    conv.latest = conv.latest.max(event.created_at());
+                    conv.latest = conv.latest.max(event.created_at);
                 })
                 .or_insert_with(|| Conversation {
-                    latest: event.created_at(),
+                    latest: event.created_at,
                     events: vec![raw_event],
                     metadata: Metadata::default(),
                 });
@@ -334,12 +334,11 @@ pub async fn get_legacy_chats(
             .limit(1);
         let meta_events = wn
             .nostr
-            .database()
-            .query(vec![filter], Order::Desc)
+            .fetch_events(vec![filter], Some(DEFAULT_TIMEOUT))
             .await
             .unwrap();
         let meta = if let Some(meta_event) = meta_events.first() {
-            Metadata::from_json(meta_event.content()).unwrap_or(Metadata::default())
+            Metadata::from_json(meta_event.content.clone()).unwrap_or(Metadata::default())
         } else {
             Metadata::default()
         };
@@ -401,7 +400,9 @@ pub async fn update_nostr_identity(keys: Keys, wn: &State<'_, Whitenoise>) -> Re
     start = Instant::now();
 
     // Clear existing relays and add default ones
-    wn.nostr.remove_all_relays().await?;
+    for relay in DEFAULT_RELAYS {
+        wn.nostr.remove_relay(relay).await.unwrap();
+    }
 
     debug!(target: "whitenoise::nostr::update_nostr_identity", "Removed all relays in {:?}", start.elapsed());
     start = Instant::now();
@@ -421,15 +422,12 @@ pub async fn update_nostr_identity(keys: Keys, wn: &State<'_, Whitenoise>) -> Re
     debug!(target: "whitenoise::nostr::update_nostr_identity", "Fetching DM relay lists");
     let relay_list_events = wn
         .nostr
-        .get_events_of(
+        .fetch_events(
             vec![Filter::new()
                 .kind(Kind::Replaceable(10050))
                 .author(keys.public_key())
                 .limit(1)],
-            EventSource::Both {
-                timeout: Some(DEFAULT_TIMEOUT),
-                specific_relays: None,
-            },
+            Some(DEFAULT_TIMEOUT),
         )
         .await
         .expect("Failed to fetch DM relay lists");
@@ -512,13 +510,32 @@ async fn setup_subscriptions(keys: &Keys, wn: &State<'_, Whitenoise>) -> Result<
     let _nip_4_received_sub = wn.nostr.subscribe(vec![nip_4_received], None).await;
     debug!(target: "whitenoise::nostr::update_nostr_identity", "Subscribed for nip4 messaging");
 
-    // Subscribe for Gift-wrapped messages
     let gift_wrap_filter = Filter::new()
         .kind(Kind::GiftWrap)
         .pubkeys(vec![keys.public_key()]);
     let _gift_wrap_sub = wn.nostr.subscribe(vec![gift_wrap_filter], None).await;
     debug!(target: "whitenoise::nostr::update_nostr_identity", "Subscribed for gift wrapped messages");
 
+    Ok(())
+}
+
+pub async fn subscribe_to_mls_group_messages(wn: &State<'_, Whitenoise>) -> Result<()> {
+    if wn.accounts.lock().unwrap().current_identity.is_some() {
+        // Subscribe for Gift-wrapped messages addressed to the user's groups)
+        let nostr_groups = NostrMlsGroup::get_groups(wn.clone()).expect("Failed to get groups");
+
+        let group_ids = &nostr_groups
+            .iter()
+            .map(|g| g.nostr_group_id.clone())
+            .collect::<Vec<String>>();
+
+        let group_messages_filter = Filter::new()
+            .kind(Kind::GiftWrap)
+            .custom_tag(SingleLetterTag::lowercase(Alphabet::H), group_ids);
+
+        let _group_messages_sub = wn.nostr.subscribe(vec![group_messages_filter], None).await;
+        debug!(target: "whitenoise::nostr::subscribe_to_mls_group_messages", "Subscribed for group messages");
+    }
     Ok(())
 }
 
@@ -533,7 +550,7 @@ pub async fn send_message(
 
     let event = EventBuilder::new(
         Kind::EncryptedDirectMessage,
-        signer.nip04_encrypt(pubkey, message).await.unwrap(),
+        signer.nip04_encrypt(&pubkey, message).await.unwrap(),
         [Tag::public_key(pubkey)],
     );
 
@@ -551,6 +568,6 @@ pub async fn decrypt_content(
 ) -> Result<String, String> {
     let author_pubkey = PublicKey::from_hex(&pubkey).unwrap();
     let signer = wn.nostr.signer().await.unwrap();
-    let decrypted = signer.nip04_decrypt(author_pubkey, content).await.unwrap();
+    let decrypted = signer.nip04_decrypt(&author_pubkey, content).await.unwrap();
     Ok(decrypted)
 }

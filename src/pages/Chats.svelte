@@ -4,22 +4,34 @@
     import { invoke } from "@tauri-apps/api/core";
     import { currentIdentity } from "../stores/accounts";
     import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-    import type { NChats, WelcomeMessage, NMetadata, NostrMlsGroup } from "../types/nostr";
+    import type { NChats, Invite, NMetadata, NostrMlsGroup } from "../types/nostr";
     import type { Router as F7Router } from "framework7/types";
     import LegacyChatListItem from "../components/LegacyChatListItem.svelte";
     import GroupListItem from "../components/GroupListItem.svelte";
     import InviteListItem from "../components/InviteListItem.svelte";
+    import { hexMlsGroupId } from "../utils/group";
 
     let isLoading = $state(true);
     let selectedChat: string | undefined = $state(undefined);
     let chats: NChats = $state({});
 
     let groups: NostrMlsGroup[] = $state([]);
-    let welcomes: WelcomeMessage[] = $state([]);
+    let invites: Invite[] = $state([]);
 
     let unlisten: UnlistenFn;
 
     let { f7router }: { f7router: F7Router.Router } = $props();
+
+    let inviteAcceptedListener: (event: CustomEvent) => void;
+
+    inviteAcceptedListener = async (event: CustomEvent) => {
+        const acceptedGroupId = event.detail;
+        invites = invites.filter((invite) => invite.mls_group_id !== acceptedGroupId);
+        await getEvents();
+        f7router.navigate(`/groups/${acceptedGroupId}/`);
+    };
+
+    window.addEventListener("inviteAccepted", inviteAcceptedListener as EventListener);
 
     async function getLegacyChats(): Promise<void> {
         isLoading = true;
@@ -53,11 +65,11 @@
         }
     }
 
-    async function getWelcomeMessages() {
+    async function getInvites() {
         if (!$currentIdentity) {
-            welcomes = [];
+            invites = [];
         } else {
-            welcomes = await invoke("fetch_welcome_messages_for_user", {
+            invites = await invoke("fetch_invites_for_user", {
                 pubkey: $currentIdentity,
             });
         }
@@ -68,13 +80,13 @@
             groups = [];
         } else {
             groups = await invoke("get_groups");
+            await invoke("fetch_and_process_mls_messages");
         }
     }
 
     async function getEvents() {
-        console.log("getEvents");
         await getLegacyChats();
-        await getWelcomeMessages();
+        await getInvites();
         await getGroups();
     }
 
@@ -161,17 +173,17 @@
     {/if}
 
     <List noChevron mediaList dividers ul={false}>
-        {#if welcomes.length > 0}
+        {#if invites.length > 0}
             <ListGroup>
                 <ListItem groupTitle title="Invites" class="list-group p-0 w-full" />
-                {#each welcomes as welcome}
-                    <InviteListItem {welcome} />
+                {#each invites as invite (invite.event.id)}
+                    <InviteListItem {invite} />
                 {/each}
             </ListGroup>
         {/if}
         <ListGroup>
             <ListItem groupTitle title="Secure Chats" class="list-group p-0 w-full" />
-            {#each groups as group}
+            {#each groups as group (hexMlsGroupId(group.mls_group_id))}
                 <GroupListItem {group} />
             {/each}
         </ListGroup>

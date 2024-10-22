@@ -6,14 +6,19 @@
         pubkey: string;
         metadata?: NMetadata;
         extraClasses?: string;
+        unstyled?: boolean;
     }
 
-    let { pubkey, metadata, extraClasses }: Props = $props();
+    let { pubkey, metadata, extraClasses, unstyled = false }: Props = $props();
 
     let name = $derived(metadata?.display_name || metadata?.name || npubFromPubkey(pubkey));
     let isNpub = $derived(!metadata?.display_name && !metadata?.name);
 </script>
 
-<span class="text-lg font-semibold truncate shrink {isNpub ? 'font-mono' : ''} {extraClasses}">
-    {name}
-</span>
+{#if unstyled}
+    <span>{name}</span>
+{:else}
+    <span class="text-lg font-semibold truncate shrink {isNpub ? 'font-mono' : ''} {extraClasses}">
+        {name}
+    </span>
+{/if}

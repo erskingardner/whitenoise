@@ -1,4 +1,3 @@
-use group_info::VerifiableGroupInfo;
 use nostr_sdk::util::hex;
 use openmls::prelude::*;
 use rand::Rng;
@@ -57,10 +56,8 @@ impl NostrGroupDataExtension {
         }
     }
 
-    pub fn from_group_info(group_info: &VerifiableGroupInfo) -> Result<Self, anyhow::Error> {
-        let extensions = group_info.extensions();
-        log::debug!(target: "whitenoise::nostr_mls::nostr_group_data", "extensions: {:?}", extensions);
-        let group_data_extension = match group_info
+    pub fn from_group_context(group_context: &GroupContext) -> Result<Self, anyhow::Error> {
+        let group_data_extension = match group_context
             .extensions()
             .iter()
             .find(|ext| ext.extension_type() == ExtensionType::Unknown(0xFF69))

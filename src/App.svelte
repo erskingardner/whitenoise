@@ -20,6 +20,7 @@
         Views,
     } from "framework7-svelte";
     import routes from "./js/routes";
+    import type { Router as F7Router } from "framework7/types";
     import { Dom7 } from "framework7";
     import { npubFromPubkey } from "./utils/nostr";
     import { invoke } from "@tauri-apps/api/core";
@@ -32,16 +33,8 @@
         darkMode: "dark",
         themeColor: "#1d4ed8", // blue-600
         // on: {
-        //     routeChanged: (
-        //         newRoute: Router.Route,
-        //         oldRoute: Router.Route,
-        //         router: F7Router.Router
-        //     ) => {
-        //         console.log("<===== routeChanged =====>");
-        //         console.log("newRoute: ", newRoute.path);
-        //         console.log("oldRoute: ", oldRoute.path);
-        //         console.log("history: ", router.history);
-        //         console.log("<===== routeChanged =====>");
+        //     routeChanged: (router: F7Router.Router) => {
+        //         console.log("router: ", router);
         //     },
         // },
     };

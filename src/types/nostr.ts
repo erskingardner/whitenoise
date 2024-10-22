@@ -57,11 +57,23 @@ export type NEvent = {
     sig?: string;
 };
 
-export type WelcomeMessage = {
+export type Invite = {
     event: NEvent;
-    nostr_group_data: NostrMlsWelcomeGroupData;
+    mls_group_id: string;
+    group_name: string;
+    group_description: string;
+    group_admin_pubkeys: string[];
+    group_relays: string[];
     invitee: string;
+    member_count: number;
+    state: InviteState;
 };
+
+export enum InviteState {
+    Pending = "Pending",
+    Accepted = "Accepted",
+    Declined = "Declined",
+}
 
 export type NostrMlsWelcomeGroupData = {
     mls_group_id: Uint8Array;
