@@ -57,6 +57,7 @@ export async function fetchAccounts(): Promise<void> {
 export async function switchIdentity(pubkey: string): Promise<void> {
     if (pubkey === get(currentIdentity)) return;
     const accounts: Accounts = await invoke("set_current_identity", { pubkey });
+    console.log("switchIdentity - accounts", accounts);
     updateIdentities(accounts);
 }
 

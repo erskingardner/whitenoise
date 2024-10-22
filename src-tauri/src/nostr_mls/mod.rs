@@ -27,10 +27,10 @@ pub struct NostrMls {
     ciphersuite: Ciphersuite,
     extensions: Vec<ExtensionType>,
     provider: Mutex<NostrMlsProvider>,
+    storage_path: PathBuf,
 }
 
 pub struct NostrMlsProvider {
-    storage_path: PathBuf,
     current_identity: Option<String>,
     crypto: RustCrypto,
     key_store: SledStorage,
@@ -77,13 +77,13 @@ impl NostrMls {
         .expect("Failed to create MLS storage with the right path");
 
         let provider = Mutex::new(NostrMlsProvider {
-            storage_path,
             current_identity,
             key_store,
             crypto: RustCrypto::default(),
         });
 
         Self {
+            storage_path,
             ciphersuite: DEFAULT_CIPHERSUITE,
             extensions: DEFAULT_EXTENSIONS.to_vec(),
             provider,
@@ -110,47 +110,29 @@ impl NostrMls {
             .expect("Failed to flush provider storage data");
 
         provider.current_identity = current_identity.clone();
-        provider.key_store = self.key_store_for_user(None, current_identity);
-    }
 
-    /// Creates a key store for a specific user or a default store if no user is specified.
-    ///
-    /// This function generates a `SledStorage` instance, which serves as a key store for MLS operations.
-    /// The storage location is determined based on the provided storage path and user identity.
-    ///
-    /// # Arguments
-    ///
-    /// * `storage_path` - An optional `PathBuf` specifying the base storage path. If `None`, uses the default path from the provider.
-    /// * `current_identity` - An optional `String` representing the current user's identity. If `Some`, a user-specific storage is created.
-    ///
-    /// # Returns
-    ///
-    /// Returns a `SledStorage` instance configured for the specified user or a default storage if no user is specified.
-    ///
-    /// # Panics
-    ///
-    /// This function will panic if it fails to create the MLS storage with the specified path.
-    pub fn key_store_for_user(
-        &self,
-        storage_path: Option<PathBuf>,
-        current_identity: Option<String>,
-    ) -> SledStorage {
-        let storage_path_buf =
-            storage_path.unwrap_or_else(|| self.provider.lock().unwrap().storage_path.clone());
-        match current_identity.as_ref() {
+        let key_store = match current_identity.clone() {
             Some(identity) => SledStorage::new_from_path(format!(
                 "{}/{}/{}",
-                storage_path_buf.to_string_lossy(),
+                self.storage_path.to_string_lossy(),
                 "mls_storage",
                 identity
             )),
             None => SledStorage::new_from_path(format!(
                 "{}/{}",
-                storage_path_buf.to_string_lossy(),
+                self.storage_path.to_string_lossy(),
                 "mls_storage"
             )),
         }
-        .expect("Failed to create MLS storage with the right path")
+        .expect("Failed to create MLS storage with the right path");
+
+        provider.key_store = key_store;
+
+        debug!(
+            target: "nostr_mls::update_provider_for_user",
+            "Updated provider for user: {:?}",
+            current_identity.clone()
+        );
     }
 
     pub fn delete_data(&self) -> Result<(), SledStorageError> {

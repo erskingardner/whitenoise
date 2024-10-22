@@ -636,6 +636,21 @@ pub async fn fetch_and_process_mls_messages(
         let unwrapped_event =
             extract_rumor(&export_secret_key, &event).expect("Failed to unwrap event");
 
+        // Skip if this rumor is from the current user
+        if unwrapped_event.rumor.pubkey
+            == wn
+                .accounts
+                .lock()
+                .unwrap()
+                .get_nostr_keys_for_current_identity()
+                .unwrap()
+                .unwrap()
+                .public_key()
+        {
+            debug!(target: "nostr_mls::groups::fetch_and_process_mls_messages", "Skipping rumor from current user: {:?}", unwrapped_event.rumor.id);
+            continue;
+        }
+
         match unwrapped_event.rumor.kind {
             Kind::Custom(445) => {
                 unwrapped_events_with_groups.push((
@@ -683,23 +698,6 @@ pub async fn fetch_and_process_mls_messages(
                     .process_message(&*wn.nostr_mls.provider.lock().unwrap(), protocol_message)
                     .expect("Failed to process message");
 
-                let sender = BasicCredential::try_from(processed_message.credential().clone())
-                    .expect("Couldn't get sender credential");
-
-                if PublicKey::parse(hex::encode(sender.identity())).unwrap()
-                    == wn
-                        .accounts
-                        .lock()
-                        .unwrap()
-                        .get_nostr_keys_for_current_identity()
-                        .unwrap()
-                        .unwrap()
-                        .public_key()
-                {
-                    debug!(target: "nostr_mls::groups::fetch_and_process_mls_messages", "Sender is the current identity. Not processing message: {:?}", &event.id);
-                    continue;
-                }
-
                 // Handle the processed message based on its type
                 match processed_message.into_content() {
                     ProcessedMessageContent::ApplicationMessage(application_message) => {
@@ -714,7 +712,14 @@ pub async fn fetch_and_process_mls_messages(
                                 let json_event = UnsignedEvent::from_json(&json_str).unwrap();
                                 // Check to make sure we don't already have this event in the transcript
                                 if !nostr_group.transcript.iter().any(|e| e.id == json_event.id) {
-                                    nostr_group.transcript.push(json_event);
+                                    debug!(target: "nostr_mls::groups::fetch_and_process_mls_messages", "Adding new message to transcript: {:?}", json_event.id);
+                                    nostr_group.transcript.push(json_event.clone());
+                                    nostr_group.last_message_id =
+                                        Some(json_event.id.unwrap().to_string());
+                                    nostr_group.last_message_at = Some(json_event.created_at);
+                                    nostr_group
+                                        .save(wn.clone())
+                                        .expect("Failed to save group state to database");
                                 }
                             }
                             Err(e) => {

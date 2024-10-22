@@ -75,6 +75,7 @@
         }
     }
 
+    $inspect("groups", groups);
     async function getGroups() {
         if (!$currentIdentity) {
             groups = [];
@@ -119,6 +120,7 @@
         console.log("pageInit: Chats");
         if (!unlisten) {
             unlisten = await listen<string>("identity_change", (_event) => {
+                console.log("identity_change event received in Chats.svelte");
                 setTimeout(getEvents, 100);
             });
         }

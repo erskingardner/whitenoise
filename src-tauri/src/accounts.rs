@@ -388,14 +388,13 @@ pub async fn set_current_identity(
     debug!(target: "whitenoise::accounts::set_current_identity", "Setting current identity to: {:?}", pubkey);
 
     let keys = secrets_store::get_nostr_keys_for_pubkey(&pubkey).map_err(|e| e.to_string())?;
-    nostr::update_nostr_identity(keys, &wn)
+    nostr::update_nostr_identity(keys.clone(), &wn)
         .await
         .expect("Failed to update Nostr identity");
 
-    let mut accounts = wn.accounts.lock().map_err(|e| e.to_string())?;
-    accounts.current_identity = Some(pubkey);
+    let mut accounts = wn.accounts.lock().unwrap();
+    accounts.current_identity = Some(keys.public_key().to_hex());
     accounts.save(&wn.wdb).map_err(|e| e.to_string())?;
-    let accounts_clone = accounts.clone();
 
     wn.nostr_mls
         .update_provider_for_user(accounts.current_identity.clone());
@@ -404,7 +403,8 @@ pub async fn set_current_identity(
         .emit("identity_change", ())
         .map_err(|e| e.to_string())?;
 
-    Ok(accounts_clone)
+    debug!(target: "whitenoise::accounts::set_current_identity", "Updated accounts: {:#?}", accounts.clone());
+    Ok(accounts.clone())
 }
 
 /// Creates a new identity and adds it to the accounts
