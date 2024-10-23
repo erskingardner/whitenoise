@@ -4,8 +4,9 @@ use keyring::Entry;
 use nostr_sdk::Keys;
 use serde_json::{json, Value};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::is_dev;
+use uuid::Uuid;
 
 fn get_service_name() -> String {
     match is_dev() {
@@ -14,13 +15,32 @@ fn get_service_name() -> String {
     }
 }
 
-fn get_device_key() -> Vec<u8> {
-    // In a real-world scenario, you'd want a more secure way to generate and store this key
-    "device_specific_key".as_bytes().to_vec()
+fn get_device_key(data_dir: &Path) -> Vec<u8> {
+    let uuid_file = data_dir.join("whitenoise_uuid");
+
+    let uuid = if uuid_file.exists() {
+        // Read existing UUID
+        std::fs::read_to_string(&uuid_file)
+            .expect("Failed to read UUID file")
+            .parse::<Uuid>()
+            .expect("Failed to parse UUID")
+    } else {
+        // Generate new UUID
+        let new_uuid = Uuid::new_v4();
+        std::fs::create_dir_all(data_dir).expect("Failed to create app data directory");
+        std::fs::write(uuid_file, new_uuid.to_string()).expect("Failed to write UUID file");
+        new_uuid
+    };
+
+    uuid.as_bytes().to_vec()
 }
 
-fn obfuscate(data: &str) -> String {
-    let device_key = get_device_key();
+fn get_file_path(data_dir: &Path) -> PathBuf {
+    data_dir.join("whitenoise.json")
+}
+
+fn obfuscate(data: &str, data_dir: &Path) -> String {
+    let device_key = get_device_key(data_dir);
     let xored: Vec<u8> = data
         .as_bytes()
         .iter()
@@ -30,8 +50,8 @@ fn obfuscate(data: &str) -> String {
     general_purpose::STANDARD_NO_PAD.encode(xored)
 }
 
-fn deobfuscate(data: &str) -> Result<String> {
-    let device_key = get_device_key();
+fn deobfuscate(data: &str, data_dir: &Path) -> Result<String> {
+    let device_key = get_device_key(data_dir);
     let decoded = general_purpose::STANDARD_NO_PAD.decode(data)?;
     let xored: Vec<u8> = decoded
         .iter()
@@ -41,14 +61,18 @@ fn deobfuscate(data: &str) -> Result<String> {
     Ok(String::from_utf8(xored)?)
 }
 
-fn read_secrets_file(file_path: &PathBuf) -> Result<Value> {
-    let content = fs::read_to_string(file_path)?;
+fn read_secrets_file(data_dir: &Path) -> Result<Value> {
+    let content = match fs::read_to_string(get_file_path(data_dir)) {
+        Ok(content) => content,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::from("{}"),
+        Err(e) => return Err(e.into()),
+    };
     Ok(serde_json::from_str(&content)?)
 }
 
-fn write_secrets_file(file_path: &PathBuf, secrets: &Value) -> Result<()> {
+fn write_secrets_file(data_dir: &Path, secrets: &Value) -> Result<()> {
     let content = serde_json::to_string_pretty(secrets)?;
-    fs::write(file_path, content)?;
+    fs::write(get_file_path(data_dir), content)?;
     Ok(())
 }
 
@@ -72,14 +96,14 @@ fn write_secrets_file(file_path: &PathBuf, secrets: &Value) -> Result<()> {
 /// * The Entry creation fails
 /// * Setting the password in the keyring fails
 /// * The secret key cannot be retrieved from the keypair
-pub fn store_private_key(keys: &Keys, file_path: &PathBuf) -> Result<()> {
+pub fn store_private_key(keys: &Keys, data_dir: &Path) -> Result<()> {
     let service = get_service_name();
 
     if cfg!(target_os = "android") {
-        let mut secrets = read_secrets_file(file_path).unwrap_or(json!({}));
-        let obfuscated_key = obfuscate(keys.secret_key().to_secret_hex().as_str());
+        let mut secrets = read_secrets_file(data_dir).unwrap_or(json!({}));
+        let obfuscated_key = obfuscate(keys.secret_key().to_secret_hex().as_str(), data_dir);
         secrets[keys.public_key().to_hex()] = json!(obfuscated_key);
-        write_secrets_file(file_path, &secrets)?;
+        write_secrets_file(data_dir, &secrets)?;
     } else {
         let entry = Entry::new(service.as_str(), keys.public_key().to_hex().as_str())?;
         entry.set_password(keys.secret_key().to_secret_hex().as_str())?;
@@ -108,15 +132,15 @@ pub fn store_private_key(keys: &Keys, file_path: &PathBuf) -> Result<()> {
 /// * The Entry creation fails
 /// * Retrieving the password from the keyring fails
 /// * Parsing the private key into a `Keys` object fails
-pub fn get_nostr_keys_for_pubkey(pubkey: &str, file_path: &PathBuf) -> Result<Keys> {
+pub fn get_nostr_keys_for_pubkey(pubkey: &str, data_dir: &Path) -> Result<Keys> {
     let service = get_service_name();
 
     if cfg!(target_os = "android") {
-        let secrets = read_secrets_file(file_path)?;
+        let secrets = read_secrets_file(data_dir)?;
         let obfuscated_key = secrets[pubkey]
             .as_str()
-            .ok_or(anyhow::anyhow!("Key not found"))?;
-        let private_key = deobfuscate(obfuscated_key)?;
+            .ok_or(anyhow::anyhow!("SecretsStore: Key not found"))?;
+        let private_key = deobfuscate(obfuscated_key, data_dir)?;
         Ok(Keys::parse(private_key)?)
     } else {
         let entry = Entry::new(service.as_str(), pubkey)?;
@@ -145,13 +169,13 @@ pub fn get_nostr_keys_for_pubkey(pubkey: &str, file_path: &PathBuf) -> Result<Ke
 ///
 /// This function will return an error if:
 /// * The Entry creation fails
-pub fn remove_private_key_for_pubkey(pubkey: &str, file_path: &PathBuf) -> Result<()> {
+pub fn remove_private_key_for_pubkey(pubkey: &str, data_dir: &Path) -> Result<()> {
     let service = get_service_name();
 
     if cfg!(target_os = "android") {
-        let mut secrets = read_secrets_file(file_path)?;
+        let mut secrets = read_secrets_file(data_dir)?;
         secrets.as_object_mut().map(|obj| obj.remove(pubkey));
-        write_secrets_file(file_path, &secrets)?;
+        write_secrets_file(data_dir, &secrets)?;
     } else {
         let entry = Entry::new(service.as_str(), pubkey);
         if let Ok(entry) = entry {
@@ -186,16 +210,16 @@ pub fn store_mls_export_secret(
     group_id: &str,
     epoch: u64,
     secret: &str,
-    file_path: &PathBuf,
+    data_dir: &Path,
 ) -> Result<()> {
     let key = format!("{group_id}:{epoch}");
     let service = get_service_name();
 
     if cfg!(target_os = "android") {
-        let mut secrets = read_secrets_file(file_path).unwrap_or(json!({}));
-        let obfuscated_secret = obfuscate(secret);
+        let mut secrets = read_secrets_file(data_dir).unwrap_or(json!({}));
+        let obfuscated_secret = obfuscate(secret, data_dir);
         secrets[key] = json!(obfuscated_secret);
-        write_secrets_file(file_path, &secrets)?;
+        write_secrets_file(data_dir, &secrets)?;
     } else {
         let entry = Entry::new(service.as_str(), key.as_str())?;
         entry.set_password(secret)?;
@@ -227,17 +251,17 @@ pub fn store_mls_export_secret(
 pub fn get_export_secret_keys_for_group(
     group_id: &str,
     epoch: u64,
-    file_path: &PathBuf,
+    data_dir: &Path,
 ) -> Result<Keys> {
     let key = format!("{group_id}:{epoch}");
     let service = get_service_name();
 
     if cfg!(target_os = "android") {
-        let secrets = read_secrets_file(file_path)?;
+        let secrets = read_secrets_file(data_dir)?;
         let obfuscated_secret = secrets[key]
             .as_str()
             .ok_or(anyhow::anyhow!("Secret not found"))?;
-        let secret = deobfuscate(obfuscated_secret)?;
+        let secret = deobfuscate(obfuscated_secret, data_dir)?;
         let keys = Keys::parse(secret)?;
         Ok(keys)
     } else {
@@ -252,40 +276,47 @@ pub fn get_export_secret_keys_for_group(
 mod tests {
     use super::*;
     use anyhow::Result;
+    use tempfile::TempDir;
+
+    fn setup_temp_dir() -> TempDir {
+        TempDir::new().expect("Failed to create temp directory")
+    }
 
     #[test]
     fn test_store_and_retrieve_private_key() -> Result<()> {
+        let temp_dir = setup_temp_dir();
         let keys = Keys::generate();
         let pubkey = keys.public_key().to_hex();
 
         // Store the private key
-        store_private_key(&keys, &PathBuf::from("secrets.json"))?;
+        store_private_key(&keys, temp_dir.path())?;
 
         // Retrieve the keys
-        let retrieved_keys = get_nostr_keys_for_pubkey(&pubkey, &PathBuf::from("secrets.json"))?;
+        let retrieved_keys = get_nostr_keys_for_pubkey(&pubkey, temp_dir.path())?;
 
         assert_eq!(keys.public_key(), retrieved_keys.public_key());
         assert_eq!(keys.secret_key(), retrieved_keys.secret_key());
 
         // Clean up
-        remove_private_key_for_pubkey(&pubkey, &PathBuf::from("secrets.json"))?;
+        remove_private_key_for_pubkey(&pubkey, temp_dir.path())?;
 
         Ok(())
     }
 
     #[test]
     fn test_remove_private_key() -> Result<()> {
+        let temp_dir = setup_temp_dir();
         let keys = Keys::generate();
         let pubkey = keys.public_key().to_hex();
 
         // Store the private key
-        store_private_key(&keys, &PathBuf::from("secrets.json"))?;
+        store_private_key(&keys, temp_dir.path())?;
 
         // Remove the private key
-        remove_private_key_for_pubkey(&pubkey, &PathBuf::from("secrets.json"))?;
+        remove_private_key_for_pubkey(&pubkey, temp_dir.path())?;
 
         // Attempt to retrieve the removed key
-        let result = get_nostr_keys_for_pubkey(&pubkey, &PathBuf::from("secrets.json"));
+        let result = get_nostr_keys_for_pubkey(&pubkey, temp_dir.path());
 
         assert!(result.is_err());
 
@@ -294,53 +325,99 @@ mod tests {
 
     #[test]
     fn test_get_nonexistent_key() {
+        let temp_dir = setup_temp_dir();
         let nonexistent_pubkey = "nonexistent_pubkey";
-        let result = get_nostr_keys_for_pubkey(nonexistent_pubkey, &PathBuf::from("secrets.json"));
+        let result = get_nostr_keys_for_pubkey(nonexistent_pubkey, temp_dir.path());
 
         assert!(result.is_err());
     }
 
     #[test]
     fn test_store_and_retrieve_mls_export_secret() -> Result<()> {
+        let temp_dir = setup_temp_dir();
         let group_id = "test_group";
         let epoch = 42;
         let secret = "9b9da9c6ee9a62016ab2db1a3397d267a575c02266c6ca9b5ec8e015db67c30e";
 
         // Store the MLS export secret
-        store_mls_export_secret(group_id, epoch, secret, &PathBuf::from("secrets.json"))?;
+        store_mls_export_secret(group_id, epoch, secret, temp_dir.path())?;
 
         // Retrieve the keys
-        let retrieved_keys =
-            get_export_secret_keys_for_group(group_id, epoch, &PathBuf::from("secrets.json"))?;
+        let retrieved_keys = get_export_secret_keys_for_group(group_id, epoch, temp_dir.path())?;
 
-        log::debug!(
-            target: "secrets_store::test_store_and_retrieve_mls_export_secret",
-            "Retrieved keys: {:?}",
-            retrieved_keys
-        );
         // Verify that the retrieved keys match the original secret
         assert_eq!(retrieved_keys.secret_key().to_secret_hex(), secret);
-
-        // Clean up
-        let key = format!("{group_id}:{epoch}");
-        let service = get_service_name();
-        let entry = Entry::new(service.as_str(), key.as_str())?;
-        let _ = entry.delete_credential();
 
         Ok(())
     }
 
     #[test]
     fn test_get_nonexistent_mls_export_secret() {
+        let temp_dir = setup_temp_dir();
         let nonexistent_group_id = "nonexistent_group";
         let nonexistent_epoch = 999;
 
         let result = get_export_secret_keys_for_group(
             nonexistent_group_id,
             nonexistent_epoch,
-            &PathBuf::from("secrets.json"),
+            temp_dir.path(),
         );
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    #[cfg(target_os = "android")]
+    fn test_android_store_and_retrieve_private_key() -> Result<()> {
+        let temp_dir = setup_temp_dir();
+        let keys = Keys::generate();
+        let pubkey = keys.public_key().to_hex();
+
+        // Store the private key
+        store_private_key(&keys, temp_dir.path())?;
+
+        // Retrieve the keys
+        let retrieved_keys = get_nostr_keys_for_pubkey(&pubkey, temp_dir.path())?;
+
+        assert_eq!(keys.public_key(), retrieved_keys.public_key());
+        assert_eq!(keys.secret_key(), retrieved_keys.secret_key());
+
+        // Verify that the key is stored in the file
+        let secrets = read_secrets_file(temp_dir.path())?;
+        assert!(secrets.get(&pubkey).is_some());
+
+        // Clean up
+        remove_private_key_for_pubkey(&pubkey, temp_dir.path())?;
+
+        // Verify that the key is removed from the file
+        let secrets = read_secrets_file(temp_dir.path())?;
+        assert!(secrets.get(&pubkey).is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(target_os = "android")]
+    fn test_android_store_and_retrieve_mls_export_secret() -> Result<()> {
+        let temp_dir = setup_temp_dir();
+        let group_id = "test_group";
+        let epoch = 42;
+        let secret = "9b9da9c6ee9a62016ab2db1a3397d267a575c02266c6ca9b5ec8e015db67c30e";
+
+        // Store the MLS export secret
+        store_mls_export_secret(group_id, epoch, secret, temp_dir.path())?;
+
+        // Retrieve the keys
+        let retrieved_keys = get_export_secret_keys_for_group(group_id, epoch, temp_dir.path())?;
+
+        // Verify that the retrieved keys match the original secret
+        assert_eq!(retrieved_keys.secret_key().to_secret_hex(), secret);
+
+        // Verify that the secret is stored in the file
+        let secrets = read_secrets_file(temp_dir.path())?;
+        let key = format!("{group_id}:{epoch}");
+        assert!(secrets.get(&key).is_some());
+
+        Ok(())
     }
 }

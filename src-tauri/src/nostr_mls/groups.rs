@@ -708,7 +708,6 @@ pub async fn fetch_and_process_mls_messages(
                     ProcessedMessageContent::ApplicationMessage(application_message) => {
                         // This is a message from a group member
                         let message_bytes = application_message.into_bytes();
-                        debug!(target: "nostr_mls::groups::fetch_and_process_mls_messages", "Raw message bytes: {:?}", message_bytes);
 
                         match serde_json::from_slice::<serde_json::Value>(&message_bytes) {
                             Ok(json_value) => {
