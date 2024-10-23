@@ -274,7 +274,7 @@ pub fn decline_invite(mut invite: Invite, wn: State<'_, Whitenoise>) -> Result<(
 fn get_user_keys_and_relays(wn: &State<'_, Whitenoise>) -> Result<(Keys, Vec<String>), String> {
     let accounts = wn.accounts.lock().unwrap();
     let keys = accounts
-        .get_nostr_keys_for_current_identity()
+        .get_nostr_keys_for_current_identity(&wn.data_dir)
         .expect("Failed to get nostr keys for current identity")
         .ok_or_else(|| "Failed to get nostr keys for current identity".to_string())?;
     let key_package_relays = accounts

@@ -14,6 +14,8 @@ use tauri::State;
 
 /// Represents the main Whitenoise application structure.
 pub struct Whitenoise {
+    /// The application's data directory.
+    pub data_dir: PathBuf,
     /// The application's database for storing local data.
     pub wdb: Database,
     /// The Nostr database for efficient event storage and retrieval.
@@ -80,6 +82,7 @@ impl Whitenoise {
         nostr.connect().await;
 
         Ok(Self {
+            data_dir,
             wdb,
             ndb,
             nostr,
@@ -137,7 +140,8 @@ impl Whitenoise {
             // Clear the private keys
             if let Some(accounts) = &accounts.accounts {
                 for pubkey in accounts.keys() {
-                    remove_private_key_for_pubkey(pubkey).expect("Couldn't remove private key");
+                    remove_private_key_for_pubkey(pubkey, &self.data_dir)
+                        .expect("Couldn't remove private key");
                 }
             }
 

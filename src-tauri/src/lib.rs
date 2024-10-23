@@ -23,12 +23,10 @@ use crate::nostr_mls::key_packages::{
 use crate::whitenoise::{delete_data, Whitenoise};
 use tauri::Manager;
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     env_logger::init();
 
     tauri::Builder::default()
-        // .plugin(tauri_plugin_window_state::Builder::new().build())
         .setup(|app| {
             tauri::async_runtime::block_on(async move {
                 let data_dir = app
@@ -38,14 +36,14 @@ pub fn run() {
                     .expect("Failed to get app data dir");
 
                 // Initialize Whitenoise
-                let whitenoise = Whitenoise::new(data_dir).await?;
+                let whitenoise = Whitenoise::new(data_dir.clone()).await?;
 
                 // Update Nostr signer with keys for the current identity if they exist
                 let nostr_keys = whitenoise
                     .accounts
                     .lock()
                     .unwrap()
-                    .get_nostr_keys_for_current_identity()?;
+                    .get_nostr_keys_for_current_identity(&data_dir)?;
                 if let Some(keys) = nostr_keys {
                     whitenoise.update_nostr_signer_with_keys(keys).await?;
                 }
@@ -54,8 +52,6 @@ pub fn run() {
                 Ok(())
             })
         })
-        .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_store::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             accept_invite,
             create_group,

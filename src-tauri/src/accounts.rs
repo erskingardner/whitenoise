@@ -7,6 +7,7 @@ use log::debug;
 use nostr_sdk::{Filter, Keys, Kind, Metadata, TagKind};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::str::from_utf8;
 use tauri::Emitter;
 use tauri::State;
@@ -71,10 +72,13 @@ impl Accounts {
         Ok(())
     }
 
-    pub fn get_nostr_keys_for_current_identity(&self) -> Result<Option<Keys>> {
+    pub fn get_nostr_keys_for_current_identity(
+        &self,
+        app_data_dir: &PathBuf,
+    ) -> Result<Option<Keys>> {
         match &self.current_identity {
             Some(identity) => {
-                let keys = secrets_store::get_nostr_keys_for_pubkey(identity)?;
+                let keys = secrets_store::get_nostr_keys_for_pubkey(identity, app_data_dir)?;
                 Ok(Some(keys))
             }
             None => Ok(None),
@@ -279,7 +283,7 @@ pub async fn login(
         debug!(target: "whitenoise::accounts::login", "Saved accounts to database: {:#?}", accounts);
 
         // Store private key in secrets store
-        secrets_store::store_private_key(&keys)
+        secrets_store::store_private_key(&keys, &wn.data_dir)
             .map_err(|e| format!("Failed to store private key: {}", e))?;
         debug!(target: "whitenoise::accounts::login", "Saved private key to secrets store");
     }
@@ -341,7 +345,8 @@ pub fn logout(
     }
     debug!(target: "whitenoise::accounts::logout", "After remove: {:?}", accounts);
     // Remove the private key from the secrets store
-    secrets_store::remove_private_key_for_pubkey(&pubkey).map_err(|e| e.to_string())?;
+    secrets_store::remove_private_key_for_pubkey(&pubkey, &wn.data_dir)
+        .map_err(|e| e.to_string())?;
 
     // Set the current identity to the next available identity (if the current identity was removed)
     if accounts.current_identity.as_ref() == Some(&pubkey) {
@@ -387,7 +392,8 @@ pub async fn set_current_identity(
 ) -> Result<Accounts, String> {
     debug!(target: "whitenoise::accounts::set_current_identity", "Setting current identity to: {:?}", pubkey);
 
-    let keys = secrets_store::get_nostr_keys_for_pubkey(&pubkey).map_err(|e| e.to_string())?;
+    let keys = secrets_store::get_nostr_keys_for_pubkey(&pubkey, &wn.data_dir)
+        .map_err(|e| e.to_string())?;
     nostr::update_nostr_identity(keys.clone(), &wn)
         .await
         .expect("Failed to update Nostr identity");
@@ -501,17 +507,19 @@ mod tests {
 
         // Set up a test key in the secrets store
         let test_keys = Keys::generate();
-        store_private_key(&test_keys)?;
+        store_private_key(&test_keys, &tempdir()?.path().join("secrets.json"))?;
         accounts.current_identity = Some(test_keys.public_key().to_string());
 
         // Test retrieving keys
-        let retrieved_keys = accounts.get_nostr_keys_for_current_identity()?;
+        let retrieved_keys = accounts
+            .get_nostr_keys_for_current_identity(&tempdir()?.path().join("secrets.json"))?;
         assert!(retrieved_keys.is_some());
         assert_eq!(retrieved_keys.unwrap().public_key(), test_keys.public_key());
 
         // Test with no current identity
         accounts.current_identity = None;
-        let no_keys = accounts.get_nostr_keys_for_current_identity()?;
+        let no_keys = accounts
+            .get_nostr_keys_for_current_identity(&tempdir()?.path().join("secrets.json"))?;
         assert!(no_keys.is_none());
 
         Ok(())

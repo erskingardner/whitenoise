@@ -4,8 +4,7 @@ use super::{DEFAULT_CIPHERSUITE, DEFAULT_EXTENSIONS};
 use crate::nostr::{get_contact, is_valid_hex_pubkey, DEFAULT_TIMEOUT};
 use crate::secrets_store::{get_export_secret_keys_for_group, store_mls_export_secret};
 use crate::whitenoise::Whitenoise;
-use anyhow::anyhow;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use log::{debug, error};
 use nostr_sdk::prelude::*;
 use openmls::prelude::*;
@@ -13,8 +12,7 @@ use openmls_basic_credential::SignatureKeyPair;
 use serde::{Deserialize, Serialize};
 use std::ops::Add;
 use std::time::Instant;
-use tauri::Emitter;
-use tauri::State;
+use tauri::{Emitter, State};
 use tls_codec::{Deserialize as TlsDeserialize, Serialize as TlsSerialize};
 use url::Url;
 
@@ -330,7 +328,7 @@ pub async fn create_group(
         .accounts
         .lock()
         .unwrap()
-        .get_nostr_keys_for_current_identity()
+        .get_nostr_keys_for_current_identity(&wn.data_dir)
         .expect("Failed to get nostr keys")
         .unwrap();
 
@@ -430,7 +428,7 @@ pub async fn send_mls_message(
         .accounts
         .lock()
         .unwrap()
-        .get_nostr_keys_for_current_identity()
+        .get_nostr_keys_for_current_identity(&wn.data_dir)
         .unwrap()
         .unwrap();
 
@@ -616,6 +614,7 @@ pub async fn fetch_and_process_mls_messages(
         let export_secret_key = match get_export_secret_keys_for_group(
             hex::encode(nostr_group.mls_group_id.clone()).as_str(),
             mls_group.epoch().as_u64(),
+            &wn.data_dir,
         ) {
             Ok(keys) => keys,
             Err(e) => {
@@ -629,6 +628,7 @@ pub async fn fetch_and_process_mls_messages(
                     hex::encode(nostr_group.mls_group_id.clone()).as_str(),
                     *epoch,
                     export_nostr_keys.secret_key().to_secret_hex().as_str(),
+                    &wn.data_dir,
                 )
                 .expect("Failed to store export secret");
                 export_nostr_keys
@@ -647,7 +647,7 @@ pub async fn fetch_and_process_mls_messages(
                 .accounts
                 .lock()
                 .unwrap()
-                .get_nostr_keys_for_current_identity()
+                .get_nostr_keys_for_current_identity(&wn.data_dir)
                 .unwrap()
                 .unwrap()
                 .public_key()
