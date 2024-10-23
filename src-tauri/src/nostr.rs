@@ -8,13 +8,13 @@ use std::{collections::HashMap, time::Duration};
 use tauri::State;
 
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
-pub const DEFAULT_RELAYS: [&str; 4] = [
-    // "wss://relay.damus.io",
-    // "wss://relay.snort.social",
+pub const DEFAULT_RELAYS: [&str; 5] = [
+    "wss://relay.damus.io",
+    "wss://relay.snort.social",
     "wss://relay.primal.net",
     "wss://nos.lol",
     "wss://purplepag.es",
-    "ws://localhost:8080",
+    // "ws://localhost:8080",
 ];
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
