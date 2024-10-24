@@ -32,15 +32,15 @@ nostr-sdk = { version = "0.35", features = [
     "ndb",
 ], path = "../../rust-nostr/crates/nostr-sdk" }
 nostrdb = "0.3.4"
-openmls = { version = "0.6", git = "https://github.com/openmls/openmls#a7536aa", branch = "main" }
+openmls = { version = "0.6", git = "https://github.com/openmls/openmls", rev = "a7536aa" }
 # openmls = { version = "0.6", path = "../../openmls/openmls" }
-openmls_basic_credential = { version = "0.3", git = "https://github.com/openmls/openmls#a7536aa", branch = "main" }
+openmls_basic_credential = { version = "0.3", git = "https://github.com/openmls/openmls", rev = "a7536aa" }
 # openmls_basic_credential = { version = "0.3", path = "../../openmls/basic_credential" }
-openmls_rust_crypto = { version = "0.3", git = "https://github.com/openmls/openmls#a7536aa", branch = "main" }
+openmls_rust_crypto = { version = "0.3", git = "https://github.com/openmls/openmls", rev = "a7536aa" }
 # openmls_rust_crypto = { version = "0.3", path = "../../openmls/openmls_rust_crypto" }
-openmls_traits = { version = "0.3", git = "https://github.com/openmls/openmls#a7536aa", branch = "main" }
+openmls_traits = { version = "0.3", git = "https://github.com/openmls/openmls", rev = "a7536aa" }
 # openmls_traits = { version = "0.3", path = "../../openmls/traits" }
-openmls-sled-storage = { version = "0.0.1", git = "https://github.com/erskingardner/openmls-sled-storage#19b9574", branch = "master" }
+openmls-sled-storage = { version = "0.0.1", git = "https://github.com/erskingardner/openmls-sled-storage", branch = "master" }
 parking_lot = "0.12"
 rand = "0.8"
 serde = { version = "1", features = ["derive"] }
