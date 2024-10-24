@@ -8,7 +8,7 @@ use crate::nostr_mls::NostrMlsProvider;
 use crate::whitenoise::Whitenoise;
 use anyhow::{anyhow, Result};
 use bincode;
-use log::debug;
+use log::{debug, error};
 use nostr_sdk::prelude::*;
 use openmls::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -148,14 +148,18 @@ pub async fn fetch_invites_for_user(
             debug!(target: "nostr_mls::invites::fetch_invites_for_user", "Invite {:?} already processed", event.id.unwrap());
             continue;
         }
-        if let (Some(invite), key_package_event_id) = process_invite_event(
+        if let (Some(invite), key_package_event_id) = match process_invite_event(
             event,
             &wn,
             &mls_group_config,
             &wn.nostr_mls.provider.lock().unwrap(),
-        )
-        .expect("Failed to process invite event")
-        {
+        ) {
+            Ok(result) => result,
+            Err(e) => {
+                error!(target: "nostr_mls::invites::fetch_invites_for_user", "Failed to process invite event {:?}: {}", event.id.unwrap(), e);
+                continue;
+            }
+        } {
             pending_invites.push(invite);
             if let Some(key_package_event_id) = key_package_event_id {
                 used_key_package_ids.push(key_package_event_id);
@@ -319,7 +323,7 @@ async fn fetch_giftwrapped_events(
 /// Extracts welcome events from a list of giftwrapped events.
 ///
 /// This function processes a list of giftwrapped events and extracts the welcome events
-/// (events with Kind::Custom(444)) from them.
+/// (events with Kind::MlsWelcome) from them.
 ///
 /// # Arguments
 ///
@@ -334,7 +338,7 @@ fn extract_invite_events(keys: &Keys, gw_events: Vec<Event>) -> Vec<UnsignedEven
 
     for event in gw_events {
         if let Ok(unwrapped) = extract_rumor(keys, &event) {
-            if unwrapped.rumor.kind == Kind::Custom(444) {
+            if unwrapped.rumor.kind == Kind::MlsWelcome {
                 invite_events.push(unwrapped.rumor);
             }
         }

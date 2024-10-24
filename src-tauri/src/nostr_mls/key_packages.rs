@@ -76,7 +76,7 @@ pub fn generate_credential_with_key(
 /// This function may return an error if:
 /// - There's an error retrieving the key package relays for the current identity.
 /// - There's an error fetching the specified event from the Nostr network.
-/// - The specified event is not a key package event (Kind::Custom(443)).
+/// - The specified event is not a key package event (Kind::KeyPackage).
 /// - The specified event is not authored by the current user.
 /// - There's an error creating or sending the delete event.
 pub async fn delete_key_package_from_relays(
@@ -91,7 +91,7 @@ pub async fn delete_key_package_from_relays(
         .fetch_events(
             vec![Filter::new()
                 .id(*event_id)
-                .kind(Kind::Custom(443))
+                .kind(Kind::KeyPackage)
                 .author(current_pubkey)],
             Some(DEFAULT_TIMEOUT),
         )
@@ -151,7 +151,7 @@ pub async fn delete_all_key_packages_from_relays(wn: State<'_, Whitenoise>) -> R
         .unwrap()
         .get_key_package_relays_for_current_identity()
         .expect("Couldn't fetch relays for key package deletion");
-    let filter = Filter::new().kind(Kind::Custom(443)).author(current_pubkey);
+    let filter = Filter::new().kind(Kind::KeyPackage).author(current_pubkey);
     let event_ids: Vec<EventId> = wn
         .nostr
         .fetch_events(vec![filter.clone()], Some(DEFAULT_TIMEOUT))
@@ -282,7 +282,7 @@ pub async fn fetch_key_package_for_user(
     wn: State<'_, Whitenoise>,
 ) -> Result<Option<KeyPackage>, String> {
     let public_key = PublicKey::from_hex(pubkey).expect("Invalid pubkey");
-    let prekey_filter = Filter::new().kind(Kind::Custom(443)).author(public_key);
+    let prekey_filter = Filter::new().kind(Kind::KeyPackage).author(public_key);
     let prekey_events = wn
         .nostr
         .fetch_events(vec![prekey_filter], Some(DEFAULT_TIMEOUT))
@@ -371,20 +371,17 @@ async fn create_key_package_event(
     let key_package_hex = hex::encode(key_package_serialized);
 
     let event = EventBuilder::new(
-        Kind::Custom(443),
+        Kind::KeyPackage,
         key_package_hex,
         [
-            Tag::custom(TagKind::Custom("mls_protocol_version".into()), ["1.0"]),
+            Tag::custom(TagKind::MlsProtocolVersion, ["1.0"]),
             Tag::custom(
-                TagKind::Custom("ciphersuite".into()),
+                TagKind::MlsCiphersuite,
                 [wn.nostr_mls.ciphersuite_value().to_string()],
             ),
-            Tag::custom(
-                TagKind::Custom("extensions".into()),
-                [wn.nostr_mls.extensions_value()],
-            ),
-            Tag::custom(TagKind::Custom("client".into()), ["whitenoise"]),
-            Tag::custom(TagKind::Custom("relays".into()), relay_urls.clone()),
+            Tag::custom(TagKind::MlsExtensions, [wn.nostr_mls.extensions_value()]),
+            Tag::custom(TagKind::Client, ["whitenoise"]),
+            Tag::custom(TagKind::Relays, relay_urls.clone()),
         ],
     );
 

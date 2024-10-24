@@ -3,6 +3,7 @@ mod app_settings;
 mod database;
 mod nostr;
 mod nostr_mls;
+// mod nostr_subscription_processor;
 mod secrets_store;
 mod whitenoise;
 
@@ -13,13 +14,14 @@ use crate::nostr::{
     send_message,
 };
 use crate::nostr_mls::groups::{
-    create_group, fetch_and_process_mls_messages, get_group_member_pubkeys, get_groups,
+    create_group, fetch_and_process_mls_messages, get_group, get_group_member_pubkeys, get_groups,
     send_mls_message,
 };
 use crate::nostr_mls::invites::{accept_invite, decline_invite, fetch_invites_for_user};
 use crate::nostr_mls::key_packages::{
     delete_all_key_packages_from_relays, generate_and_publish_key_package, parse_key_package,
 };
+
 use crate::whitenoise::{delete_data, Whitenoise};
 use tauri::Manager;
 
@@ -68,6 +70,7 @@ pub fn run() {
             get_accounts,
             get_contact,
             get_contacts,
+            get_group,
             get_group_member_pubkeys,
             get_groups,
             get_legacy_chats,

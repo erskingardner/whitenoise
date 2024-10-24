@@ -11,7 +11,7 @@
     import { hexMlsGroupId } from "../utils/group";
     import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-    let { group }: { group: NostrMlsGroup } = $props();
+    let { group = $bindable() }: { group: NostrMlsGroup } = $props();
 
     let unlistenMessageSent: UnlistenFn;
     let unlistenMessageReceived: UnlistenFn;
@@ -54,11 +54,13 @@
         if (messageText.length === 0) return;
 
         // TODO: Send message to the MLS group
-        console.log("Send Message", messageText);
         const message_event: NEvent = await invoke("send_mls_message", {
             group,
             message: messageText,
         });
+
+        console.log("Message sent", message_event);
+        group.transcript.push(message_event);
 
         // Clear the message input
         messageText = "";

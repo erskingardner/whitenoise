@@ -78,7 +78,7 @@ pub async fn get_contact(
 
     // Prepare filters for messaging capabilities
     let dm_relay_list_filter = Filter::new().kind(Kind::Custom(10050)).author(public_key);
-    let prekey_filter = Filter::new().kind(Kind::Custom(443)).author(public_key);
+    let prekey_filter = Filter::new().kind(Kind::KeyPackage).author(public_key);
     let key_package_list_filter = Filter::new().kind(Kind::Custom(10051)).author(public_key);
 
     // Fetch messaging capabilities for all contacts in a single query
@@ -115,12 +115,8 @@ pub async fn get_contact(
                         .map(|s| s.to_string()),
                 );
             }
-            Kind::Custom(443) => {
-                if event
-                    .tags
-                    .find(TagKind::Custom("mls_protocol_version".into()))
-                    .is_some()
-                {
+            Kind::KeyPackage => {
+                if event.tags.find(TagKind::MlsProtocolVersion).is_some() {
                     enriched_contact.nip104 = true;
                 }
             }
@@ -163,7 +159,7 @@ pub async fn get_contacts(
         .kind(Kind::Custom(10050))
         .authors(contact_list_pubkeys.clone());
     let prekey_filter = Filter::new()
-        .kind(Kind::Custom(443))
+        .kind(Kind::KeyPackage)
         .authors(contact_list_pubkeys.clone());
     let key_package_list_filter = Filter::new()
         .kind(Kind::Custom(10051))
@@ -218,12 +214,8 @@ pub async fn get_contacts(
                                 .map(|s| s.to_string()),
                         );
                     }
-                    Kind::Custom(443) => {
-                        if event
-                            .tags
-                            .find(TagKind::Custom("mls_protocol_version".into()))
-                            .is_some()
-                        {
+                    Kind::KeyPackage => {
+                        if event.tags.find(TagKind::MlsProtocolVersion).is_some() {
                             enriched_contact.nip104 = true;
                         }
                     }
@@ -281,7 +273,20 @@ pub async fn get_legacy_chats(
     let signer = wn.nostr.signer().await.unwrap();
     let signer_pubkey = signer.public_key().await.unwrap();
 
-    for event in events {
+    // filter some gross test events
+    let filtered_events = events
+        .iter()
+        .filter(|event| {
+            ![
+                "97e876268705d844061cd4f05a2dd48eda126fe8f6d6ab8b373eb2d54f04389d",
+                "ae5c1c3575897df77a904a3e506456f8cd683db0ba04f22863e7c174ab79deac",
+            ]
+            .contains(&event.pubkey.to_string().as_str())
+        })
+        .cloned()
+        .collect::<Vec<Event>>();
+
+    for event in filtered_events {
         let (other_party_pubkey, decrypt_pubkey) = if event.pubkey == signer_pubkey {
             let other_pubkey = PublicKey::parse(
                 event

@@ -122,6 +122,26 @@ impl NostrMlsGroup {
 }
 
 #[tauri::command]
+pub async fn get_group(
+    mls_group_id: Vec<u8>,
+    wn: State<'_, Whitenoise>,
+) -> Result<NostrMlsGroup, String> {
+    let group_tree = wn
+        .wdb
+        .db
+        .open_tree(NostrMlsGroup::group_tree_key(wn.clone()).expect("Failed to get group tree key"))
+        .expect("Failed to open group tree");
+    let group_vec = group_tree
+        .get(mls_group_id.as_slice())
+        .unwrap()
+        .expect("Failed to get group");
+    let group = serde_json::from_slice::<NostrMlsGroup>(group_vec.as_ref())
+        .expect("Failed to deserialize group");
+    debug!(target: "nostr_mls::groups::get_group", "Loaded group: {:#?}", group);
+    Ok(group)
+}
+
+#[tauri::command]
 pub async fn get_groups(wn: State<'_, Whitenoise>) -> Result<Vec<NostrMlsGroup>, String> {
     let start = Instant::now();
     let groups = NostrMlsGroup::get_groups(wn).expect("Failed to get groups");
@@ -344,7 +364,7 @@ pub async fn create_group(
         };
 
         let welcome_rumor = EventBuilder::new(
-            Kind::Custom(444),
+            Kind::MlsWelcome,
             hex::encode(&serialized_welcome_message),
             vec![Tag::from_standardized_without_cell(TagStandard::Relays(
                 relay_urls
@@ -479,7 +499,7 @@ pub async fn send_mls_message(
     }
 
     let message_rumor = EventBuilder::new(
-        Kind::Custom(445),
+        Kind::MlsGroupMessage,
         hex::encode(serialized_message),
         Vec::new(),
     )
@@ -657,7 +677,7 @@ pub async fn fetch_and_process_mls_messages(
         }
 
         match unwrapped_event.rumor.kind {
-            Kind::Custom(445) => {
+            Kind::MlsGroupMessage => {
                 unwrapped_events_with_groups.push((
                     nostr_group.clone(),
                     mls_group,

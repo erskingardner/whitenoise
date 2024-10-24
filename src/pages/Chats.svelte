@@ -27,8 +27,19 @@
     inviteAcceptedListener = async (event: CustomEvent) => {
         const acceptedGroupId = event.detail;
         invites = invites.filter((invite) => invite.mls_group_id !== acceptedGroupId);
-        await getEvents();
-        f7router.navigate(`/groups/${acceptedGroupId}/`);
+        getEvents().then(() => {
+            if (groups.find((g: NostrMlsGroup) => g.mls_group_id === acceptedGroupId)) {
+                setTimeout(() => {
+                    f7router.navigate(`/groups/${acceptedGroupId}/`, {
+                        props: {
+                            group: groups.find(
+                                (g: NostrMlsGroup) => g.mls_group_id === acceptedGroupId
+                            ),
+                        },
+                    });
+                }, 100);
+            }
+        });
     };
 
     window.addEventListener("inviteAccepted", inviteAcceptedListener as EventListener);
@@ -185,7 +196,7 @@
         {/if}
         <ListGroup>
             <ListItem groupTitle title="Secure Chats" class="list-group p-0 w-full" />
-            {#each groups as group (hexMlsGroupId(group.mls_group_id))}
+            {#each groups as group (group.mls_group_id)}
                 <GroupListItem {group} />
             {/each}
         </ListGroup>

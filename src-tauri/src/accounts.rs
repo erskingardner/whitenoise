@@ -7,7 +7,7 @@ use log::debug;
 use nostr_sdk::{Filter, Keys, Kind, Metadata, TagKind};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::Path;
 use std::str::from_utf8;
 use tauri::Emitter;
 use tauri::State;
@@ -72,10 +72,7 @@ impl Accounts {
         Ok(())
     }
 
-    pub fn get_nostr_keys_for_current_identity(
-        &self,
-        app_data_dir: &PathBuf,
-    ) -> Result<Option<Keys>> {
+    pub fn get_nostr_keys_for_current_identity(&self, app_data_dir: &Path) -> Result<Option<Keys>> {
         match &self.current_identity {
             Some(identity) => {
                 let keys = secrets_store::get_nostr_keys_for_pubkey(identity, app_data_dir)?;
@@ -206,7 +203,7 @@ pub async fn login(
         .kind(Kind::Custom(10050))
         .author(keys.public_key());
     let prekey_filter = Filter::new()
-        .kind(Kind::Custom(443))
+        .kind(Kind::KeyPackage)
         .author(keys.public_key());
     let key_package_list_filter = Filter::new()
         .kind(Kind::Custom(10051))
@@ -246,12 +243,8 @@ pub async fn login(
                         .map(|s| s.to_string()),
                 );
             }
-            Kind::Custom(443) => {
-                if event
-                    .tags
-                    .find(TagKind::Custom("mls_protocol_version".into()))
-                    .is_some()
-                {
+            Kind::KeyPackage => {
+                if event.tags.find(TagKind::MlsProtocolVersion).is_some() {
                     enriched_contact.nip104 = true;
                 }
             }
