@@ -3128,7 +3128,7 @@ version = "0.6.0"
 source = "git+https://github.com/openmls/openmls#a7536aa?branch=main#a7536aa4d1f5f09c0311ed550f509a4e06d54428"
 dependencies = [
  "log",
- "openmls_traits 0.3.0 (git+https://github.com/openmls/openmls#a7536aa?branch=main)",
+ "openmls_traits",
  "rayon",
  "serde",
  "thiserror",
@@ -3138,11 +3138,11 @@ dependencies = [
 [[package]]
 name = "openmls-sled-storage"
 version = "0.0.1"
-source = "git+https://github.com/erskingardner/openmls-sled-storage?branch=master#9f5340cdbf5893080b0eaf7e4387b405a604b892"
+source = "git+https://github.com/erskingardner/openmls-sled-storage#19b9574?branch=master#19b95741cc659d358964709d05a9846a6b6709a8"
 dependencies = [
  "hex",
  "log",
- "openmls_traits 0.3.0 (git+https://github.com/openmls/openmls?branch=main)",
+ "openmls_traits",
  "serde",
  "serde_json",
  "sled",
@@ -3155,7 +3155,7 @@ version = "0.3.0"
 source = "git+https://github.com/openmls/openmls#a7536aa?branch=main#a7536aa4d1f5f09c0311ed550f509a4e06d54428"
 dependencies = [
  "ed25519-dalek",
- "openmls_traits 0.3.0 (git+https://github.com/openmls/openmls#a7536aa?branch=main)",
+ "openmls_traits",
  "p256",
  "rand 0.8.5",
  "serde",
@@ -3168,7 +3168,7 @@ version = "0.3.0"
 source = "git+https://github.com/openmls/openmls#a7536aa?branch=main#a7536aa4d1f5f09c0311ed550f509a4e06d54428"
 dependencies = [
  "log",
- "openmls_traits 0.3.0 (git+https://github.com/openmls/openmls#a7536aa?branch=main)",
+ "openmls_traits",
  "serde",
  "serde_json",
  "thiserror",
@@ -3188,22 +3188,13 @@ dependencies = [
  "hpke-rs-crypto",
  "hpke-rs-rust-crypto",
  "openmls_memory_storage",
- "openmls_traits 0.3.0 (git+https://github.com/openmls/openmls#a7536aa?branch=main)",
+ "openmls_traits",
  "p256",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "serde",
  "sha2",
  "thiserror",
- "tls_codec",
-]
-
-[[package]]
-name = "openmls_traits"
-version = "0.3.0"
-source = "git+https://github.com/openmls/openmls?branch=main#a7536aa4d1f5f09c0311ed550f509a4e06d54428"
-dependencies = [
- "serde",
  "tls_codec",
 ]
 
@@ -5775,7 +5766,7 @@ dependencies = [
  "openmls-sled-storage",
  "openmls_basic_credential",
  "openmls_rust_crypto",
- "openmls_traits 0.3.0 (git+https://github.com/openmls/openmls#a7536aa?branch=main)",
+ "openmls_traits",
  "parking_lot 0.12.3",
  "rand 0.8.5",
  "serde",
