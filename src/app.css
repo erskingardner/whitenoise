@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    font-feature-settings:
+        "liga" 1,
+        "calt" 1; /* fix for Chrome */
+
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-text-size-adjust: 100%;
+}
+
+:root,
+html,
+body,
+#app {
+    @apply text-gray-50 bg-gray-900;
+}
+
+@supports (font-variation-settings: normal) {
+    :root {
+        font-family: InterVariable, sans-serif;
+    }
+}
+
+/* Always dark mode */
+@media (prefers-color-scheme: dark) {
+    :root,
+    html,
+    body,
+    #app {
+        @apply text-gray-50 bg-gray-900;
+    }
+}
+
+html {
+    -moz-text-size-adjust: none;
+    -webkit-text-size-adjust: none;
+    text-size-adjust: none;
+}
+
+.field-error {
+    @apply text-red-500 font-medium text-sm;
+}
+
+.button-primary {
+    @apply px-3 py-1.5 text-center flex flex-row shrink items-center justify-center gap-2 bg-blue-700 hover:bg-blue-600 rounded-md ring-1 ring-blue-500;
+}
+
+.button-warning {
+    @apply px-3 py-1.5 text-center flex flex-row shrink items-center justify-center gap-2 bg-red-700 hover:bg-red-600 rounded-md ring-1 ring-red-500;
+}
+
+.button-outline {
+    @apply px-3 py-1.5 text-center flex flex-row items-center justify-center gap-2 rounded-md bg-gray-700 hover:bg-gray-600 ring-1 ring-gray-500;
+}
+
+.section {
+    @apply ring-1 ring-gray-700 rounded-md bg-gray-800/50 px-4 py-2 mb-8;
+}
+
+.section-title {
+    @apply text-xl font-semibold mb-4;
+}
+
+.section-list-item {
+    @apply my-2;
+}
+
+:first-child.section-list-item {
+    @apply mt-0;
+}
+
+:last-child.section-list-item {
+    @apply mb-0;
+}
+
+:not(:last-child).section-list-item > .row-button {
+    @apply border-b border-gray-700;
+}
+
+.section-list-item > .row-button {
+    @apply flex flex-row gap-2 items-center font-medium text-lg p-2 w-full hover:bg-gray-600/30;
+}
