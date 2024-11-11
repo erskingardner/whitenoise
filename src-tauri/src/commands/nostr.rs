@@ -67,7 +67,7 @@ pub async fn fetch_enriched_contact(
 
     if update_account {
         wn.account_manager
-            .update_account(pubkey, enriched_contact.clone())
+            .update_account(pubkey.to_hex(), enriched_contact.clone())
             .map_err(|e| format!("Failed to update account: {}", e))?;
         app_handle
             .emit("account_changed", ())
@@ -306,7 +306,11 @@ pub async fn publish_relay_list(
 
     wn.account_manager
         .update_account(
-            signer.get_public_key().await.map_err(|e| e.to_string())?,
+            signer
+                .get_public_key()
+                .await
+                .map_err(|e| e.to_string())?
+                .to_hex(),
             new_enriched_contact,
         )
         .map_err(|e| e.to_string())?;

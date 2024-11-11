@@ -230,3 +230,22 @@ pub async fn logout(
 
     Ok(wn.account_manager.get_accounts_state().unwrap())
 }
+
+/// Updates the onboarding state of an account.
+#[tauri::command]
+pub fn update_account_onboarding(
+    pubkey: String,
+    inbox_relays: bool,
+    key_package_relays: bool,
+    publish_key_package: bool,
+    wn: tauri::State<'_, Whitenoise>,
+) -> Result<(), String> {
+    wn.account_manager
+        .update_account_onboarding(
+            pubkey,
+            inbox_relays,
+            key_package_relays,
+            publish_key_package,
+        )
+        .map_err(|e| format!("Error updating account onboarding: {}", e))
+}

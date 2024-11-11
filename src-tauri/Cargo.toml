@@ -31,7 +31,6 @@ nostr-sdk = { version = "0.36", features = [
     "nip04",
     "nip44",
     "nip59",
-    "nip104",
 ], path = "../../rust-nostr/crates/nostr-sdk" }
 thiserror = "1"
 chrono = { version = "0.4", features = ["serde"] }

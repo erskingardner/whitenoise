@@ -26,10 +26,13 @@
         Skull,
         Lock,
         CaretRight,
+        CaretDown,
         Key,
         Binoculars,
         UserPlus,
         HardDrives,
+        UserFocus,
+        Envelope,
     } from "phosphor-svelte";
 
     let showDeleteAlert = $state(false);
@@ -84,18 +87,10 @@
         showLoginError = false;
         createAccount()
             .then(() => {
-                toastState.add(
-                    "Created new account",
-                    "Successfully created new account",
-                    "success"
-                );
+                toastState.add("Created new account", "Successfully created new account", "success");
             })
             .catch((e) => {
-                toastState.add(
-                    "Error creating account",
-                    `Failed to create a new account: ${e.message}`,
-                    "error"
-                );
+                toastState.add("Error creating account", `Failed to create a new account: ${e.message}`, "error");
                 console.error(e);
             });
     }
@@ -127,11 +122,7 @@
     function publishKeyPackage() {
         invoke("publish_key_package", {})
             .then(() => {
-                toastState.add(
-                    "Key Package Published",
-                    "Key Package published successfully",
-                    "success"
-                );
+                toastState.add("Key Package Published", "Key Package published successfully", "success");
                 showKeyPackageAlert = false;
             })
             .catch((e) => {
@@ -142,6 +133,18 @@
                 );
                 console.error(e);
             });
+    }
+
+    let showAccountsState = $state(false);
+    let accountsState = $state("");
+    async function toggleInspectAccounts() {
+        showAccountsState = !showAccountsState;
+        if (showAccountsState) {
+            invoke("get_accounts_state").then((accounts) => {
+                accountsState = JSON.stringify(accounts, null, 2);
+            });
+        }
+        console.log(accountsState);
     }
 </script>
 
@@ -180,9 +183,7 @@
     <h2 class="section-title">Accounts</h2>
     <div class="section w-full">
         {#each $accounts.accounts as account (account.pubkey)}
-            <div
-                class="flex flex-row gap-4 items-center border-b border-gray-700 py-3 min-w-0 w-full"
-            >
+            <div class="flex flex-row gap-4 items-center border-b border-gray-700 py-3 min-w-0 w-full">
                 <button
                     class="flex flex-row items-center flex-1 min-w-0"
                     onclick={() => setActiveAccount(account.pubkey)}
@@ -203,10 +204,7 @@
                         </div>
                     </div>
                 </button>
-                <button
-                    class="min-w-fit button-outline shrink-0"
-                    onclick={() => handleLogout(account.pubkey)}
-                >
+                <button class="min-w-fit button-outline shrink-0" onclick={() => handleLogout(account.pubkey)}>
                     Log out
                 </button>
             </div>
@@ -219,10 +217,7 @@
         </div>
         <div class="{showLogin ? 'flex' : 'hidden'} flex-col gap-8 items-start w-full mt-4 p-4">
             <div class="flex flex-col gap-4 items-start w-full">
-                <label
-                    for="nsec"
-                    class="flex flex-col gap-2 text-lg items-start font-medium w-full"
-                >
+                <label for="nsec" class="flex flex-col gap-2 text-lg items-start font-medium w-full">
                     Log in with your nsec
                     <input
                         type="password"
@@ -239,11 +234,7 @@
                         {loginError}
                     </span>
                 {/if}
-                <button
-                    type="submit"
-                    onclick={handleLogin}
-                    class="button-primary w-full !justify-start"
-                >
+                <button type="submit" onclick={handleLogin} class="button-primary w-full !justify-start">
                     <SignIn size="20" />
                     Log In
                 </button>
@@ -298,11 +289,27 @@
             </li>
             <li class="section-list-item">
                 <button onclick={() => goto("/settings/invites/")} class="row-button">
-                    <UserPlus size={24} />
+                    <Envelope size={24} />
                     <span>Inspect Invites</span>
                     <CaretRight size={24} class="ml-auto mr-0" />
                 </button>
             </li>
+            <li class="section-list-item">
+                <button onclick={toggleInspectAccounts} class="row-button">
+                    <UserFocus size={24} />
+                    <span>Inspect Accounts</span>
+                    {#if showAccountsState}
+                        <CaretDown size={24} class="ml-auto mr-0" />
+                    {:else}
+                        <CaretRight size={24} class="ml-auto mr-0" />
+                    {/if}
+                </button>
+            </li>
         </ul>
+        {#if showAccountsState}
+            <div class="flex flex-col gap-4 items-start w-full mt-4 p-4">
+                <pre>{accountsState}</pre>
+            </div>
+        {/if}
     </div>
 </main>

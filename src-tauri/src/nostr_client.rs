@@ -113,6 +113,20 @@ impl NostrClient {
         Ok(Self::relay_urls_from_events(events))
     }
 
+    pub async fn fetch_user_key_packages(&self, pubkey: PublicKey) -> Result<Events> {
+        let filter = Filter::new()
+            .author(pubkey)
+            .kind(Kind::MlsKeyPackage)
+            .limit(1);
+        let events = self
+            .client
+            .fetch_events(vec![filter], Some(self.settings.timeout))
+            .await
+            .map_err(NostrClientError::from)?;
+
+        Ok(events)
+    }
+
     pub async fn update_nostr_identity(&self, keys: Keys) -> Result<()> {
         tracing::debug!(
             target: "whitenoise::nostr_client::update_nostr_identity",

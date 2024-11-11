@@ -1,44 +1,39 @@
 <script lang="ts">
     import { fly, fade } from "svelte/transition";
     import { X, CaretLeft } from "phosphor-svelte";
-    import type { Snippet } from "svelte";
+    import type { Component } from "svelte";
     import { onDestroy } from "svelte";
     import HeaderToolbar from "./HeaderToolbar.svelte";
+    import type { ModalView } from "$lib/types/modal";
 
-    type ModalViewProps = Record<string, (...args: any[]) => any>;
-
-    let {
-        title,
-        showModal = $bindable(),
-        children,
-    }: { title: string; showModal: boolean; children: Snippet } = $props();
+    let { mainComponent, showModal = $bindable() } = $props<{
+        mainComponent: Component;
+        showModal?: boolean;
+    }>();
 
     // Stack to keep track of views/pages
-    let viewStack: { title: string; content: Snippet; props?: Record<string, any> }[] = $state([]);
-    let currentView: { title: string; content: Snippet; props?: Record<string, any> } = $state({
-        title,
-        content: children,
-        props: {},
-    });
+    let viewStack: ModalView[] = $state([
+        {
+            component: mainComponent,
+            props: { ...mainComponent.props },
+        },
+    ]);
+    let currentView: ModalView = $derived(viewStack[viewStack.length - 1]);
 
     // Navigation methods
-    export function pushView(
-        newTitle: string,
-        newContent: Snippet,
-        modalViewProps?: ModalViewProps
-    ) {
-        viewStack = [...viewStack, currentView];
-        currentView = { title: newTitle, content: newContent, props: modalViewProps || {} };
+    export function pushView(component: Component, props: Record<string, unknown> = {}): void {
+        viewStack = [...viewStack, { component, props }];
     }
 
-    export function popView() {
-        if (viewStack.length > 0) {
-            currentView = viewStack[viewStack.length - 1];
+    export function popView(): void {
+        if (viewStack.length > 1) {
             viewStack = viewStack.slice(0, -1);
         }
     }
 
-    $inspect(viewStack);
+    export function closeModal(): void {
+        showModal = false;
+    }
 
     // Lock/unlock scroll when modal opens/closes
     $effect(() => {
@@ -53,30 +48,6 @@
     onDestroy(() => {
         document.body.style.overflow = "auto";
     });
-
-    // We can pass in subpages by creating snippets in parent views like this:
-    //
-    // const InboxRelays = createRawSnippet(() => {
-    //     return {
-    //         render: () => `
-    //     <div class="flex flex-col gap-4 justify-start items-center w-full h-full">
-    //         <h1>Specify your inbox relays</h1>
-    //         <button
-    //             class="button-primary"
-    //             id="inbox-relays-button"
-    //         >
-    //             Specify your inbox relays
-    //         </button>
-    //     </div>
-    //     `,
-    //         setup: (element: Element) => {
-    //             const button = element.querySelector("#inbox-relays-button");
-    //             button?.addEventListener("click", () => {
-    //                 console.log("Inbox relays button clicked");
-    //             });
-    //         },
-    //     };
-    // });
 </script>
 
 <div
@@ -89,7 +60,7 @@
     >
         <HeaderToolbar>
             {#snippet left()}
-                {#if viewStack.length > 0}
+                {#if viewStack.length > 1}
                     <button class="flex flex-row gap-0.5 items-end" onclick={popView}>
                         <CaretLeft size={24} />
                         <span class="text-xl font-medium">Back</span>
@@ -97,7 +68,7 @@
                 {/if}
             {/snippet}
 
-            {#snippet center()}<h1>{currentView.title}</h1>{/snippet}
+            {#snippet center()}<h1>{currentView.props?.title ?? ""}</h1>{/snippet}
 
             {#snippet right()}
                 <div>
@@ -108,7 +79,7 @@
             {/snippet}
         </HeaderToolbar>
         <div class="p-4">
-            {@render currentView.content()}
+            <svelte:component this={currentView.component} {...currentView.props} {pushView} {popView} {closeModal} />
         </div>
     </div>
 </div>

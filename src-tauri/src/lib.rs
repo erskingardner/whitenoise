@@ -55,6 +55,7 @@ pub fn run() {
             publish_key_package,
             valid_key_package_exists_for_user,
             publish_relay_list,
+            update_account_onboarding,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -16,6 +16,7 @@ export type Account = {
     key_package_relays: string[];
     nostr_mls_group_ids: string[];
     settings: AccountSettings;
+    onboarding: AccountOnboarding;
     last_used: number;
 };
 
@@ -23,6 +24,12 @@ export type AccountSettings = {
     darkTheme: boolean;
     devMode: boolean;
     lockdownMode: boolean;
+};
+
+export type AccountOnboarding = {
+    inbox_relays: boolean;
+    key_package_relays: boolean;
+    publish_key_package: boolean;
 };
 
 type AccountsData = {

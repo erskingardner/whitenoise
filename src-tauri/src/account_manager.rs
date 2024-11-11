@@ -58,6 +58,13 @@ impl Default for AccountSettings {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct AccountOnboarding {
+    pub inbox_relays: bool,
+    pub key_package_relays: bool,
+    pub publish_key_package: bool,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Account {
     pub pubkey: String,
@@ -67,6 +74,7 @@ pub struct Account {
     pub key_package_relays: Vec<String>,
     pub nostr_mls_group_ids: Vec<String>,
     pub settings: AccountSettings,
+    pub onboarding: AccountOnboarding,
     pub last_used: chrono::DateTime<chrono::Utc>,
 }
 
@@ -197,15 +205,35 @@ impl AccountManager {
             .fetch_user_key_package_relays(pubkey)
             .await
             .map_err(AccountError::NostrClientError);
+        let key_packages = nostr_client
+            .fetch_user_key_packages(pubkey)
+            .await
+            .map_err(AccountError::NostrClientError);
+
+        let mut onboarding = AccountOnboarding::default();
+
+        let inbox_relays_unwrapped = inbox_relays.unwrap_or_default();
+        let key_package_relays_unwrapped = key_package_relays.unwrap_or_default();
+
+        if !inbox_relays_unwrapped.is_empty() {
+            onboarding.inbox_relays = true;
+        }
+        if !key_package_relays_unwrapped.is_empty() {
+            onboarding.key_package_relays = true;
+        }
+        if key_packages.is_ok() {
+            onboarding.publish_key_package = true;
+        }
 
         let account = Account {
             pubkey: pubkey.to_hex(),
             metadata: metadata.unwrap_or_default(),
             nostr_relays: nostr_relays.unwrap_or_default(),
-            inbox_relays: inbox_relays.unwrap_or_default(),
-            key_package_relays: key_package_relays.unwrap_or_default(),
+            inbox_relays: inbox_relays_unwrapped,
+            key_package_relays: key_package_relays_unwrapped,
             nostr_mls_group_ids: vec![],
             settings: AccountSettings::default(),
+            onboarding,
             last_used: chrono::Utc::now(),
         };
 
@@ -294,10 +322,12 @@ impl AccountManager {
             .ok_or(AccountError::NoAccountsExist)
     }
 
-    pub fn update_account(
+    pub fn update_account_onboarding(
         &self,
-        pubkey: PublicKey,
-        enriched_contact: EnrichedContact,
+        pubkey: String,
+        inbox_relays: bool,
+        key_package_relays: bool,
+        publish_key_package: bool,
     ) -> Result<()> {
         {
             let mut state = self
@@ -305,7 +335,27 @@ impl AccountManager {
                 .lock()
                 .map_err(|e| AccountError::LockError(e.to_string()))?;
 
-            if let Some(account) = state.accounts.get_mut(&pubkey.to_hex()) {
+            if let Some(account) = state.accounts.get_mut(&pubkey) {
+                account.onboarding.inbox_relays = inbox_relays;
+                account.onboarding.key_package_relays = key_package_relays;
+                account.onboarding.publish_key_package = publish_key_package;
+            }
+        }
+
+        self.persist_state()
+            .map_err(|e| AccountError::DatabaseError(e.to_string()))?;
+
+        Ok(())
+    }
+
+    pub fn update_account(&self, pubkey: String, enriched_contact: EnrichedContact) -> Result<()> {
+        {
+            let mut state = self
+                .state
+                .lock()
+                .map_err(|e| AccountError::LockError(e.to_string()))?;
+
+            if let Some(account) = state.accounts.get_mut(&pubkey) {
                 account.metadata = enriched_contact.metadata;
                 account.inbox_relays = enriched_contact.inbox_relays;
                 account.key_package_relays = enriched_contact.key_package_relays;
@@ -416,6 +466,7 @@ mod tests {
             key_package_relays: vec![],
             nostr_mls_group_ids: vec![],
             settings: AccountSettings::default(),
+            onboarding: AccountOnboarding::default(),
             last_used: chrono::Utc::now(),
         };
 
@@ -450,6 +501,7 @@ mod tests {
             key_package_relays: vec![],
             nostr_mls_group_ids: vec![],
             settings: AccountSettings::default(),
+            onboarding: AccountOnboarding::default(),
             last_used: chrono::Utc::now(),
         };
 
