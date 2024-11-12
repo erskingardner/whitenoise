@@ -56,10 +56,9 @@ pub async fn fetch_key_packages_for_members(
                 )));
             }
         };
-
         member_key_packages.push(key_package);
     }
-    Ok(vec![])
+    Ok(member_key_packages)
 }
 
 pub async fn fetch_key_package_for_pubkey(

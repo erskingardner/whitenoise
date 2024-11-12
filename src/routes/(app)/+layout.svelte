@@ -5,8 +5,8 @@
     import { onMount, onDestroy } from "svelte";
     import { updateAccountsStore, accounts, type Account } from "$lib/stores/accounts";
     import { goto } from "$app/navigation";
-    import Modal from "$lib/components/Modal.svelte";
-    import PreOnboard from "$lib/components/Onboarding/PreOnboard.svelte";
+    import Modal from "$lib/components/Modals/Modal.svelte";
+    import PreOnboard from "$lib/components/Modals/Onboarding/PreOnboard.svelte";
     import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
     let { children } = $props();

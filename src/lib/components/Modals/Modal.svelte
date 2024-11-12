@@ -3,13 +3,10 @@
     import { X, CaretLeft } from "phosphor-svelte";
     import type { Component } from "svelte";
     import { onDestroy } from "svelte";
-    import HeaderToolbar from "./HeaderToolbar.svelte";
+    import HeaderToolbar from "../HeaderToolbar.svelte";
     import type { ModalView } from "$lib/types/modal";
 
-    let { mainComponent, showModal = $bindable() } = $props<{
-        mainComponent: Component;
-        showModal?: boolean;
-    }>();
+    let { mainComponent, showModal = $bindable() } = $props();
 
     // Stack to keep track of views/pages
     let viewStack: ModalView[] = $state([

@@ -11,8 +11,22 @@ pub fn get_groups(wn: tauri::State<'_, Whitenoise>) -> Result<Vec<Group>, String
 }
 
 #[tauri::command]
+pub fn get_group(group_id: String, wn: tauri::State<'_, Whitenoise>) -> Result<Group, String> {
+    wn.group_manager
+        .get_group(group_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn get_invites(wn: tauri::State<'_, Whitenoise>) -> Result<Vec<Invite>, String> {
     wn.group_manager.get_invites().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_invite(invite_id: String, wn: tauri::State<'_, Whitenoise>) -> Result<Invite, String> {
+    wn.group_manager
+        .get_invite(invite_id)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -94,7 +108,7 @@ pub async fn create_group(
             &signer,
             &member_pubkey,
             welcome_rumor,
-            Some(one_month_future),
+            vec![Tag::expiration(one_month_future)],
         )
         .await
         .map_err(|e| e.to_string())?;
@@ -139,7 +153,7 @@ pub async fn create_group(
         );
     }
 
-    let group_type = if member_pubkeys.len() == 2 {
+    let group_type = if mls_group.members().count() == 2 {
         GroupType::DirectMessage
     } else {
         GroupType::Group

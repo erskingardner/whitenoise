@@ -1,6 +1,6 @@
 <script lang="ts">
-    import Avatar from "./Avatar.svelte";
-    import Name from "./Name.svelte";
+    import Avatar from "../../Avatar.svelte";
+    import Name from "../../Name.svelte";
     import { npubFromPubkey } from "$lib/utils/nostr";
     import { CaretRight } from "phosphor-svelte";
     import ContactDetail from "./ContactDetail.svelte";
@@ -10,7 +10,7 @@
     import { onMount, onDestroy } from "svelte";
     import { getToastState } from "$lib/stores/toast-state.svelte";
     import { invoke } from "@tauri-apps/api/core";
-    import Loader from "./Loader.svelte";
+    import Loader from "../../Loader.svelte";
 
     let toastState = getToastState();
 
@@ -34,13 +34,11 @@
         const contactsResponse = await invoke("fetch_enriched_contacts");
         // Sort contacts by name
         contacts = Object.fromEntries(
-            Object.entries(contactsResponse as EnrichedContactsMap).sort(
-                ([_keyA, contactA], [_keyB, contactB]) => {
-                    const nameA = contactA.metadata.display_name || contactA.metadata.name || "";
-                    const nameB = contactB.metadata.display_name || contactB.metadata.name || "";
-                    return nameA.localeCompare(nameB);
-                }
-            )
+            Object.entries(contactsResponse as EnrichedContactsMap).sort(([_keyA, contactA], [_keyB, contactB]) => {
+                const nameA = contactA.metadata.display_name || contactA.metadata.name || "";
+                const nameB = contactB.metadata.display_name || contactB.metadata.name || "";
+                return nameA.localeCompare(nameB);
+            })
         );
         isLoading = false;
     }
@@ -77,25 +75,19 @@
     });
 
     $effect(() => {
-        console.log("filtering contacts");
         if (!search || search === "") {
             filteredContacts = contacts;
-            console.log(contacts);
         } else {
             filteredContacts = Object.fromEntries(
                 Object.entries(contacts as EnrichedContactsMap).filter(
                     ([pubkey, contact]) =>
                         contact.metadata.name?.toLowerCase().includes(search.toLowerCase()) ||
-                        contact.metadata.display_name
-                            ?.toLowerCase()
-                            .includes(search.toLowerCase()) ||
+                        contact.metadata.display_name?.toLowerCase().includes(search.toLowerCase()) ||
                         pubkey.toLowerCase().includes(search.toLowerCase())
                 )
             );
         }
     });
-
-    $inspect("filteredContacts", filteredContacts);
 
     function viewContact(pubkey: string, contact: EnrichedContact): void {
         pushView(ContactDetail, { pubkey, contact });

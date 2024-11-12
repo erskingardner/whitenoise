@@ -8,11 +8,11 @@
     import { nameFromMetadata } from "$lib/utils/nostr";
     import { listen, type UnlistenFn } from "@tauri-apps/api/event";
     import Loader from "$lib/components/Loader.svelte";
-    import { accounts } from "$lib/stores/accounts";
     import { getToastState } from "$lib/stores/toast-state.svelte";
     import type { EnrichedContact } from "$lib/types/nostr";
-    import ContactsList from "$lib/components/ContactsList.svelte";
-    import Modal from "$lib/components/Modal.svelte";
+    import ContactsList from "$lib/components/Modals/Contacts/ContactsList.svelte";
+    import Modal from "$lib/components/Modals/Modal.svelte";
+    import GroupListItem from "$lib/components/GroupListItem.svelte";
 
     let unlistenAccountChanging: UnlistenFn;
     let unlistenAccountChanged: UnlistenFn;
@@ -45,29 +45,6 @@
         } finally {
             isLoading = false;
         }
-    }
-
-    async function createGroup() {
-        if (!createGroupData || !createGroupData.contact.metadata || !createGroupData.pubkey) return;
-
-        console.log("Creating group with", inviteeName);
-
-        invoke("create_group", {
-            creatorPubkey: $accounts.activeAccount,
-            memberPubkeys: [createGroupData.pubkey],
-            adminPubkeys: [$accounts.activeAccount, createGroupData.pubkey],
-            groupName: "Secure DM",
-            description: "",
-        })
-            .then((group) => {
-                console.log("Group created", group);
-                createGroupData = null;
-                showModal = false;
-            })
-            .catch((e) => {
-                toastState.add("Error creating group", e.toString(), "error");
-                console.error("Error creating group", e);
-            });
     }
 
     onMount(async () => {
@@ -136,9 +113,9 @@
             {/each}
         </div>
         <div class="px-4 py-2 bg-gray-800 text-lg font-bold border-t border-b border-gray-700">Groups</div>
-        <div class="flex flex-col gap-2">
+        <div class="flex flex-col">
             {#each groups as group}
-                <div class="border-b border-gray-700 py-4">{group.name}</div>
+                <GroupListItem {group} />
             {/each}
         </div>
     {/if}

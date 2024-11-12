@@ -13,26 +13,12 @@
 
     let name = $derived(metadata?.display_name || metadata?.name || npubFromPubkey(pubkey));
     let isNpub = $derived(!metadata?.display_name && !metadata?.name);
-
-    let importantExtraClasses: string[] = $derived.by(() => {
-        const classes: string[] = [];
-        extraClasses?.split(" ").forEach((cls) => {
-            classes.push("!" + cls);
-        });
-        return classes;
-    });
-
-    $inspect(importantExtraClasses);
 </script>
 
 {#if unstyled}
     <span>{name}</span>
 {:else}
-    <span
-        class="text-lg font-semibold truncate shrink {isNpub
-            ? 'font-mono'
-            : ''} {importantExtraClasses.join(' ')}"
-    >
+    <span class="text-lg font-semibold truncate shrink {isNpub ? 'font-mono' : ''} {extraClasses}">
         {name}
     </span>
 {/if}

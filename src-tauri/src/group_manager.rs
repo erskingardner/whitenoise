@@ -256,6 +256,23 @@ impl GroupManager {
         Ok(state.groups.values().cloned().collect())
     }
 
+    pub fn get_group(&self, mls_group_id: String) -> Result<Group> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|e| GroupManagerError::LockError(e.to_string()))?;
+
+        // Decode the hex string into bytes
+        let group_id_bytes = hex::decode(&mls_group_id)
+            .map_err(|_| GroupManagerError::GroupNotFound(mls_group_id.clone()))?;
+
+        state
+            .groups
+            .get(&group_id_bytes)
+            .cloned()
+            .ok_or(GroupManagerError::GroupNotFound(mls_group_id))
+    }
+
     pub fn get_invites(&self) -> Result<Vec<Invite>> {
         let state = self
             .state
@@ -263,6 +280,19 @@ impl GroupManager {
             .map_err(|e| GroupManagerError::LockError(e.to_string()))?;
 
         Ok(state.invites.values().cloned().collect())
+    }
+
+    pub fn get_invite(&self, invite_id: String) -> Result<Invite> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|e| GroupManagerError::LockError(e.to_string()))?;
+
+        state
+            .invites
+            .get(&invite_id)
+            .cloned()
+            .ok_or(GroupManagerError::InviteNotFound(invite_id))
     }
 }
 

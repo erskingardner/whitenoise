@@ -1,3 +1,5 @@
+import colors from "tailwindcss/colors";
+
 /** @type {import('tailwindcss').Config} */
 export default {
     content: ["./index.html", "./src/**/*.{html,js,svelte,ts}"],
@@ -19,15 +21,15 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                mono: [
-                    "Inconsolata",
-                    "Menlo",
-                    "Monaco",
-                    "Ubuntu Mono",
-                    "Consolas",
-                    "Courier New",
-                    "monospace",
-                ],
+                mono: ["Inconsolata", "Menlo", "Monaco", "Ubuntu Mono", "Consolas", "Courier New", "monospace"],
+            },
+            colors: {
+                "primary-blue": colors.blue[700],
+                "chat-bg-me": colors.blue[700],
+                "chat-bg-other": colors.gray[800],
+            },
+            dropShadow: {
+                "message-bar": "0px -15px 20px rgba(3, 7, 18, 1)", // gray-950
             },
         },
     },
