@@ -1,6 +1,8 @@
 mod account_manager;
 mod commands;
 mod group_manager;
+mod groups;
+mod invites;
 mod key_packages;
 mod nostr_client;
 mod secrets_store;
@@ -59,6 +61,8 @@ pub fn run() {
             update_account_onboarding,
             get_group,
             get_invite,
+            accept_invite,
+            decline_invite,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

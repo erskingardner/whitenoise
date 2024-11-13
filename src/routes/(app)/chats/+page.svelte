@@ -5,11 +5,9 @@
     import { invoke } from "@tauri-apps/api/core";
     import type { NostrMlsGroup, Invite, InvitesWithFailures } from "$lib/types/nostr";
     import { onMount, onDestroy } from "svelte";
-    import { nameFromMetadata } from "$lib/utils/nostr";
     import { listen, type UnlistenFn } from "@tauri-apps/api/event";
     import Loader from "$lib/components/Loader.svelte";
     import { getToastState } from "$lib/stores/toast-state.svelte";
-    import type { EnrichedContact } from "$lib/types/nostr";
     import ContactsList from "$lib/components/Modals/Contacts/ContactsList.svelte";
     import Modal from "$lib/components/Modals/Modal.svelte";
     import GroupListItem from "$lib/components/GroupListItem.svelte";
@@ -18,13 +16,11 @@
     let unlistenAccountChanging: UnlistenFn;
     let unlistenAccountChanged: UnlistenFn;
     let unlistenNostrReady: UnlistenFn;
+    let unlistenGroupAdded: UnlistenFn;
+    let unlistenInviteAccepted: UnlistenFn;
+    let unlistenInviteDeclined: UnlistenFn;
 
     let toastState = getToastState();
-
-    let createGroupData = $state<{ pubkey: string; contact: EnrichedContact } | null>(null);
-    let inviteeName = $derived(
-        createGroupData?.contact ? nameFromMetadata(createGroupData.contact.metadata, createGroupData.pubkey) : ""
-    );
 
     let showModal = $state(false);
 
@@ -77,6 +73,30 @@
             unlistenNostrReady = await listen<string>("nostr_ready", async (_event) => {
                 console.log("Event received on chats page: nostr_ready");
                 await loadEvents();
+            });
+        }
+
+        if (!unlistenGroupAdded) {
+            unlistenGroupAdded = await listen<NostrMlsGroup>("group_added", (event) => {
+                const addedGroup = event.payload as NostrMlsGroup;
+                console.log("Event received on chats page: group_added", addedGroup);
+                groups = [...groups, addedGroup];
+            });
+        }
+
+        if (!unlistenInviteAccepted) {
+            unlistenInviteAccepted = await listen<Invite>("invite_accepted", (event) => {
+                const acceptedInvite = event.payload as Invite;
+                console.log("Event received on chats page: invite_accepted", acceptedInvite);
+                invites = invites.filter((invite) => invite.event.id !== acceptedInvite.event.id);
+            });
+        }
+
+        if (!unlistenInviteDeclined) {
+            unlistenInviteDeclined = await listen<Invite>("invite_declined", (event) => {
+                const declinedInvite = event.payload as Invite;
+                console.log("Event received on chats page: invite_declined", declinedInvite);
+                invites = invites.filter((invite) => invite.event.id !== declinedInvite.event.id);
             });
         }
     });

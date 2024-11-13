@@ -1,9 +1,10 @@
 use crate::fetch_enriched_contact;
-use crate::group_manager::{validate_group_members, Group, GroupType};
+use crate::groups::{validate_group_members, Group, GroupType};
 use crate::key_packages::fetch_key_packages_for_members;
 use crate::whitenoise::Whitenoise;
 use nostr_sdk::prelude::*;
 use std::ops::Add;
+use tauri::Emitter;
 
 // This is scoped so that we can return only the groups that the user is a member of.
 #[tauri::command]
@@ -70,7 +71,7 @@ pub async fn create_group(
     // TODO: We'll need to set these based on the group creator?
     let group_relays = vec!["ws://localhost:8080".to_string()];
 
-    let (mls_group, serialized_welcome_message, group_data) = wn
+    let create_group_result = wn
         .nostr_mls
         .create_group(
             group_name,
@@ -82,6 +83,11 @@ pub async fn create_group(
         )
         .map_err(|e| e.to_string())?;
 
+    let mls_group = create_group_result.mls_group;
+    let serialized_welcome_message = create_group_result.serialized_welcome_message;
+    let group_data = create_group_result.nostr_group_data;
+
+    // Fan out the welcome message to all members
     for member in &member_pubkeys {
         let member_pubkey = PublicKey::from_hex(member).map_err(|e| e.to_string())?;
         let contact = fetch_enriched_contact(member.clone(), false, wn.clone(), app_handle.clone())
@@ -184,6 +190,10 @@ pub async fn create_group(
         "Added group to database: {:?}",
         nostr_group
     );
+
+    app_handle
+        .emit("group_added", nostr_group.clone())
+        .map_err(|e| e.to_string())?;
 
     wn.account_manager
         .add_mls_group_id(active_account.pubkey, group_id.clone())

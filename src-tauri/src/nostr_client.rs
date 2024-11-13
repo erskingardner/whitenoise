@@ -294,6 +294,7 @@ impl NostrClient {
                         tracing::trace!(
                             target: "whitenoise::nostr_client::handle_notifications",
                             "Received event: {:?}",
+                            // TODO: Handle events coming in from subs
                             event
                         );
                         Ok(false)

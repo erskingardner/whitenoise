@@ -1,4 +1,5 @@
-use crate::utils::is_valid_hex_pubkey;
+use crate::groups::{Group, GroupType};
+use crate::invites::{Invite, InviteState};
 use nostr_sdk::prelude::*;
 use openmls_nostr::nostr_group_data_extension::NostrGroupDataExtension;
 use serde::{Deserialize, Serialize};
@@ -37,67 +38,6 @@ pub enum GroupManagerError {
 }
 
 pub type Result<T> = std::result::Result<T, GroupManagerError>;
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Group {
-    /// This is the MLS group ID, this will serve as the PK in the DB and doesn't change
-    pub mls_group_id: Vec<u8>,
-    /// Hex encoded (same value as the NostrGroupDataExtension) this is the group_id used in Nostr events
-    pub nostr_group_id: String,
-    /// UTF-8 encoded (same value as the NostrGroupDataExtension)
-    pub name: String,
-    /// UTF-8 encoded (same value as the NostrGroupDataExtension)
-    pub description: String,
-    /// Hex encoded (same value as the NostrGroupDataExtension)
-    pub admin_pubkeys: Vec<String>,
-    /// Hex encoded Nostr event ID of the last message in the group
-    pub last_message_id: Option<String>,
-    /// Timestamp of the last message in the group
-    pub last_message_at: Option<Timestamp>,
-    /// URLs of the Nostr relays this group is using
-    pub relay_urls: Vec<String>,
-    /// Type of Nostr MLS group
-    pub group_type: GroupType,
-    /// Chat transscript
-    pub transcript: Vec<UnsignedEvent>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum GroupType {
-    DirectMessage,
-    Group,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Invite {
-    /// The event that contains the welcome message
-    pub event: UnsignedEvent,
-    /// MLS group id
-    pub mls_group_id: Vec<u8>,
-    /// Nostr group id (from NostrGroupDataExtension)
-    pub nostr_group_id: String,
-    /// Group name (from NostrGroupDataExtension)
-    pub group_name: String,
-    /// Group description (from NostrGroupDataExtension)
-    pub group_description: String,
-    /// Group admin pubkeys (from NostrGroupDataExtension)
-    pub group_admin_pubkeys: Vec<String>,
-    /// Group relays (from NostrGroupDataExtension)
-    pub group_relays: Vec<String>,
-    /// Pubkey of the user that sent the invite
-    pub inviter: String,
-    /// Member count of the group
-    pub member_count: usize,
-    /// The state of the invite
-    pub state: InviteState,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum InviteState {
-    Pending,
-    Accepted,
-    Declined,
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GroupManagerState {
@@ -280,6 +220,24 @@ impl GroupManager {
             .ok_or(GroupManagerError::GroupNotFound(mls_group_id))
     }
 
+    pub fn add_invite(&self, invite: Invite) -> Result<()> {
+        {
+            let mut state = self
+                .state
+                .lock()
+                .map_err(|e| GroupManagerError::LockError(e.to_string()))?;
+
+            state
+                .invites
+                .insert(invite.event.id.unwrap().to_hex(), invite);
+        }
+
+        self.persist_state()
+            .map_err(|e| GroupManagerError::DatabaseError(e.to_string()))?;
+
+        Ok(())
+    }
+
     // This is scoped so that we can only get the invites that the user is a member of.
     pub fn get_invites(&self, mls_group_ids: Vec<Vec<u8>>) -> Result<Vec<Invite>> {
         let state = self
@@ -309,58 +267,26 @@ impl GroupManager {
             .cloned()
             .ok_or(GroupManagerError::InviteNotFound(invite_id))
     }
-}
 
-pub fn validate_group_members(
-    creator_pubkey: &String,
-    member_pubkeys: &[String],
-    admin_pubkeys: &[String],
-) -> Result<bool> {
-    // Creator must be an admin
-    if !admin_pubkeys.contains(creator_pubkey) {
-        return Err(GroupManagerError::GroupCreationError(
-            "Creator must be an admin".to_string(),
-        ));
-    }
+    pub fn update_invite_state(&self, invite_id: String, new_state: InviteState) -> Result<Invite> {
+        let invite = {
+            let mut state = self
+                .state
+                .lock()
+                .map_err(|e| GroupManagerError::LockError(e.to_string()))?;
 
-    // Creator must not be included as a member
-    if member_pubkeys.contains(creator_pubkey) {
-        return Err(GroupManagerError::GroupCreationError(
-            "Creator must not be included as a member".to_string(),
-        ));
-    }
+            let invite = state
+                .invites
+                .get_mut(&invite_id)
+                .ok_or(GroupManagerError::InviteNotFound(invite_id))?;
 
-    // Creator must be valid pubkey
-    if !is_valid_hex_pubkey(creator_pubkey) {
-        return Err(GroupManagerError::GroupCreationError(format!(
-            "Invalid creator pubkey: {}",
-            creator_pubkey
-        )));
-    }
+            invite.state = new_state;
+            invite.clone()
+        };
 
-    // Check that members are valid pubkeys
-    for pubkey in member_pubkeys.iter() {
-        if !is_valid_hex_pubkey(pubkey) {
-            return Err(GroupManagerError::GroupCreationError(format!(
-                "Invalid member pubkey: {}",
-                pubkey
-            )));
-        }
-    }
+        self.persist_state()
+            .map_err(|e| GroupManagerError::DatabaseError(e.to_string()))?;
 
-    // Check that admins are valid pubkeys and are members
-    for pubkey in admin_pubkeys.iter() {
-        if !is_valid_hex_pubkey(pubkey) {
-            return Err(GroupManagerError::GroupCreationError(format!(
-                "Invalid admin pubkey: {}",
-                pubkey
-            )));
-        }
-        if !member_pubkeys.contains(pubkey) && creator_pubkey != pubkey {
-            return Err(GroupManagerError::GroupCreationError(
-                "Admin must be a member".to_string(),
-            ));
-        }
+        Ok(invite)
     }
-    Ok(true)
 }
