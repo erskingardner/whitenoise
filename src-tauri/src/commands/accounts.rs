@@ -57,42 +57,54 @@ pub async fn login(
 ) -> Result<AccountManagerState, String> {
     let keys = Keys::parse(nsec_or_hex_privkey).map_err(|e| e.to_string())?;
 
-    // Add the account to the account manager
-    let account = wn
+    if wn
         .account_manager
-        .add_account(keys.clone(), true, &wn.nostr)
-        .await
-        .map_err(|e| format!("Error logging in: {}", e))?;
+        .account_exists(&keys.public_key().to_hex())
+        .map_err(|e| format!("Error checking if account exists: {}", e))?
+    {
+        tracing::debug!(
+            target: "whitenoise::commands::accounts::login",
+            "Account already exists: {:?}",
+            keys.public_key().to_hex()
+        );
+        set_active_account(keys.public_key().to_hex(), wn.clone(), app_handle).await?;
+    } else {
+        // Add the account to the account manager
+        let account = wn
+            .account_manager
+            .add_account(keys.clone(), true, &wn.nostr)
+            .await
+            .map_err(|e| format!("Error logging in: {}", e))?;
 
-    tracing::debug!(
-        target: "whitenoise::commands::accounts::login",
-        "Added account: {:?}",
-        account
-    );
+        tracing::debug!(
+            target: "whitenoise::commands::accounts::login",
+            "Added account: {:?}",
+            account
+        );
 
-    // Store private key in secrets store
-    secrets_store::store_private_key(&keys, &wn.data_dir)
-        .map_err(|e| format!("Failed to store private key: {}", e))?;
+        // Store private key in secrets store
+        secrets_store::store_private_key(&keys, &wn.data_dir)
+            .map_err(|e| format!("Failed to store private key: {}", e))?;
 
-    tracing::debug!(
-        target: "whitenoise::account_manager::add_account",
-        "Saved private key to secrets store"
-    );
+        tracing::debug!(
+            target: "whitenoise::account_manager::add_account",
+            "Saved private key to secrets store"
+        );
 
-    app_handle
-        .emit("account_changed", ())
-        .map_err(|e| e.to_string())?;
+        app_handle
+            .emit("account_changed", ())
+            .map_err(|e| e.to_string())?;
 
-    // Update Nostr identity
-    wn.nostr
-        .update_nostr_identity(keys)
-        .await
-        .map_err(|e| e.to_string())?;
+        // Update Nostr identity
+        wn.nostr
+            .update_nostr_identity(keys)
+            .await
+            .map_err(|e| e.to_string())?;
 
-    app_handle
-        .emit("nostr_ready", ())
-        .map_err(|e| e.to_string())?;
-
+        app_handle
+            .emit("nostr_ready", ())
+            .map_err(|e| e.to_string())?;
+    }
     Ok(wn.account_manager.get_accounts_state().unwrap())
 }
 

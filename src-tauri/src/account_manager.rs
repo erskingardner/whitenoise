@@ -72,7 +72,7 @@ pub struct Account {
     pub nostr_relays: Vec<String>,
     pub inbox_relays: Vec<String>,
     pub key_package_relays: Vec<String>,
-    pub nostr_mls_group_ids: Vec<String>,
+    pub mls_group_ids: Vec<Vec<u8>>,
     pub settings: AccountSettings,
     pub onboarding: AccountOnboarding,
     pub last_used: chrono::DateTime<chrono::Utc>,
@@ -170,6 +170,14 @@ impl AccountManager {
         Ok(())
     }
 
+    pub fn account_exists(&self, hex_pubkey: &str) -> Result<bool> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|e| AccountError::LockError(e.to_string()))?;
+        Ok(state.accounts.contains_key(hex_pubkey))
+    }
+
     pub async fn add_account(
         &self,
         keys: Keys,
@@ -231,7 +239,7 @@ impl AccountManager {
             nostr_relays: nostr_relays.unwrap_or_default(),
             inbox_relays: inbox_relays_unwrapped,
             key_package_relays: key_package_relays_unwrapped,
-            nostr_mls_group_ids: vec![],
+            mls_group_ids: vec![],
             settings: AccountSettings::default(),
             onboarding,
             last_used: chrono::Utc::now(),
@@ -339,6 +347,45 @@ impl AccountManager {
                 account.onboarding.inbox_relays = inbox_relays;
                 account.onboarding.key_package_relays = key_package_relays;
                 account.onboarding.publish_key_package = publish_key_package;
+            }
+        }
+
+        self.persist_state()
+            .map_err(|e| AccountError::DatabaseError(e.to_string()))?;
+
+        Ok(())
+    }
+
+    pub fn add_mls_group_id(&self, pubkey: String, mls_group_id: Vec<u8>) -> Result<()> {
+        {
+            let mut state = self
+                .state
+                .lock()
+                .map_err(|e| AccountError::LockError(e.to_string()))?;
+
+            if let Some(account) = state.accounts.get_mut(&pubkey) {
+                if !account.mls_group_ids.contains(&mls_group_id) {
+                    account.mls_group_ids.push(mls_group_id);
+                }
+            }
+        }
+
+        self.persist_state()
+            .map_err(|e| AccountError::DatabaseError(e.to_string()))?;
+
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    pub fn remove_mls_group_id(&self, pubkey: String, mls_group_id: Vec<u8>) -> Result<()> {
+        {
+            let mut state = self
+                .state
+                .lock()
+                .map_err(|e| AccountError::LockError(e.to_string()))?;
+
+            if let Some(account) = state.accounts.get_mut(&pubkey) {
+                account.mls_group_ids.retain(|id| *id != mls_group_id);
             }
         }
 
@@ -464,7 +511,7 @@ mod tests {
             nostr_relays: vec![],
             inbox_relays: vec![],
             key_package_relays: vec![],
-            nostr_mls_group_ids: vec![],
+            mls_group_ids: vec![],
             settings: AccountSettings::default(),
             onboarding: AccountOnboarding::default(),
             last_used: chrono::Utc::now(),
@@ -499,7 +546,7 @@ mod tests {
             nostr_relays: vec![],
             inbox_relays: vec![],
             key_package_relays: vec![],
-            nostr_mls_group_ids: vec![],
+            mls_group_ids: vec![],
             settings: AccountSettings::default(),
             onboarding: AccountOnboarding::default(),
             last_used: chrono::Utc::now(),

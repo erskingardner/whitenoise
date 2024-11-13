@@ -10,6 +10,7 @@ mod whitenoise;
 
 use crate::commands::accounts::*;
 use crate::commands::groups::*;
+use crate::commands::invites::*;
 use crate::commands::key_packages::*;
 use crate::commands::nostr::*;
 use crate::whitenoise::Whitenoise;

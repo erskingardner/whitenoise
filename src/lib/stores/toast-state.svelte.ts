@@ -13,12 +13,7 @@ export class ToastState {
 
     constructor() {}
 
-    add(
-        title: string,
-        message: string,
-        type: "error" | "success" | "info",
-        durationMs: number = 5000
-    ) {
+    add(title: string, message: string, type: "error" | "success" | "info", durationMs: number = 5000) {
         const id = crypto.randomUUID();
         this.toasts.push({ id, title, message, type });
 

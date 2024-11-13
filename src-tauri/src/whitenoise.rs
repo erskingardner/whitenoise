@@ -6,7 +6,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 pub struct Whitenoise {
-    // pub database: Arc<sled::Db>,
     pub account_manager: AccountManager,
     pub group_manager: GroupManager,
     pub nostr: NostrClient,
@@ -21,7 +20,6 @@ impl Whitenoise {
             sled::open(data_dir.join("whitenoise.sled")).expect("Failed to open database"),
         );
         Self {
-            // database: database.clone(),
             account_manager: AccountManager::new(database.clone())
                 .expect("Failed to create account manager"),
             group_manager: GroupManager::new(database.clone())

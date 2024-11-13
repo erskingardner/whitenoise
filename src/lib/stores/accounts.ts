@@ -14,7 +14,7 @@ export type Account = {
     nostr_relays: string[];
     inbox_relays: string[];
     key_package_relays: string[];
-    nostr_mls_group_ids: string[];
+    mls_group_ids: Uint8Array[];
     settings: AccountSettings;
     onboarding: AccountOnboarding;
     last_used: number;

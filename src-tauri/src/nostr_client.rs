@@ -127,6 +127,71 @@ impl NostrClient {
         Ok(events)
     }
 
+    pub async fn fetch_user_welcomes(&self, pubkey: PublicKey) -> Result<Vec<UnsignedEvent>> {
+        let gw_events = self.fetch_user_giftwrapped_events(pubkey).await?;
+        let invites = self.extract_invite_events(gw_events).await;
+        Ok(invites)
+    }
+
+    /// Fetches giftwrapped events for a specific public key from Nostr relays.
+    ///
+    /// This function retrieves all giftwrapped events (Kind::GiftWrap) that are addressed to the
+    /// specified public key. It uses the Nostr client to fetch events from both local storage and
+    /// connected relays.
+    ///
+    /// # Arguments
+    ///
+    /// * `wn` - A Tauri State containing a Whitenoise instance, which provides access to Nostr functionality.
+    /// * `pubkey` - A String representing the public key for which to fetch giftwrapped events.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<Vec<Event>>` - A Result that is Ok with a vector of Event objects if the fetch is successful,
+    ///   or an Err with a descriptive error message if the fetch fails.
+    async fn fetch_user_giftwrapped_events(&self, pubkey: PublicKey) -> Result<Vec<Event>> {
+        let filter = Filter::new().kind(Kind::GiftWrap).pubkeys(vec![pubkey]);
+
+        let stored_events = self.client.database().query(vec![filter.clone()]).await?;
+        let fetched_events = self
+            .client
+            .fetch_events(
+                vec![Filter::new().kind(Kind::GiftWrap).pubkeys(vec![pubkey])],
+                Some(self.settings.timeout),
+            )
+            .await?;
+
+        let events = stored_events.merge(fetched_events);
+        Ok(events.into_iter().collect())
+    }
+
+    /// Extracts welcome events from a list of giftwrapped events.
+    ///
+    /// This function processes a list of giftwrapped events and extracts the welcome events
+    /// (events with Kind::MlsWelcome) from them.
+    ///
+    /// # Arguments
+    ///
+    /// * `keys` - A reference to the Keys struct containing the necessary keys for decryption.
+    /// * `gw_events` - A vector of giftwrapped Event objects to process.
+    ///
+    /// # Returns
+    ///
+    /// A vector of UnsignedEvent objects representing the extracted welcome events.
+    async fn extract_invite_events(&self, gw_events: Vec<Event>) -> Vec<UnsignedEvent> {
+        let mut invite_events: Vec<UnsignedEvent> = Vec::new();
+
+        for event in gw_events {
+            if let Ok(unwrapped) = extract_rumor(&self.client.signer().await.unwrap(), &event).await
+            {
+                if unwrapped.rumor.kind == Kind::MlsWelcome {
+                    invite_events.push(unwrapped.rumor);
+                }
+            }
+        }
+
+        invite_events
+    }
+
     pub async fn update_nostr_identity(&self, keys: Keys) -> Result<()> {
         tracing::debug!(
             target: "whitenoise::nostr_client::update_nostr_identity",

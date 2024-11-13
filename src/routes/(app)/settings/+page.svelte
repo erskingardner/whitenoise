@@ -33,6 +33,7 @@
         HardDrives,
         UserFocus,
         Envelope,
+        Users,
     } from "phosphor-svelte";
 
     let showDeleteAlert = $state(false);
@@ -145,6 +146,17 @@
             });
         }
         console.log(accountsState);
+    }
+
+    let showGroupsState = $state(false);
+    let groupsState = $state("");
+    async function toggleInspectGroups() {
+        showGroupsState = !showGroupsState;
+        if (showGroupsState) {
+            invoke("get_groups").then((groups) => {
+                groupsState = JSON.stringify(groups, null, 2);
+            });
+        }
     }
 </script>
 
@@ -304,12 +316,28 @@
                         <CaretRight size={24} class="ml-auto mr-0" />
                     {/if}
                 </button>
+                {#if showAccountsState}
+                    <div class="flex flex-col gap-4 items-start w-full mt-4 p-4">
+                        <pre>{accountsState}</pre>
+                    </div>
+                {/if}
+            </li>
+            <li class="section-list-item">
+                <button onclick={toggleInspectGroups} class="row-button">
+                    <Users size={24} />
+                    <span>Inspect Groups</span>
+                    {#if showGroupsState}
+                        <CaretDown size={24} class="ml-auto mr-0" />
+                    {:else}
+                        <CaretRight size={24} class="ml-auto mr-0" />
+                    {/if}
+                </button>
+                {#if showGroupsState}
+                    <div class="flex flex-col gap-4 items-start w-full mt-4 p-4">
+                        <pre>{groupsState}</pre>
+                    </div>
+                {/if}
             </li>
         </ul>
-        {#if showAccountsState}
-            <div class="flex flex-col gap-4 items-start w-full mt-4 p-4">
-                <pre>{accountsState}</pre>
-            </div>
-        {/if}
     </div>
 </main>

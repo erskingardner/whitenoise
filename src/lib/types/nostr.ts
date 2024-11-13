@@ -70,7 +70,7 @@ export type Invite = {
     group_description: string;
     group_admin_pubkeys: string[];
     group_relays: string[];
-    invitee: string;
+    inviter: string;
     member_count: number;
     state: InviteState;
 };
@@ -80,6 +80,11 @@ export enum InviteState {
     Accepted = "Accepted",
     Declined = "Declined",
 }
+
+export type InvitesWithFailures = {
+    invites: Invite[];
+    failures: [string, string][];
+};
 
 export type NostrMlsWelcomeGroupData = {
     mls_group_id: Uint8Array;

@@ -6,6 +6,7 @@
     import { accounts } from "$lib/stores/accounts";
     import { invoke } from "@tauri-apps/api/core";
     import { getToastState } from "$lib/stores/toast-state.svelte";
+    import Loader from "$lib/components/Loader.svelte";
     import type { CloseModal } from "$lib/types/modal";
 
     let toastState = getToastState();
@@ -16,7 +17,10 @@
         closeModal: CloseModal;
     }>();
 
+    let isLoading = $state(false);
+
     async function startSecureChat() {
+        isLoading = true;
         await invoke("create_group", {
             creatorPubkey: $accounts.activeAccount,
             memberPubkeys: [pubkey],
@@ -34,11 +38,14 @@
             .catch((e) => {
                 toastState.add("Error creating group", e.toString(), "error");
                 console.error("Error creating group", e);
+            })
+            .finally(() => {
+                isLoading = false;
             });
     }
 
     async function inviteToWhiteNoise() {
-        // await invoke("invite_to_white_noise", { pubkey });
+        // TODO: await invoke("invite_to_white_noise", { pubkey });
     }
 </script>
 
@@ -71,6 +78,9 @@
             <button class="button-primary" onclick={inviteToWhiteNoise}>
                 Invite {nameFromMetadata(contact.metadata, pubkey)} to White Noise
             </button>
+        {/if}
+        {#if isLoading}
+            <Loader size={40} fullscreen={false} />
         {/if}
     </div>
 </div>

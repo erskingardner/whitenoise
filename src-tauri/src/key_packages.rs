@@ -6,8 +6,6 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum KeyPackageError {
-    #[error("Key package relays not set")]
-    RelaysNotSet,
     #[error("No valid key package found: {0}")]
     NoValidKeyPackage(String),
     #[error("Error fetching key package: {0}")]
@@ -119,4 +117,79 @@ pub async fn fetch_key_package_for_pubkey(
     }
 }
 
-// pub async fn delete_key_package();
+/// Deletes a specific key package event from Nostr relays.
+///
+/// This function performs the following steps:
+/// 1. Retrieves the relays associated with key packages for the current identity.
+/// 2. Fetches the specific key package event from the Nostr network.
+/// 3. Verifies that the event is a valid key package event and is authored by the current user.
+/// 4. Creates and sends a delete event for the specified key package event.
+///
+/// # Arguments
+///
+/// * `event_id` - The `EventId` of the key package event to be deleted.
+/// * `wn` - A Tauri State containing a Whitenoise instance, which provides access to Nostr functionality.
+///
+/// # Returns
+///
+/// * `Result<()>` - A Result that is Ok(()) if the key package was successfully deleted,
+///   or an Err with a descriptive error message if any step of the process failed.
+///
+/// # Errors
+///
+/// This function may return an error if:
+/// - There's an error retrieving the key package relays for the current identity.
+/// - There's an error fetching the specified event from the Nostr network.
+/// - The specified event is not a key package event (Kind::KeyPackage).
+/// - The specified event is not authored by the current user.
+/// - There's an error creating or sending the delete event.
+pub async fn delete_key_package_from_relays(
+    event_id: &EventId,
+    key_package_relays: &[String],
+    delete_mls_stored_keys: bool,
+    wn: &tauri::State<'_, Whitenoise>,
+) -> Result<()> {
+    let current_pubkey = wn
+        .nostr
+        .client
+        .signer()
+        .await
+        .unwrap()
+        .get_public_key()
+        .await
+        .unwrap();
+    let key_package_events = wn
+        .nostr
+        .client
+        .fetch_events(
+            vec![Filter::new()
+                .id(*event_id)
+                .kind(Kind::MlsKeyPackage)
+                .author(current_pubkey)],
+            Some(wn.nostr.timeout()),
+        )
+        .await?;
+
+    if let Some(event) = key_package_events.first() {
+        // Make sure we delete the private key material from MLS storage if requested
+        if delete_mls_stored_keys {
+            let key_package = openmls_nostr::key_packages::parse_key_package(
+                event.content.to_string(),
+                &wn.nostr_mls,
+            )
+            .map_err(KeyPackageError::NostrMlsError)?;
+
+            openmls_nostr::key_packages::delete_key_package_from_storage(
+                key_package,
+                &wn.nostr_mls,
+            )
+            .map_err(KeyPackageError::NostrMlsError)?;
+        }
+        let builder = EventBuilder::delete(vec![event.id]);
+        wn.nostr
+            .client
+            .send_event_builder_to(key_package_relays, builder)
+            .await?;
+    }
+    Ok(())
+}

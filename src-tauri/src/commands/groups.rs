@@ -1,31 +1,27 @@
 use crate::fetch_enriched_contact;
-use crate::group_manager::{validate_group_members, Group, GroupType, Invite};
+use crate::group_manager::{validate_group_members, Group, GroupType};
 use crate::key_packages::fetch_key_packages_for_members;
 use crate::whitenoise::Whitenoise;
 use nostr_sdk::prelude::*;
 use std::ops::Add;
 
+// This is scoped so that we can return only the groups that the user is a member of.
 #[tauri::command]
 pub fn get_groups(wn: tauri::State<'_, Whitenoise>) -> Result<Vec<Group>, String> {
-    wn.group_manager.get_groups().map_err(|e| e.to_string())
+    let active_account = wn
+        .account_manager
+        .get_active_account()
+        .map_err(|e| e.to_string())?;
+
+    wn.group_manager
+        .get_groups(active_account.mls_group_ids)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn get_group(group_id: String, wn: tauri::State<'_, Whitenoise>) -> Result<Group, String> {
     wn.group_manager
         .get_group(group_id)
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn get_invites(wn: tauri::State<'_, Whitenoise>) -> Result<Vec<Invite>, String> {
-    wn.group_manager.get_invites().map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn get_invite(invite_id: String, wn: tauri::State<'_, Whitenoise>) -> Result<Invite, String> {
-    wn.group_manager
-        .get_invite(invite_id)
         .map_err(|e| e.to_string())
 }
 
@@ -39,7 +35,24 @@ pub async fn create_group(
     wn: tauri::State<'_, Whitenoise>,
     app_handle: tauri::AppHandle,
 ) -> Result<Group, String> {
+    let active_account = wn
+        .account_manager
+        .get_active_account()
+        .map_err(|e| e.to_string())?;
+
     let signer = wn.nostr.client.signer().await.map_err(|e| e.to_string())?;
+
+    // Check that active account is the creator and signer
+    if active_account.pubkey != creator_pubkey
+        || active_account.pubkey
+            != signer
+                .get_public_key()
+                .await
+                .map_err(|e| e.to_string())?
+                .to_hex()
+    {
+        return Err("You must be the creator to create a group".to_string());
+    }
 
     validate_group_members(&creator_pubkey, &member_pubkeys, &admin_pubkeys)
         .map_err(|e| e.to_string())?;
@@ -158,17 +171,29 @@ pub async fn create_group(
     } else {
         GroupType::Group
     };
+
+    let group_id = mls_group.group_id().to_vec();
+
     let nostr_group = wn
         .group_manager
-        .add_group(mls_group.group_id().to_vec(), group_type, group_data)
+        .add_group(group_id.clone(), group_type, group_data)
         .map_err(|e| e.to_string())?;
 
     tracing::debug!(
         target: "whitenoise::groups::create_group",
-        "Saving group to database: {:?}",
+        "Added group to database: {:?}",
         nostr_group
     );
 
-    // TODO: Render a group in the UI for the saved nostr_group
+    wn.account_manager
+        .add_mls_group_id(active_account.pubkey, group_id.clone())
+        .map_err(|e| e.to_string())?;
+
+    tracing::debug!(
+        target: "whitenoise::groups::create_group",
+        "Added MLS group id to account manager: {:?}",
+        group_id
+    );
+
     Ok(nostr_group)
 }

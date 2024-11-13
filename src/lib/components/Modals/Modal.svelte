@@ -1,18 +1,26 @@
 <script lang="ts">
     import { fly, fade } from "svelte/transition";
     import { X, CaretLeft } from "phosphor-svelte";
-    import type { Component } from "svelte";
     import { onDestroy } from "svelte";
+    import type { Component } from "svelte";
     import HeaderToolbar from "../HeaderToolbar.svelte";
     import type { ModalView } from "$lib/types/modal";
 
-    let { mainComponent, showModal = $bindable() } = $props();
+    let {
+        initialComponent,
+        props = {},
+        showModal = $bindable(),
+    }: {
+        initialComponent: any;
+        props: Record<string, unknown>;
+        showModal: boolean;
+    } = $props();
 
     // Stack to keep track of views/pages
     let viewStack: ModalView[] = $state([
         {
-            component: mainComponent,
-            props: { ...mainComponent.props },
+            component: initialComponent,
+            props: props,
         },
     ]);
     let currentView: ModalView = $derived(viewStack[viewStack.length - 1]);

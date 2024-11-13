@@ -12,8 +12,8 @@
 </script>
 
 <div
-    class="flex flex-col items-center justify-center rounded-full bg-gray-900 {$accounts.activeAccount ===
-        pubkey && showRing
+    class="flex flex-col items-center justify-center rounded-full bg-gray-900 {$accounts.activeAccount === pubkey &&
+    showRing
         ? 'ring-4 ring-blue-600 ring-offset-2 ring-offset-gray-900'
         : ''}"
     style="width: {pxSize}px; height: {pxSize}px; min-width: {pxSize}px; min-height: {pxSize}px;"

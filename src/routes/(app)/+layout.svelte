@@ -8,6 +8,7 @@
     import Modal from "$lib/components/Modals/Modal.svelte";
     import PreOnboard from "$lib/components/Modals/Onboarding/PreOnboard.svelte";
     import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+    import { invoke } from "@tauri-apps/api/core";
 
     let { children } = $props();
 
@@ -38,6 +39,9 @@
                 (account: Account) => account.pubkey === $accounts.activeAccount
             )[0];
             if (activeAccount) {
+                if (!activeAccount.metadata.display_name || !activeAccount.metadata.picture) {
+                    await invoke("fetch_enriched_contact", { pubkey: activeAccount.pubkey, updateAccount: true });
+                }
                 if (activeAccount.onboarding.inbox_relays) {
                     inboxRelaysPublished = true;
                 }
@@ -76,5 +80,9 @@
 </main>
 
 {#if showPreflightModal}
-    <Modal mainComponent={PreOnboard} bind:showModal={showPreflightModal} />
+    <Modal
+        initialComponent={PreOnboard}
+        props={{ inboxRelaysPublished, keyPackageRelaysPublished, keyPackagePublished }}
+        bind:showModal={showPreflightModal}
+    />
 {/if}

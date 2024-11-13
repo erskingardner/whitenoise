@@ -3,7 +3,7 @@
     import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
     import { PlusCircle } from "phosphor-svelte";
     import { invoke } from "@tauri-apps/api/core";
-    import type { NostrMlsGroup, Invite } from "$lib/types/nostr";
+    import type { NostrMlsGroup, Invite, InvitesWithFailures } from "$lib/types/nostr";
     import { onMount, onDestroy } from "svelte";
     import { nameFromMetadata } from "$lib/utils/nostr";
     import { listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -13,6 +13,7 @@
     import ContactsList from "$lib/components/Modals/Contacts/ContactsList.svelte";
     import Modal from "$lib/components/Modals/Modal.svelte";
     import GroupListItem from "$lib/components/GroupListItem.svelte";
+    import InviteListItem from "$lib/components/InviteListItem.svelte";
 
     let unlistenAccountChanging: UnlistenFn;
     let unlistenAccountChanged: UnlistenFn;
@@ -32,6 +33,7 @@
 
     let groups = $state<NostrMlsGroup[]>([]);
     let invites = $state<Invite[]>([]);
+    let failures = $state<[string, string][]>([]);
 
     async function loadEvents() {
         isLoading = true;
@@ -39,13 +41,19 @@
             const [groupsResponse, invitesResponse] = await Promise.all([invoke("get_groups"), invoke("get_invites")]);
 
             groups = groupsResponse as NostrMlsGroup[];
-            invites = invitesResponse as Invite[];
+            invites = (invitesResponse as InvitesWithFailures).invites;
+            failures = (invitesResponse as InvitesWithFailures).failures;
         } catch (error) {
             loadingError = error as string;
+            console.log(error);
         } finally {
             isLoading = false;
         }
     }
+
+    $inspect("Groups", groups);
+    $inspect("Invites", invites);
+    $inspect("Failures", failures); // TODO: Store failures in the database so we don't check them in the future
 
     onMount(async () => {
         await loadEvents();
@@ -109,7 +117,7 @@
         <div class="px-4 py-2 bg-gray-800 text-lg font-bold border-t border-b border-gray-700">Invites</div>
         <div class="flex flex-col gap-2">
             {#each invites as invite}
-                <div class="border-b border-gray-700 py-4">{invite.group_name}</div>
+                <InviteListItem {invite} />
             {/each}
         </div>
         <div class="px-4 py-2 bg-gray-800 text-lg font-bold border-t border-b border-gray-700">Groups</div>
@@ -122,5 +130,5 @@
 </main>
 
 {#if showModal}
-    <Modal mainComponent={ContactsList} bind:showModal />
+    <Modal initialComponent={ContactsList} props={{}} bind:showModal />
 {/if}

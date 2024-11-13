@@ -14,9 +14,6 @@ pub enum GroupManagerError {
     #[error("Group already exists: {}", hex::encode(.0))]
     GroupAlreadyExists(Vec<u8>),
 
-    #[error("Invite already exists: {0}")]
-    InviteAlreadyExists(String),
-
     #[error("Group not found: {0}")]
     GroupNotFound(String),
 
@@ -75,8 +72,10 @@ pub enum GroupType {
 pub struct Invite {
     /// The event that contains the welcome message
     pub event: UnsignedEvent,
-    /// MLS group id (from NostrGroupDataExtension)
-    pub mls_group_id: String,
+    /// MLS group id
+    pub mls_group_id: Vec<u8>,
+    /// Nostr group id (from NostrGroupDataExtension)
+    pub nostr_group_id: String,
     /// Group name (from NostrGroupDataExtension)
     pub group_name: String,
     /// Group description (from NostrGroupDataExtension)
@@ -86,7 +85,7 @@ pub struct Invite {
     /// Group relays (from NostrGroupDataExtension)
     pub group_relays: Vec<String>,
     /// Pubkey of the user that sent the invite
-    pub invitee: String,
+    pub inviter: String,
     /// Member count of the group
     pub member_count: usize,
     /// The state of the invite
@@ -247,13 +246,21 @@ impl GroupManager {
         Ok(group)
     }
 
-    pub fn get_groups(&self) -> Result<Vec<Group>> {
+    // This is scoped so that we can only get the groups that the user is a member of.
+    pub fn get_groups(&self, mls_group_ids: Vec<Vec<u8>>) -> Result<Vec<Group>> {
         let state = self
             .state
             .lock()
             .map_err(|e| GroupManagerError::LockError(e.to_string()))?;
 
-        Ok(state.groups.values().cloned().collect())
+        let groups = state
+            .groups
+            .values()
+            .filter(|group| mls_group_ids.contains(&group.mls_group_id))
+            .cloned()
+            .collect();
+
+        Ok(groups)
     }
 
     pub fn get_group(&self, mls_group_id: String) -> Result<Group> {
@@ -273,13 +280,21 @@ impl GroupManager {
             .ok_or(GroupManagerError::GroupNotFound(mls_group_id))
     }
 
-    pub fn get_invites(&self) -> Result<Vec<Invite>> {
+    // This is scoped so that we can only get the invites that the user is a member of.
+    pub fn get_invites(&self, mls_group_ids: Vec<Vec<u8>>) -> Result<Vec<Invite>> {
         let state = self
             .state
             .lock()
             .map_err(|e| GroupManagerError::LockError(e.to_string()))?;
 
-        Ok(state.invites.values().cloned().collect())
+        let invites = state
+            .invites
+            .values()
+            .filter(|invite| mls_group_ids.contains(&invite.mls_group_id))
+            .cloned()
+            .collect();
+
+        Ok(invites)
     }
 
     pub fn get_invite(&self, invite_id: String) -> Result<Invite> {
