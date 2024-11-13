@@ -6,7 +6,20 @@ use nostr_sdk::prelude::*;
 use std::ops::Add;
 use tauri::Emitter;
 
-// This is scoped so that we can return only the groups that the user is a member of.
+/// Gets all MLS groups that the active account is a member of
+/// This is scoped so that we can return only the groups that the user is a member of.
+///
+/// # Arguments
+/// * `wn` - Whitenoise state containing account and group managers
+///
+/// # Returns
+/// * `Ok(Vec<Group>)` - List of groups the active account belongs to
+/// * `Err(String)` - Error message if retrieval fails
+///
+/// # Errors
+/// Returns error if:
+/// - No active account found
+/// - Database error occurs retrieving groups
 #[tauri::command]
 pub fn get_groups(wn: tauri::State<'_, Whitenoise>) -> Result<Vec<Group>, String> {
     let active_account = wn
@@ -19,6 +32,21 @@ pub fn get_groups(wn: tauri::State<'_, Whitenoise>) -> Result<Vec<Group>, String
         .map_err(|e| e.to_string())
 }
 
+/// Gets a single MLS group by its group ID
+///
+/// # Arguments
+/// * `group_id` - Hex encoded MLS group ID
+/// * `wn` - Whitenoise state
+///
+/// # Returns
+/// * `Ok(Group)` - The requested group if found
+/// * `Err(String)` - Error message if group not found or other error occurs
+///
+/// # Errors
+/// Returns error if:
+/// - Group ID is not valid hex
+/// - Group not found in database
+/// - Database error occurs
 #[tauri::command]
 pub fn get_group(group_id: String, wn: tauri::State<'_, Whitenoise>) -> Result<Group, String> {
     wn.group_manager
@@ -26,6 +54,39 @@ pub fn get_group(group_id: String, wn: tauri::State<'_, Whitenoise>) -> Result<G
         .map_err(|e| e.to_string())
 }
 
+/// Creates a new MLS group with the specified members and settings
+///
+/// # Arguments
+/// * `creator_pubkey` - Public key of the group creator (must be the active account)
+/// * `member_pubkeys` - List of public keys for group members
+/// * `admin_pubkeys` - List of public keys for group admins
+/// * `group_name` - Name of the group
+/// * `description` - Description of the group
+/// * `wn` - Whitenoise state
+/// * `app_handle` - Tauri app handle
+///
+/// # Returns
+/// * `Ok(Group)` - The newly created group
+/// * `Err(String)` - Error message if group creation fails
+///
+/// # Flow
+/// 1. Validates that active account is the creator
+/// 2. Validates member and admin lists
+/// 3. Fetches key packages for all members
+/// 4. Creates MLS group with NostrMls
+/// 5. Sends welcome messages to all members via Nostr
+/// 6. Adds group to GroupManager database
+/// 7. Updates account with new group ID
+/// 8. Emits group_added event
+///
+/// # Errors
+/// Returns error if:
+/// - Active account is not the creator
+/// - Member/admin validation fails
+/// - Key package fetching fails
+/// - MLS group creation fails
+/// - Welcome message sending fails
+/// - Database operations fail
 #[tauri::command]
 pub async fn create_group(
     creator_pubkey: String,
@@ -182,7 +243,7 @@ pub async fn create_group(
 
     let nostr_group = wn
         .group_manager
-        .add_group(group_id.clone(), group_type, group_data)
+        .add_group(group_id.clone(), group_type, group_data, wn.clone())
         .map_err(|e| e.to_string())?;
 
     tracing::debug!(

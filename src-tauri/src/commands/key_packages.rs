@@ -2,6 +2,21 @@ use crate::{key_packages::fetch_key_package_for_pubkey, Whitenoise};
 use nostr_sdk::event::{EventBuilder, Kind, Tag, TagKind};
 use openmls_nostr::key_packages::create_key_package_for_event;
 
+/// Checks if a valid MLS key package exists for a given user
+///
+/// # Arguments
+/// * `pubkey` - Hex encoded Nostr public key of the user to check
+/// * `wn` - Whitenoise state containing Nostr client
+///
+/// # Returns
+/// * `Ok(bool)` - True if valid key package exists, false otherwise
+/// * `Err(String)` - Error message if check fails
+///
+/// # Errors
+/// Returns error if:
+/// - Public key is invalid
+/// - Network error occurs fetching key package
+/// - Key package parsing fails
 #[tauri::command]
 pub async fn valid_key_package_exists_for_user(
     pubkey: String,
@@ -13,6 +28,31 @@ pub async fn valid_key_package_exists_for_user(
     Ok(key_package.is_some())
 }
 
+/// Publishes a new MLS key package for the active account to Nostr
+///
+/// Creates and publishes a new MLS key package event to the user's configured key package relays.
+/// The key package contains the necessary cryptographic material for adding the user to MLS groups.
+///
+/// # Arguments
+/// * `wn` - Whitenoise state containing account and Nostr clients
+///
+/// # Returns
+/// * `Ok(())` - Key package was successfully published
+/// * `Err(String)` - Error message if publishing fails
+///
+/// # Flow
+/// 1. Gets active account's public key
+/// 2. Creates new MLS key package
+/// 3. Gets configured key package relays
+/// 4. Builds Nostr event with key package and metadata
+/// 5. Publishes event to relays
+///
+/// # Errors
+/// Returns error if:
+/// - No active account found
+/// - Key package relays not configured
+/// - Key package creation fails
+/// - Event publishing fails
 #[tauri::command]
 pub async fn publish_key_package(wn: tauri::State<'_, Whitenoise>) -> Result<(), String> {
     let pubkey = wn

@@ -29,10 +29,38 @@ pub struct Group {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum GroupType {
+    /// A group with only two members
     DirectMessage,
+    /// A group with more than two members
     Group,
 }
 
+/// Validates the members and admins of a group during creation
+///
+/// # Arguments
+/// * `creator_pubkey` - The public key of the group creator
+/// * `member_pubkeys` - List of public keys for group members
+/// * `admin_pubkeys` - List of public keys for group admins
+///
+/// # Returns
+/// * `Ok(true)` if validation passes
+/// * `Err(GroupManagerError)` if validation fails
+///
+/// # Validation Rules
+/// - Creator must be an admin but not included in member list
+/// - Creator must have a valid public key
+/// - All member public keys must be valid
+/// - All admin public keys must be valid
+/// - All admins must also be members (except creator)
+///
+/// # Errors
+/// Returns `GroupManagerError::GroupCreationError` with descriptive message if:
+/// - Creator is not an admin
+/// - Creator is in member list
+/// - Creator has invalid public key
+/// - Any member has invalid public key
+/// - Any admin has invalid public key
+/// - Any admin is not a member
 pub fn validate_group_members(
     creator_pubkey: &String,
     member_pubkeys: &[String],

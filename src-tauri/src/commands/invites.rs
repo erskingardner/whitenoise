@@ -13,6 +13,34 @@ pub struct InvitesWithFailures {
     failures: Vec<(EventId, String)>,
 }
 
+/// Fetches and processes pending invites for the active user.
+///
+/// This command:
+/// 1. Gets stored invites from the group manager
+/// 2. Fetches new welcome messages from Nostr relays
+/// 3. Processes new welcome messages into invites
+/// 4. Cleans up used key packages
+/// 5. Generates replacement key packages
+///
+/// # Arguments
+/// * `wn` - The Whitenoise state
+///
+/// # Returns
+/// * `Ok(InvitesWithFailures)` containing:
+///   - `invites`: Vec of successfully processed Invite objects
+///   - `failures`: Vec of (EventId, error message) for failed invite processing
+///
+/// # Errors
+/// Returns `Err(String)` if:
+/// - Cannot get active account
+/// - Cannot access group manager
+/// - Cannot fetch welcome messages
+/// - Cannot process welcome messages
+/// - Cannot delete used key packages
+/// - Cannot generate new key packages
+///
+/// # Events
+/// No events are emitted by this command.
 #[tauri::command]
 pub async fn get_invites(wn: tauri::State<'_, Whitenoise>) -> Result<InvitesWithFailures, String> {
     let active_account = wn
@@ -112,7 +140,7 @@ pub async fn get_invites(wn: tauri::State<'_, Whitenoise>) -> Result<InvitesWith
 
         invites.push(invite.clone());
         wn.group_manager
-            .add_invite(invite)
+            .add_invite(invite, wn.clone())
             .map_err(|e| e.to_string())?;
 
         if let Some(key_package_event_id) = key_package_event_id {
@@ -149,6 +177,15 @@ pub async fn get_invites(wn: tauri::State<'_, Whitenoise>) -> Result<InvitesWith
     })
 }
 
+/// Gets a specific invite by its ID.
+///
+/// # Arguments
+/// * `invite_id` - The ID of the invite to retrieve
+/// * `wn` - The Whitenoise state
+///
+/// # Returns
+/// * `Ok(Invite)` if the invite was found
+/// * `Err(String)` if there was an error retrieving the invite or it wasn't found
 #[tauri::command]
 pub fn get_invite(invite_id: String, wn: tauri::State<'_, Whitenoise>) -> Result<Invite, String> {
     wn.group_manager
@@ -156,6 +193,20 @@ pub fn get_invite(invite_id: String, wn: tauri::State<'_, Whitenoise>) -> Result
         .map_err(|e| e.to_string())
 }
 
+/// Accepts a group invite and joins the corresponding group.
+///
+/// # Arguments
+/// * `invite` - The invite to accept
+/// * `wn` - The Whitenoise state
+/// * `app_handle` - The Tauri app handle
+///
+/// # Returns
+/// * `Ok(())` if the invite was successfully accepted and the group was joined
+/// * `Err(String)` if there was an error accepting the invite or joining the group
+///
+/// # Events Emitted
+/// * `group_added` - Emitted with the newly joined group after successful join
+/// * `invite_accepted` - Emitted with the updated invite after it is accepted
 #[tauri::command]
 pub fn accept_invite(
     invite: Invite,
@@ -192,6 +243,7 @@ pub fn accept_invite(
             joined_group_result.mls_group.group_id().to_vec(),
             group_type,
             joined_group_result.nostr_group_data,
+            wn.clone(),
         )
         .map_err(|e| format!("Failed to add group: {}", e))?;
 
@@ -201,7 +253,11 @@ pub fn accept_invite(
 
     let new_invite = wn
         .group_manager
-        .update_invite_state(invite.event.id.unwrap().to_string(), InviteState::Accepted)
+        .update_invite_state(
+            invite.event.id.unwrap().to_string(),
+            InviteState::Accepted,
+            wn.clone(),
+        )
         .map_err(|e| format!("Failed to update invite state: {}", e))?;
 
     app_handle
@@ -213,6 +269,19 @@ pub fn accept_invite(
     Ok(())
 }
 
+/// Declines a group invite.
+///
+/// # Arguments
+/// * `invite` - The invite to decline
+/// * `wn` - The Whitenoise state
+/// * `app_handle` - The Tauri app handle
+///
+/// # Returns
+/// * `Ok(())` if the invite was successfully declined
+/// * `Err(String)` if there was an error declining the invite
+///
+/// # Events Emitted
+/// * `invite_declined` - Emitted with the updated invite after it is declined
 #[tauri::command]
 pub fn decline_invite(
     invite: Invite,
@@ -223,7 +292,11 @@ pub fn decline_invite(
 
     let new_invite = wn
         .group_manager
-        .update_invite_state(invite.event.id.unwrap().to_string(), InviteState::Declined)
+        .update_invite_state(
+            invite.event.id.unwrap().to_string(),
+            InviteState::Declined,
+            wn.clone(),
+        )
         .map_err(|e| format!("Failed to decline invite: {}", e))?;
 
     app_handle

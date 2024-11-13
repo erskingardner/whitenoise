@@ -80,7 +80,10 @@
 - ✅ You can somehow add blank strings to the identities Vec
 - ✅ You can log in with the same nsec twice
 - ✅ Login screen doesn't redirect to the app anymore
-- Contacts are showing the wrong user's when two user's are logged in.
+- ✅ Contacts are showing the wrong user's when two user's are logged in.
+- Need to scope storage to each user better
+  - Groups
+  - Invites
 
 ## 🆘 Errors
 

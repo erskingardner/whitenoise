@@ -1,14 +1,12 @@
 use crate::groups::{Group, GroupType};
 use crate::invites::{Invite, InviteState};
+use crate::whitenoise::Whitenoise;
 use nostr_sdk::prelude::*;
 use openmls_nostr::nostr_group_data_extension::NostrGroupDataExtension;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
-
-const GROUP_DB_TREE_NAME: &str = "groups";
-const INVITE_DB_TREE_NAME: &str = "invites";
 
 #[derive(Error, Debug)]
 pub enum GroupManagerError {
@@ -47,16 +45,20 @@ pub struct GroupManagerState {
 
 #[derive(Debug)]
 pub struct GroupManager {
-    state: Mutex<GroupManagerState>,
-    db: Arc<sled::Db>,
+    pub state: Mutex<GroupManagerState>,
+    pub db: Arc<sled::Db>,
 }
 
 impl GroupManager {
-    pub fn new(database: Arc<sled::Db>) -> Result<Self> {
+    pub fn new(
+        database: Arc<sled::Db>,
+        groups_tree_name: String,
+        invites_tree_name: String,
+    ) -> Result<Self> {
         // Load groups from database
         let mut groups = HashMap::new();
         let groups_tree = database
-            .open_tree(GROUP_DB_TREE_NAME)
+            .open_tree(groups_tree_name)
             .map_err(|e| GroupManagerError::DatabaseError(e.to_string()))?;
 
         for result in groups_tree.iter() {
@@ -70,7 +72,7 @@ impl GroupManager {
         // Load invites from database
         let mut invites = HashMap::new();
         let invites_tree = database
-            .open_tree(INVITE_DB_TREE_NAME)
+            .open_tree(invites_tree_name)
             .map_err(|e| GroupManagerError::DatabaseError(e.to_string()))?;
 
         for result in invites_tree.iter() {
@@ -99,45 +101,53 @@ impl GroupManager {
         })
     }
 
-    fn persist_state(&self) -> Result<()> {
-        tracing::debug!(
-            target: "whitenoise::group_manager::persist_state",
-            "Persisting groups state"
-        );
+    pub fn persist_state(&self, groups_tree_name: String, invites_tree_name: String) -> Result<()> {
+        {
+            let state = self
+                .state
+                .lock()
+                .map_err(|e| GroupManagerError::LockError(e.to_string()))?;
 
-        let state = self
-            .state
-            .lock()
-            .map_err(|e| GroupManagerError::LockError(e.to_string()))?;
+            tracing::debug!(
+                target: "whitenoise::group_manager::write_groups_state",
+                "Writing groups state to database tree: {}",
+                groups_tree_name
+            );
 
-        // Persist groups
-        let groups_tree = self
-            .db
-            .open_tree(GROUP_DB_TREE_NAME)
-            .map_err(|e| GroupManagerError::DatabaseError(e.to_string()))?;
-
-        for (mls_group_id, group) in state.groups.iter() {
-            let group_bytes =
-                serde_json::to_vec(group).map_err(GroupManagerError::GroupSerializationError)?;
-            groups_tree
-                .insert(mls_group_id, group_bytes)
+            // Persist groups
+            let groups_tree = self
+                .db
+                .open_tree(groups_tree_name)
                 .map_err(|e| GroupManagerError::DatabaseError(e.to_string()))?;
-        }
 
-        // Persist invites
-        let invites_tree = self
-            .db
-            .open_tree(INVITE_DB_TREE_NAME)
-            .map_err(|e| GroupManagerError::DatabaseError(e.to_string()))?;
+            for (mls_group_id, group) in state.groups.iter() {
+                let group_bytes = serde_json::to_vec(group)
+                    .map_err(GroupManagerError::GroupSerializationError)?;
+                groups_tree
+                    .insert(mls_group_id, group_bytes)
+                    .map_err(|e| GroupManagerError::DatabaseError(e.to_string()))?;
+            }
 
-        for (key, invite) in state.invites.iter() {
-            let invite_bytes =
-                serde_json::to_vec(invite).map_err(GroupManagerError::InviteSerializationError)?;
-            invites_tree
-                .insert(key, invite_bytes)
+            tracing::debug!(
+                target: "whitenoise::group_manager::write_invites_state",
+                "Writing invites state to database tree: {}",
+                invites_tree_name
+            );
+
+            // Persist invites
+            let invites_tree = self
+                .db
+                .open_tree(invites_tree_name)
                 .map_err(|e| GroupManagerError::DatabaseError(e.to_string()))?;
-        }
 
+            for (key, invite) in state.invites.iter() {
+                let invite_bytes = serde_json::to_vec(invite)
+                    .map_err(GroupManagerError::InviteSerializationError)?;
+                invites_tree
+                    .insert(key, invite_bytes)
+                    .map_err(|e| GroupManagerError::DatabaseError(e.to_string()))?;
+            }
+        }
         // Flush changes to database to be sure they are written
         self.db
             .flush()
@@ -151,6 +161,7 @@ impl GroupManager {
         mls_group_id: Vec<u8>,
         group_type: GroupType,
         group_data: NostrGroupDataExtension,
+        wn: tauri::State<'_, Whitenoise>,
     ) -> Result<Group> {
         let group = Group {
             mls_group_id,
@@ -180,8 +191,7 @@ impl GroupManager {
                 .insert(group.mls_group_id.clone(), group.clone());
         }
 
-        self.persist_state()
-            .map_err(|e| GroupManagerError::DatabaseError(e.to_string()))?;
+        wn.persist_group_manager_state()?;
 
         Ok(group)
     }
@@ -220,7 +230,7 @@ impl GroupManager {
             .ok_or(GroupManagerError::GroupNotFound(mls_group_id))
     }
 
-    pub fn add_invite(&self, invite: Invite) -> Result<()> {
+    pub fn add_invite(&self, invite: Invite, wn: tauri::State<'_, Whitenoise>) -> Result<()> {
         {
             let mut state = self
                 .state
@@ -232,8 +242,7 @@ impl GroupManager {
                 .insert(invite.event.id.unwrap().to_hex(), invite);
         }
 
-        self.persist_state()
-            .map_err(|e| GroupManagerError::DatabaseError(e.to_string()))?;
+        wn.persist_group_manager_state()?;
 
         Ok(())
     }
@@ -268,7 +277,12 @@ impl GroupManager {
             .ok_or(GroupManagerError::InviteNotFound(invite_id))
     }
 
-    pub fn update_invite_state(&self, invite_id: String, new_state: InviteState) -> Result<Invite> {
+    pub fn update_invite_state(
+        &self,
+        invite_id: String,
+        new_state: InviteState,
+        wn: tauri::State<'_, Whitenoise>,
+    ) -> Result<Invite> {
         let invite = {
             let mut state = self
                 .state
@@ -284,8 +298,7 @@ impl GroupManager {
             invite.clone()
         };
 
-        self.persist_state()
-            .map_err(|e| GroupManagerError::DatabaseError(e.to_string()))?;
+        wn.persist_group_manager_state()?;
 
         Ok(invite)
     }
