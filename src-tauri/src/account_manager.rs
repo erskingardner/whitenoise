@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
-use crate::nostr_client::{NostrClient, NostrClientError};
+use crate::nostr_manager;
 use crate::types::EnrichedContact;
 
 const ACCOUNTS_DB_TREE_NAME: &str = "accounts";
@@ -29,8 +29,8 @@ pub enum AccountError {
     #[error("Failed to parse public key: {0}")]
     PublicKeyError(#[from] nostr_sdk::key::Error),
 
-    #[error("Nostr Client error: {0}")]
-    NostrClientError(#[from] NostrClientError),
+    #[error("Nostr Manager error: {0}")]
+    NostrManagerError(#[from] nostr_manager::NostrManagerError),
 
     #[error("Failed to serialize account: {0}")]
     SerializationError(#[from] serde_json::Error),
@@ -73,9 +73,11 @@ pub struct Account {
     pub inbox_relays: Vec<String>,
     pub key_package_relays: Vec<String>,
     pub mls_group_ids: Vec<Vec<u8>>,
+    pub nostr_group_ids: Vec<String>,
     pub settings: AccountSettings,
     pub onboarding: AccountOnboarding,
-    pub last_used: chrono::DateTime<chrono::Utc>,
+    pub last_used: Timestamp,
+    pub last_synced: Timestamp,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -182,7 +184,7 @@ impl AccountManager {
         &self,
         keys: Keys,
         set_active: bool,
-        nostr_client: &NostrClient,
+        nostr_manager: &nostr_manager::NostrManager,
     ) -> Result<Account> {
         let pubkey = keys.public_key();
         {
@@ -197,26 +199,26 @@ impl AccountManager {
         }
 
         // Fetch metadata & relays from Nostr
-        let metadata = nostr_client
+        let metadata = nostr_manager
             .fetch_user_metadata(pubkey)
             .await
-            .map_err(AccountError::NostrClientError);
-        let nostr_relays = nostr_client
+            .map_err(AccountError::NostrManagerError);
+        let nostr_relays = nostr_manager
             .fetch_user_relays(pubkey)
             .await
-            .map_err(AccountError::NostrClientError);
-        let inbox_relays = nostr_client
+            .map_err(AccountError::NostrManagerError);
+        let inbox_relays = nostr_manager
             .fetch_user_inbox_relays(pubkey)
             .await
-            .map_err(AccountError::NostrClientError);
-        let key_package_relays = nostr_client
+            .map_err(AccountError::NostrManagerError);
+        let key_package_relays = nostr_manager
             .fetch_user_key_package_relays(pubkey)
             .await
-            .map_err(AccountError::NostrClientError);
-        let key_packages = nostr_client
+            .map_err(AccountError::NostrManagerError);
+        let key_packages = nostr_manager
             .fetch_user_key_packages(pubkey)
             .await
-            .map_err(AccountError::NostrClientError);
+            .map_err(AccountError::NostrManagerError)?;
 
         let mut onboarding = AccountOnboarding::default();
 
@@ -229,7 +231,7 @@ impl AccountManager {
         if !key_package_relays_unwrapped.is_empty() {
             onboarding.key_package_relays = true;
         }
-        if key_packages.is_ok() {
+        if !key_packages.is_empty() {
             onboarding.publish_key_package = true;
         }
 
@@ -240,9 +242,11 @@ impl AccountManager {
             inbox_relays: inbox_relays_unwrapped,
             key_package_relays: key_package_relays_unwrapped,
             mls_group_ids: vec![],
+            nostr_group_ids: vec![],
             settings: AccountSettings::default(),
             onboarding,
-            last_used: chrono::Utc::now(),
+            last_used: Timestamp::now(),
+            last_synced: Timestamp::zero(),
         };
 
         {
@@ -280,7 +284,7 @@ impl AccountManager {
 
                     // Update last accessed time
                     if let Some(fetched_account) = state.accounts.get_mut(&hex_pubkey) {
-                        fetched_account.last_used = chrono::Utc::now();
+                        fetched_account.last_used = Timestamp::now();
                     }
 
                     state.active_account = Some(hex_pubkey.clone());
@@ -356,7 +360,12 @@ impl AccountManager {
         Ok(())
     }
 
-    pub fn add_mls_group_id(&self, pubkey: String, mls_group_id: Vec<u8>) -> Result<()> {
+    pub fn add_group_ids(
+        &self,
+        pubkey: String,
+        mls_group_id: Vec<u8>,
+        nostr_group_id: String,
+    ) -> Result<()> {
         {
             let mut state = self
                 .state
@@ -366,6 +375,9 @@ impl AccountManager {
             if let Some(account) = state.accounts.get_mut(&pubkey) {
                 if !account.mls_group_ids.contains(&mls_group_id) {
                     account.mls_group_ids.push(mls_group_id);
+                }
+                if !account.nostr_group_ids.contains(&nostr_group_id) {
+                    account.nostr_group_ids.push(nostr_group_id);
                 }
             }
         }
@@ -377,7 +389,12 @@ impl AccountManager {
     }
 
     #[allow(dead_code)]
-    pub fn remove_mls_group_id(&self, pubkey: String, mls_group_id: Vec<u8>) -> Result<()> {
+    pub fn remove_group_ids(
+        &self,
+        pubkey: String,
+        mls_group_id: Vec<u8>,
+        nostr_group_id: String,
+    ) -> Result<()> {
         {
             let mut state = self
                 .state
@@ -386,6 +403,7 @@ impl AccountManager {
 
             if let Some(account) = state.accounts.get_mut(&pubkey) {
                 account.mls_group_ids.retain(|id| *id != mls_group_id);
+                account.nostr_group_ids.retain(|id| *id != nostr_group_id);
             }
         }
 
@@ -488,7 +506,7 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn test_add_account() {
-        todo!("Implement this test, needs mocks for nostr_client")
+        todo!("Implement this test, needs mocks for nostr_manager")
     }
 
     #[test]
@@ -512,9 +530,11 @@ mod tests {
             inbox_relays: vec![],
             key_package_relays: vec![],
             mls_group_ids: vec![],
+            nostr_group_ids: vec![],
             settings: AccountSettings::default(),
             onboarding: AccountOnboarding::default(),
-            last_used: chrono::Utc::now(),
+            last_used: Timestamp::now(),
+            last_synced: Timestamp::zero(),
         };
 
         {
@@ -547,9 +567,11 @@ mod tests {
             inbox_relays: vec![],
             key_package_relays: vec![],
             mls_group_ids: vec![],
+            nostr_group_ids: vec![],
             settings: AccountSettings::default(),
             onboarding: AccountOnboarding::default(),
-            last_used: chrono::Utc::now(),
+            last_used: Timestamp::now(),
+            last_synced: Timestamp::zero(),
         };
 
         {

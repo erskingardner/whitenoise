@@ -4,6 +4,7 @@ use crate::whitenoise::Whitenoise;
 use nostr_sdk::prelude::*;
 use std::collections::HashMap;
 use tauri::Emitter;
+use tokio::spawn;
 
 #[tauri::command]
 pub async fn init_nostr_for_current_user(
@@ -14,12 +15,28 @@ pub async fn init_nostr_for_current_user(
         .account_manager
         .get_active_account()
         .map_err(|e| e.to_string())?;
+
     let keys = secrets_store::get_nostr_keys_for_pubkey(&current_account.pubkey, &wn.data_dir)
         .map_err(|e| e.to_string())?;
+
+    // Update Nostr identity and connect relays
     wn.nostr
-        .update_nostr_identity(keys)
+        .update_nostr_identity(keys.clone())
         .await
         .map_err(|e| e.to_string())?;
+
+    let pubkey = keys.public_key();
+    let last_synced = current_account.last_synced;
+    let group_ids = current_account.nostr_group_ids.clone();
+    let nostr = wn.nostr.clone();
+
+    spawn(async move {
+        if let Err(e) = nostr.sync_for_user(pubkey, last_synced, group_ids).await {
+            tracing::error!("Error during background sync: {}", e);
+        }
+    });
+
+    // TODO: Create subscriptions
 
     app_handle
         .emit("nostr_ready", ())
@@ -85,7 +102,7 @@ pub async fn fetch_enriched_contacts(
     let contact_list_pubkeys = wn
         .nostr
         .client
-        .get_contact_list_public_keys(Some(wn.nostr.timeout()))
+        .get_contact_list_public_keys(Some(wn.nostr.timeout().map_err(|e| e.to_string())?))
         .await
         .expect("Failed to fetch contact list public keys");
 
@@ -119,7 +136,10 @@ pub async fn fetch_enriched_contacts(
         let fetched_contacts = wn
             .nostr
             .client
-            .fetch_events(vec![metadata_filter.clone()], Some(wn.nostr.timeout()))
+            .fetch_events(
+                vec![metadata_filter.clone()],
+                Some(wn.nostr.timeout().map_err(|e| e.to_string())?),
+            )
             .await
             .expect("Failed to fetch metadata");
 
@@ -142,7 +162,7 @@ pub async fn fetch_enriched_contacts(
             .client
             .fetch_events(
                 vec![dm_relay_list_filter, prekey_filter, key_package_list_filter],
-                Some(wn.nostr.timeout()),
+                Some(wn.nostr.timeout().map_err(|e| e.to_string())?),
             )
             .await
             .expect("Failed to fetch messaging capabilities");

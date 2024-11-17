@@ -4,7 +4,7 @@ mod group_manager;
 mod groups;
 mod invites;
 mod key_packages;
-mod nostr_client;
+mod nostr_manager;
 mod secrets_store;
 mod types;
 mod utils;
@@ -63,6 +63,7 @@ pub fn run() {
             get_invite,
             accept_invite,
             decline_invite,
+            send_mls_message,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

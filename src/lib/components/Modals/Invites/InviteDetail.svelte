@@ -12,7 +12,7 @@
 
     let subhead = $derived(
         invite.member_count === 2
-            ? "has invited you to join a secure chat."
+            ? "has invited you to join a secure private chat."
             : `has invited you to join ${invite.group_name}, a group with ${invite.member_count} members.`
     );
 

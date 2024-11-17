@@ -1,23 +1,37 @@
 <script lang="ts">
     import { PaperPlaneTilt } from "phosphor-svelte";
-    let { group } = $props();
+    import { invoke } from "@tauri-apps/api/core";
+    import type { NEvent, NostrMlsGroup } from "$lib/types/nostr";
+
+    let { group }: { group: NostrMlsGroup } = $props();
 
     let message = $state("");
     let textarea: HTMLTextAreaElement;
 
-    function adjustHeight() {
+    function adjustTextareaHeight() {
         textarea.style.height = "auto";
         textarea.style.height = textarea.scrollHeight + "px";
     }
 
     function handleInput() {
-        adjustHeight();
+        adjustTextareaHeight();
     }
 
-    function sendMessage() {
-        console.log("sendMessage", message);
+    async function sendMessage() {
+        if (message.length === 0) return;
+
+        // TODO: Send message to the MLS group
+        const message_event: NEvent = await invoke("send_mls_message", {
+            group,
+            message: message,
+        });
+
+        console.log("Message sent", message_event);
+        group.transcript.push(message_event);
+
+        // Clear the message input and adjust the height of the textarea
         message = "";
-        setTimeout(adjustHeight, 0);
+        setTimeout(adjustTextareaHeight, 0);
     }
 
     function handleKeydown(event: KeyboardEvent) {

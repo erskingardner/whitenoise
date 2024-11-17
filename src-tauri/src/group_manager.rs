@@ -1,6 +1,5 @@
 use crate::groups::{Group, GroupType};
 use crate::invites::{Invite, InviteState};
-use crate::whitenoise::Whitenoise;
 use nostr_sdk::prelude::*;
 use openmls_nostr::nostr_group_data_extension::NostrGroupDataExtension;
 use serde::{Deserialize, Serialize};
@@ -36,6 +35,7 @@ pub enum GroupManagerError {
 }
 
 pub type Result<T> = std::result::Result<T, GroupManagerError>;
+pub type GroupAndInviteMap = (HashMap<Vec<u8>, Group>, HashMap<String, Invite>);
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GroupManagerState {
@@ -45,18 +45,30 @@ pub struct GroupManagerState {
 
 #[derive(Debug)]
 pub struct GroupManager {
-    pub state: Mutex<GroupManagerState>,
+    /// The active account's pubkey, should always be the same as the active account in the AccountManager
+    pub active_account: Arc<Mutex<String>>,
+    pub state: Arc<Mutex<GroupManagerState>>,
     pub db: Arc<sled::Db>,
 }
 
 impl GroupManager {
-    pub fn new(
-        database: Arc<sled::Db>,
-        groups_tree_name: String,
-        invites_tree_name: String,
-    ) -> Result<Self> {
+    pub fn new(database: Arc<sled::Db>, active_account_pubkey: String) -> Result<Self> {
+        let (groups, invites) =
+            GroupManager::load_state(database.clone(), active_account_pubkey.clone())?;
+
+        Ok(GroupManager {
+            active_account: Arc::new(Mutex::new(active_account_pubkey)),
+            state: Arc::new(Mutex::new(GroupManagerState { groups, invites })),
+            db: database,
+        })
+    }
+
+    pub fn load_state(database: Arc<sled::Db>, pubkey: String) -> Result<GroupAndInviteMap> {
         // Load groups from database
         let mut groups = HashMap::new();
+        let groups_tree_name = format!("{}{}", "groups", pubkey);
+        let invites_tree_name = format!("{}{}", "invites", pubkey);
+
         let groups_tree = database
             .open_tree(groups_tree_name)
             .map_err(|e| GroupManagerError::DatabaseError(e.to_string()))?;
@@ -95,14 +107,19 @@ impl GroupManager {
             invites
         );
 
-        Ok(GroupManager {
-            state: Mutex::new(GroupManagerState { groups, invites }),
-            db: database,
-        })
+        Ok((groups, invites))
     }
 
-    pub fn persist_state(&self, groups_tree_name: String, invites_tree_name: String) -> Result<()> {
+    pub fn persist_state(&self) -> Result<()> {
         {
+            let pubkey = self
+                .active_account
+                .lock()
+                .map_err(|e| GroupManagerError::LockError(e.to_string()))?;
+
+            let groups_tree_name = format!("{}{}", "groups", *pubkey);
+            let invites_tree_name = format!("{}{}", "invites", *pubkey);
+
             let state = self
                 .state
                 .lock()
@@ -143,9 +160,20 @@ impl GroupManager {
             for (key, invite) in state.invites.iter() {
                 let invite_bytes = serde_json::to_vec(invite)
                     .map_err(GroupManagerError::InviteSerializationError)?;
+                tracing::debug!(
+                    target: "whitenoise::group_manager::persist_state",
+                    "About to persist invite {}: {:?}",
+                    key,
+                    invite
+                );
                 invites_tree
                     .insert(key, invite_bytes)
                     .map_err(|e| GroupManagerError::DatabaseError(e.to_string()))?;
+                tracing::debug!(
+                    target: "whitenoise::group_manager::persist_state",
+                    "Successfully persisted invite {}",
+                    key
+                );
             }
         }
         // Flush changes to database to be sure they are written
@@ -156,13 +184,57 @@ impl GroupManager {
         Ok(())
     }
 
+    pub fn set_active_account(&self, pubkey: String) -> Result<()> {
+        // First update the active account
+        {
+            let mut active_account = self
+                .active_account
+                .lock()
+                .map_err(|e| GroupManagerError::LockError(e.to_string()))?;
+            *active_account = pubkey.clone();
+            tracing::debug!(
+                target: "whitenoise::group_manager::set_active_account",
+                "Active account updated to: {}",
+                pubkey
+            );
+        }
+
+        // Then load the state for the new active account
+        let (groups, invites) = GroupManager::load_state(self.db.clone(), pubkey.clone())?;
+
+        // Then update the in-memory state
+        {
+            let mut state = self
+                .state
+                .lock()
+                .map_err(|e| GroupManagerError::LockError(e.to_string()))?;
+
+            state.groups = groups;
+            state.invites = invites;
+
+            tracing::debug!(
+                target: "whitenoise::group_manager::set_active_account",
+                "Groups state updated: {:?}",
+                state.groups
+            );
+
+            tracing::debug!(
+                target: "whitenoise::group_manager::set_active_account",
+                "Invites state updated: {:?}",
+                state.invites
+            );
+        }
+
+        self.persist_state()
+    }
+
     pub fn add_group(
         &self,
         mls_group_id: Vec<u8>,
         group_type: GroupType,
         group_data: NostrGroupDataExtension,
-        wn: tauri::State<'_, Whitenoise>,
     ) -> Result<Group> {
+        tracing::debug!("Adding group with ID: {:?}", hex::encode(&mls_group_id));
         let group = Group {
             mls_group_id,
             nostr_group_id: group_data.nostr_group_id(),
@@ -191,24 +263,17 @@ impl GroupManager {
                 .insert(group.mls_group_id.clone(), group.clone());
         }
 
-        wn.persist_group_manager_state()?;
-
+        self.persist_state()?;
         Ok(group)
     }
 
-    // This is scoped so that we can only get the groups that the user is a member of.
-    pub fn get_groups(&self, mls_group_ids: Vec<Vec<u8>>) -> Result<Vec<Group>> {
+    pub fn get_groups(&self) -> Result<Vec<Group>> {
         let state = self
             .state
             .lock()
             .map_err(|e| GroupManagerError::LockError(e.to_string()))?;
 
-        let groups = state
-            .groups
-            .values()
-            .filter(|group| mls_group_ids.contains(&group.mls_group_id))
-            .cloned()
-            .collect();
+        let groups = state.groups.values().cloned().collect();
 
         Ok(groups)
     }
@@ -230,7 +295,7 @@ impl GroupManager {
             .ok_or(GroupManagerError::GroupNotFound(mls_group_id))
     }
 
-    pub fn add_invite(&self, invite: Invite, wn: tauri::State<'_, Whitenoise>) -> Result<()> {
+    pub fn add_invite(&self, invite: Invite) -> Result<()> {
         {
             let mut state = self
                 .state
@@ -242,24 +307,18 @@ impl GroupManager {
                 .insert(invite.event.id.unwrap().to_hex(), invite);
         }
 
-        wn.persist_group_manager_state()?;
+        self.persist_state()?;
 
         Ok(())
     }
 
-    // This is scoped so that we can only get the invites that the user is a member of.
-    pub fn get_invites(&self, mls_group_ids: Vec<Vec<u8>>) -> Result<Vec<Invite>> {
+    pub fn get_invites(&self) -> Result<Vec<Invite>> {
         let state = self
             .state
             .lock()
             .map_err(|e| GroupManagerError::LockError(e.to_string()))?;
 
-        let invites = state
-            .invites
-            .values()
-            .filter(|invite| mls_group_ids.contains(&invite.mls_group_id))
-            .cloned()
-            .collect();
+        let invites = state.invites.values().cloned().collect();
 
         Ok(invites)
     }
@@ -277,13 +336,9 @@ impl GroupManager {
             .ok_or(GroupManagerError::InviteNotFound(invite_id))
     }
 
-    pub fn update_invite_state(
-        &self,
-        invite_id: String,
-        new_state: InviteState,
-        wn: tauri::State<'_, Whitenoise>,
-    ) -> Result<Invite> {
-        let invite = {
+    pub fn update_invite_state(&self, invite_id: String, new_state: InviteState) -> Result<Invite> {
+        let new_invite: Invite;
+        {
             let mut state = self
                 .state
                 .lock()
@@ -292,14 +347,57 @@ impl GroupManager {
             let invite = state
                 .invites
                 .get_mut(&invite_id)
-                .ok_or(GroupManagerError::InviteNotFound(invite_id))?;
+                .ok_or(GroupManagerError::InviteNotFound(invite_id.clone()))?;
+
+            tracing::debug!(
+                target: "whitenoise::group_manager::update_invite_state",
+                "Updating invite {} state from {:?} to {:?}",
+                invite_id,
+                invite.state,
+                new_state
+            );
 
             invite.state = new_state;
-            invite.clone()
+            new_invite = invite.clone();
         };
 
-        wn.persist_group_manager_state()?;
+        self.persist_state()?;
 
-        Ok(invite)
+        tracing::debug!(
+            target: "whitenoise::group_manager::update_invite_state",
+            "After persist, invite {} state is {:?}",
+            invite_id,
+            new_invite.state
+        );
+
+        Ok(new_invite)
+    }
+
+    pub fn add_message_to_group(
+        &self,
+        mls_group_id: Vec<u8>,
+        message: UnsignedEvent,
+    ) -> Result<Group> {
+        let new_group: Group;
+        {
+            let mut state = self
+                .state
+                .lock()
+                .map_err(|e| GroupManagerError::LockError(e.to_string()))?;
+
+            let group = state
+                .groups
+                .get_mut(&mls_group_id)
+                .ok_or(GroupManagerError::GroupNotFound(hex::encode(mls_group_id)))?;
+
+            group.transcript.push(message.clone());
+            group.last_message_id = Some(message.id.unwrap().to_string());
+            group.last_message_at = Some(Timestamp::now());
+            new_group = group.clone();
+        }
+
+        self.persist_state()?;
+
+        Ok(new_group)
     }
 }

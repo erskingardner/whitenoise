@@ -2,7 +2,9 @@ use crate::account_manager::{Account, AccountError, AccountManagerState};
 use crate::secrets_store;
 use crate::whitenoise::Whitenoise;
 use nostr_sdk::Keys;
+use openmls_nostr::NostrMls;
 use tauri::Emitter;
+use tokio::spawn;
 
 /// Retrieves the currently active account.
 ///
@@ -91,19 +93,69 @@ pub async fn login(
             "Saved private key to secrets store"
         );
 
+        wn.group_manager
+            .set_active_account(keys.clone().public_key().to_hex())
+            .map_err(|e| format!("Error setting active account on group manager: {}", e))?;
+
         app_handle
             .emit("account_changed", ())
             .map_err(|e| e.to_string())?;
 
-        // Update Nostr identity
+        // Update Nostr identity and connect relays
         wn.nostr
-            .update_nostr_identity(keys)
+            .update_nostr_identity(keys.clone())
             .await
             .map_err(|e| e.to_string())?;
+
+        let pubkey = keys.public_key();
+        let last_synced = account.last_synced;
+        let group_ids = account.nostr_group_ids;
+        let nostr = wn.nostr.clone();
+
+        // Spawn two tasks in parallel:
+        // 1. Negentropy sync for past events
+        // 2. Setup subscriptions to catch future events
+        spawn(async move {
+            match nostr
+                .sync_for_user(pubkey, last_synced, group_ids.clone())
+                .await
+            {
+                Ok(_) => {
+                    tracing::debug!(
+                        target: "whitenoise::commands::accounts::login",
+                        "Negentropy event sync completed"
+                    );
+                }
+                Err(e) => {
+                    tracing::error!(
+                        target: "whitenoise::commands::accounts::login",
+                        "Error in negentropy sync: {}",
+                        e
+                    );
+                }
+            }
+
+            if let Err(e) = nostr.setup_subscriptions(pubkey, group_ids.clone()).await {
+                tracing::error!(
+                    target: "whitenoise::commands::accounts::login",
+                    "Error subscribing to events: {}",
+                    e
+                );
+            }
+        });
 
         app_handle
             .emit("nostr_ready", ())
             .map_err(|e| e.to_string())?;
+
+        // Update Nostr MLS instance
+        {
+            let mut nostr_mls = wn
+                .nostr_mls
+                .lock()
+                .map_err(|e| format!("Error locking Nostr MLS: {}", e))?;
+            *nostr_mls = NostrMls::new(wn.data_dir.clone(), Some(keys.public_key().to_hex()));
+        }
     }
     Ok(wn.account_manager.get_accounts_state().unwrap())
 }
@@ -152,18 +204,50 @@ pub async fn set_active_account(
     let keys = secrets_store::get_nostr_keys_for_pubkey(&hex_pubkey, &wn.data_dir)
         .map_err(|e| format!("Error fetching keys: {}", e))?;
 
+    let active_account = wn
+        .account_manager
+        .get_active_account()
+        .map_err(|e| format!("Error fetching active account: {}", e))?;
+
+    wn.group_manager
+        .set_active_account(hex_pubkey.clone())
+        .map_err(|e| format!("Error setting active account on group manager: {}", e))?;
+
     app_handle
         .emit("account_changed", ())
         .map_err(|e| e.to_string())?;
 
+    // Update Nostr identity and connect relays
     wn.nostr
-        .update_nostr_identity(keys)
+        .update_nostr_identity(keys.clone())
         .await
         .map_err(|e| e.to_string())?;
+
+    let pubkey = keys.public_key();
+    let last_synced = active_account.last_synced;
+    let group_ids = active_account.nostr_group_ids.clone();
+    let nostr = wn.nostr.clone();
+
+    spawn(async move {
+        if let Err(e) = nostr.sync_for_user(pubkey, last_synced, group_ids).await {
+            tracing::error!("Error during background sync: {}", e);
+        }
+    });
+
+    // TODO: Create subscriptions
 
     app_handle
         .emit("nostr_ready", ())
         .map_err(|e| e.to_string())?;
+
+    // Update Nostr MLS instance
+    {
+        let mut nostr_mls = wn
+            .nostr_mls
+            .lock()
+            .map_err(|e| format!("Error locking Nostr MLS: {}", e))?;
+        *nostr_mls = NostrMls::new(wn.data_dir.clone(), Some(hex_pubkey.clone()));
+    }
 
     Ok(wn.account_manager.get_accounts_state().unwrap())
 }
@@ -207,9 +291,9 @@ pub async fn logout(
 
     // Update Nostr identity to the new current user
     match wn.account_manager.get_active_account() {
-        Ok(current_identity) => {
+        Ok(current_account) => {
             // If the current identity is not the same as the Nostr identity, update the Nostr identity
-            if current_identity.pubkey
+            if current_account.pubkey
                 != wn
                     .nostr
                     .client
@@ -221,15 +305,32 @@ pub async fn logout(
                     .map_err(|e| format!("Error fetching public key: {}", e))?
                     .to_hex()
             {
-                let keys = secrets_store::get_nostr_keys_for_pubkey(
-                    &current_identity.pubkey,
-                    &wn.data_dir,
-                )
-                .map_err(|e| format!("Error fetching keys: {}", e))?;
+                let keys =
+                    secrets_store::get_nostr_keys_for_pubkey(&current_account.pubkey, &wn.data_dir)
+                        .map_err(|e| format!("Error fetching keys: {}", e))?;
 
-                wn.nostr.update_nostr_identity(keys).await.map_err(|e| {
-                    format!("Error updating nostr identity to new current user: {}", e)
-                })?;
+                // Update Nostr identity and connect relays
+                wn.nostr
+                    .update_nostr_identity(keys.clone())
+                    .await
+                    .map_err(|e| e.to_string())?;
+
+                let pubkey = keys.public_key();
+                let last_synced = current_account.last_synced;
+                let group_ids = current_account.nostr_group_ids.clone();
+                let nostr = wn.nostr.clone();
+
+                spawn(async move {
+                    if let Err(e) = nostr.sync_for_user(pubkey, last_synced, group_ids).await {
+                        tracing::error!("Error during background sync: {}", e);
+                    }
+                });
+
+                // TODO: Create subscriptions
+
+                app_handle
+                    .emit("nostr_ready", ())
+                    .map_err(|e| e.to_string())?;
             }
         }
         Err(AccountError::NoAccountsExist) => return Err("No accounts exist".to_string()),

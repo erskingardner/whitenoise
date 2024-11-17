@@ -1,4 +1,5 @@
 use crate::account_manager::AccountError;
+use crate::nostr_manager;
 use crate::whitenoise::Whitenoise;
 use nostr_sdk::prelude::*;
 use openmls_nostr::key_packages::KeyPackage;
@@ -12,6 +13,8 @@ pub enum KeyPackageError {
     FetchingKeyPackage(String),
     #[error("Account Error: {0}")]
     AccountError(#[from] AccountError),
+    #[error("Nostr Error: {0}")]
+    NostrError(#[from] nostr_manager::NostrManagerError),
     #[error("Nostr Client Error: {0}")]
     NostrClientError(#[from] nostr_sdk::client::Error),
     #[error("Nostr Signer Error: {0}")]
@@ -69,14 +72,15 @@ pub async fn fetch_key_package_for_pubkey(
     let prekey_events = wn
         .nostr
         .client
-        .fetch_events(vec![prekey_filter], Some(wn.nostr.timeout()))
+        .fetch_events(vec![prekey_filter], Some(wn.nostr.timeout()?))
         .await
         .expect("Error fetching prekey events");
 
     let key_packages: Vec<KeyPackage> = prekey_events
         .iter()
         .filter_map(|event| {
-            openmls_nostr::key_packages::parse_key_package(event.content.to_string(), &wn.nostr_mls)
+            let nostr_mls = wn.nostr_mls.lock().expect("Failed to lock nostr_mls");
+            openmls_nostr::key_packages::parse_key_package(event.content.to_string(), &nostr_mls)
                 .ok()
         })
         .collect();
@@ -84,11 +88,11 @@ pub async fn fetch_key_package_for_pubkey(
     // Get the first valid key package
     let valid_key_package = key_packages.iter().find(|&kp| {
         // Check that the ciphersuite and extensions are the same
-        // TODO: Do we need to check that the credential is the same?
-        kp.ciphersuite() == wn.nostr_mls.ciphersuite
+        let nostr_mls = wn.nostr_mls.lock().expect("Failed to lock nostr_mls");
+        kp.ciphersuite() == nostr_mls.ciphersuite
             && kp.last_resort()
-            && kp.leaf_node().capabilities().extensions().len() == wn.nostr_mls.extensions.len()
-            && wn.nostr_mls.extensions.iter().all(|&ext_type| {
+            && kp.leaf_node().capabilities().extensions().len() == nostr_mls.extensions.len()
+            && nostr_mls.extensions.iter().all(|&ext_type| {
                 kp.leaf_node()
                     .capabilities()
                     .extensions()
@@ -166,24 +170,25 @@ pub async fn delete_key_package_from_relays(
                 .id(*event_id)
                 .kind(Kind::MlsKeyPackage)
                 .author(current_pubkey)],
-            Some(wn.nostr.timeout()),
+            Some(wn.nostr.timeout()?),
         )
         .await?;
 
     if let Some(event) = key_package_events.first() {
         // Make sure we delete the private key material from MLS storage if requested
         if delete_mls_stored_keys {
+            let nostr_mls = wn.nostr_mls.lock().map_err(|_| {
+                KeyPackageError::NoValidKeyPackage("Failed to lock nostr_mls".to_string())
+            })?;
+
             let key_package = openmls_nostr::key_packages::parse_key_package(
                 event.content.to_string(),
-                &wn.nostr_mls,
+                &nostr_mls,
             )
             .map_err(KeyPackageError::NostrMlsError)?;
 
-            openmls_nostr::key_packages::delete_key_package_from_storage(
-                key_package,
-                &wn.nostr_mls,
-            )
-            .map_err(KeyPackageError::NostrMlsError)?;
+            openmls_nostr::key_packages::delete_key_package_from_storage(key_package, &nostr_mls)
+                .map_err(KeyPackageError::NostrMlsError)?;
         }
         let builder = EventBuilder::delete(vec![event.id]);
         wn.nostr

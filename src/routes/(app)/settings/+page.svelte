@@ -143,9 +143,9 @@
         if (showAccountsState) {
             invoke("get_accounts_state").then((accounts) => {
                 accountsState = JSON.stringify(accounts, null, 2);
+                console.log(accountsState);
             });
         }
-        console.log(accountsState);
     }
 
     let showGroupsState = $state(false);
@@ -155,6 +155,7 @@
         if (showGroupsState) {
             invoke("get_groups").then((groups) => {
                 groupsState = JSON.stringify(groups, null, 2);
+                console.log(groupsState);
             });
         }
     }

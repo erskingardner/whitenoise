@@ -50,10 +50,9 @@ pub async fn get_invites(wn: tauri::State<'_, Whitenoise>) -> Result<InvitesWith
 
     let mut invites: Vec<Invite> = Vec::new();
 
-    let stored_invites = wn
-        .group_manager
-        .get_invites(active_account.mls_group_ids)
-        .map_err(|e| e.to_string())?;
+    let stored_invites = wn.group_manager.get_invites().map_err(|e| e.to_string())?;
+
+    tracing::debug!(target: "whitenoise::commands::invites::get_invites", "Stored invites: {:?}", stored_invites);
 
     let stored_invite_ids: Vec<_> = stored_invites
         .iter()
@@ -65,6 +64,8 @@ pub async fn get_invites(wn: tauri::State<'_, Whitenoise>) -> Result<InvitesWith
             invites.push(invite);
         }
     }
+
+    tracing::debug!(target: "whitenoise::commands::invites::get_invites", "Invites: {:?}", invites);
 
     let fetched_invite_events = wn
         .nostr
@@ -90,24 +91,22 @@ pub async fn get_invites(wn: tauri::State<'_, Whitenoise>) -> Result<InvitesWith
     for event in fetched_invite_events {
         // Skip if we have already processed this invite
         if stored_invite_ids.contains(&event.id.unwrap()) {
-            tracing::debug!(target: "nostr_mls::invites::fetch_invites_for_user", "Invite {:?} already processed", event.id.unwrap());
+            tracing::debug!(target: "whitenoise::commands::invites::get_invites", "Invite {:?} already processed", event.id.unwrap());
             continue;
         }
-
+        let nostr_mls = wn.nostr_mls.lock().expect("Failed to lock nostr_mls");
         let welcome_preview =
-            match wn
-                .nostr_mls
-                .preview_welcome_event(match hex::decode(&event.content) {
+            match nostr_mls.preview_welcome_event(match hex::decode(&event.content) {
                     Ok(content) => content,
                     Err(e) => {
-                        tracing::error!(target: "nostr_mls::invites::fetch_invites_for_user", "Error decoding welcome event {:?}: {}", event.id.unwrap(), e);
+                        tracing::error!(target: "whitenoise::commands::invites::get_invites", "Error decoding welcome event {:?}: {}", event.id.unwrap(), e);
                         failed_invites.push((event.id.unwrap(), e.to_string()));
                         continue;
                     }
                 }) {
                 Ok(invite) => invite,
                 Err(e) => {
-                    tracing::error!(target: "nostr_mls::invites::fetch_invites_for_user", "Error processing welcome event {:?}: {}", event.id.unwrap(), e);
+                    tracing::error!(target: "whitenoise::commands::invites::get_invites", "Error processing welcome event {:?}: {}", event.id.unwrap(), e);
                     failed_invites.push((event.id.unwrap(), e.to_string()));
                     continue;
                 }
@@ -140,7 +139,7 @@ pub async fn get_invites(wn: tauri::State<'_, Whitenoise>) -> Result<InvitesWith
 
         invites.push(invite.clone());
         wn.group_manager
-            .add_invite(invite, wn.clone())
+            .add_invite(invite)
             .map_err(|e| e.to_string())?;
 
         if let Some(key_package_event_id) = key_package_event_id {
@@ -215,10 +214,9 @@ pub fn accept_invite(
 ) -> Result<(), String> {
     tracing::debug!(target: "whitenoise::invites::accept_invite", "Accepting invite {:?}", invite.event.id.unwrap());
 
+    let nostr_mls = wn.nostr_mls.lock().expect("Failed to lock nostr_mls");
     let joined_group_result =
-    match wn
-        .nostr_mls
-        .join_group_from_welcome(match hex::decode(&invite.event.content) {
+    match nostr_mls.join_group_from_welcome(match hex::decode(&invite.event.content) {
             Ok(content) => content,
             Err(e) => {
                 tracing::error!(target: "whitenoise::invites::accept_invite", "Error decoding welcome event {:?}: {}", invite.event.id.unwrap(), e);
@@ -243,7 +241,6 @@ pub fn accept_invite(
             joined_group_result.mls_group.group_id().to_vec(),
             group_type,
             joined_group_result.nostr_group_data,
-            wn.clone(),
         )
         .map_err(|e| format!("Failed to add group: {}", e))?;
 
@@ -253,11 +250,7 @@ pub fn accept_invite(
 
     let new_invite = wn
         .group_manager
-        .update_invite_state(
-            invite.event.id.unwrap().to_string(),
-            InviteState::Accepted,
-            wn.clone(),
-        )
+        .update_invite_state(invite.event.id.unwrap().to_string(), InviteState::Accepted)
         .map_err(|e| format!("Failed to update invite state: {}", e))?;
 
     app_handle
@@ -292,11 +285,7 @@ pub fn decline_invite(
 
     let new_invite = wn
         .group_manager
-        .update_invite_state(
-            invite.event.id.unwrap().to_string(),
-            InviteState::Declined,
-            wn.clone(),
-        )
+        .update_invite_state(invite.event.id.unwrap().to_string(), InviteState::Declined)
         .map_err(|e| format!("Failed to decline invite: {}", e))?;
 
     app_handle
