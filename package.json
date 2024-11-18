@@ -13,8 +13,8 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@nostr-dev-kit/ndk": "^2.10.5",
-    "@nostr-dev-kit/ndk-cache-dexie": "^2.5.6",
+    "@nostr-dev-kit/ndk": "^2.10.6",
+    "@nostr-dev-kit/ndk-cache-dexie": "^2.5.7",
     "@tauri-apps/api": "^2.1.1",
     "@tauri-apps/plugin-shell": "^2.0.1",
     "nostr-tools": "^2.10.3"
@@ -22,7 +22,7 @@
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.6",
     "@sveltejs/kit": "^2.8.1",
-    "@sveltejs/vite-plugin-svelte": "^4.0.0",
+    "@sveltejs/vite-plugin-svelte": "^4.0.1",
     "@tailwindcss/forms": "^0.5.9",
     "@tauri-apps/cli": "^2.1.0",
     "autoprefixer": "^10.4.20",
@@ -30,9 +30,9 @@
     "postcss": "^8.4.49",
     "prettier": "^3.3.3",
     "prettier-plugin-svelte": "^3.2.8",
-    "svelte": "^5.1.16",
-    "svelte-check": "^4.0.7",
-    "tailwindcss": "^3.4.14",
+    "svelte": "^5.2.2",
+    "svelte-check": "^4.0.9",
+    "tailwindcss": "^3.4.15",
     "tslib": "^2.8.1",
     "typescript": "^5.6.3",
     "vite": "^5.4.11"
