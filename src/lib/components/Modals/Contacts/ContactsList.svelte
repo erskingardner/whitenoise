@@ -31,7 +31,8 @@
     let filteredContacts = $state<EnrichedContactsMap>({});
 
     async function loadContacts() {
-        const contactsResponse = await invoke("query_enriched_contacts");
+        // TODO: replace with query_enriched_contacts when we figure out why that's not loading everything
+        const contactsResponse = await invoke("fetch_enriched_contacts");
         // Sort contacts by name
         contacts = Object.fromEntries(
             Object.entries(contactsResponse as EnrichedContactsMap).sort(([_keyA, contactA], [_keyB, contactB]) => {

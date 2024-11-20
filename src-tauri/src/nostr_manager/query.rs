@@ -20,6 +20,7 @@ impl NostrManager {
         Ok(metadata)
     }
 
+    #[allow(dead_code)]
     pub async fn query_user_relays(&self, pubkey: PublicKey) -> Result<Vec<String>> {
         let filter = Filter::new().author(pubkey).kind(Kind::RelayList).limit(1);
         let events = self.client.database().query(vec![filter]).await?;
@@ -46,6 +47,7 @@ impl NostrManager {
         Ok(Self::relay_urls_from_events(events))
     }
 
+    #[allow(dead_code)]
     pub async fn query_user_key_packages(&self, pubkey: PublicKey) -> Result<Events> {
         let filter = Filter::new()
             .author(pubkey)

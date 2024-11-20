@@ -96,12 +96,14 @@ impl NostrManager {
         Ok(contacts.into_iter().collect())
     }
 
+    #[allow(dead_code)]
     pub async fn fetch_user_welcomes(&self, pubkey: PublicKey) -> Result<Vec<UnsignedEvent>> {
         let gw_events = self.fetch_user_giftwrapped_events(pubkey).await?;
         let invites = self.extract_invite_events(gw_events).await;
         Ok(invites)
     }
 
+    #[allow(dead_code)]
     async fn fetch_user_giftwrapped_events(&self, pubkey: PublicKey) -> Result<Vec<Event>> {
         let filter = Filter::new().kind(Kind::GiftWrap).pubkeys(vec![pubkey]);
 
