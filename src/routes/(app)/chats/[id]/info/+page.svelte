@@ -22,7 +22,7 @@
 
     $effect(() => {
         if (counterpartyPubkey) {
-            invoke("fetch_enriched_contact", {
+            invoke("query_enriched_contact", {
                 pubkey: counterpartyPubkey,
                 updateAccount: false,
             }).then((value) => {

@@ -42,7 +42,7 @@ keyring = { version = "3.2.0", features = [
 ] }
 uuid = { version = "1.3.0", features = ["v4"] }
 base64 = "0.22"
-openmls-nostr = { version = "0.1.0", path = "../../openmls-nostr" }
+nostr-openmls = { version = "0.1.0", path = "../../nostr-openmls" }
 
 [dev-dependencies]
 tempfile = "3"

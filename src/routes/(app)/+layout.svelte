@@ -40,7 +40,7 @@
             )[0];
             if (activeAccount) {
                 if (!activeAccount.metadata.display_name || !activeAccount.metadata.picture) {
-                    await invoke("fetch_enriched_contact", { pubkey: activeAccount.pubkey, updateAccount: true });
+                    await invoke("query_enriched_contact", { pubkey: activeAccount.pubkey, updateAccount: true });
                 }
                 if (activeAccount.onboarding.inbox_relays) {
                     inboxRelaysPublished = true;

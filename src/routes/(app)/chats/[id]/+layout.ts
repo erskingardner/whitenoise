@@ -1,11 +1,7 @@
 import type { LayoutLoad } from "./$types";
 import { invoke } from "@tauri-apps/api/core";
-import { type NostrMlsGroup, NostrMlsGroupType } from "$lib/types/nostr";
+import { type NostrMlsGroup } from "$lib/types/nostr";
 import { error } from "@sveltejs/kit";
-import { accounts } from "$lib/stores/accounts";
-import { nameFromMetadata } from "$lib/utils/nostr";
-import type { EnrichedContact } from "$lib/types/nostr";
-import { get } from "svelte/store";
 
 export const load = (async ({ params }) => {
     const groupResponse = await invoke("get_group", {

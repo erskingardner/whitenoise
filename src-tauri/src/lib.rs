@@ -46,9 +46,13 @@ pub fn run() {
             set_active_account,
             init_nostr_for_current_user,
             fetch_contacts_with_metadata,
+            query_contacts_with_metadata,
             fetch_enriched_contact,
+            query_enriched_contact,
             fetch_enriched_contacts,
+            query_enriched_contacts,
             fetch_metadata,
+            query_metadata,
             fetch_relays,
             encrypt_content,
             decrypt_content,
@@ -64,6 +68,7 @@ pub fn run() {
             accept_invite,
             decline_invite,
             send_mls_message,
+            fetch_mls_messages,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

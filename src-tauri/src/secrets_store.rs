@@ -1,6 +1,6 @@
 use base64::{engine::general_purpose, Engine as _};
 use keyring::Entry;
-use nostr_sdk::Keys;
+use nostr_sdk::{util::hex, Keys};
 use serde_json::{json, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -229,7 +229,7 @@ pub fn remove_private_key_for_pubkey(pubkey: &str, data_dir: &Path) -> Result<()
 ///
 /// # Arguments
 ///
-/// * `group_id` - A string slice containing the ID of the MLS group.
+/// * `mls_group_id` - A vector of bytes containing the ID of the MLS group.
 /// * `epoch` - The epoch number as a u64.
 /// * `secret` - A string slice containing the export secret to be stored.
 /// * `file_path` - The path to the secrets file.
@@ -243,24 +243,24 @@ pub fn remove_private_key_for_pubkey(pubkey: &str, data_dir: &Path) -> Result<()
 /// This function will return an error if:
 /// * The Entry creation fails
 /// * Setting the password in the keyring fails
-#[allow(dead_code)]
 pub fn store_mls_export_secret(
-    group_id: &str,
+    mls_group_id: Vec<u8>,
     epoch: u64,
-    secret: &str,
+    secret: String,
     data_dir: &Path,
 ) -> Result<()> {
-    let key = format!("{group_id}:{epoch}");
+    let mls_group_id_hex = hex::encode(mls_group_id);
+    let key = format!("{mls_group_id_hex}:{epoch}");
     let service = get_service_name();
 
     if cfg!(target_os = "android") {
         let mut secrets = read_secrets_file(data_dir).unwrap_or(json!({}));
-        let obfuscated_secret = obfuscate(secret, data_dir);
+        let obfuscated_secret = obfuscate(&secret, data_dir);
         secrets[key] = json!(obfuscated_secret);
         write_secrets_file(data_dir, &secrets)?;
     } else {
         let entry = Entry::new(service.as_str(), key.as_str())?;
-        entry.set_password(secret)?;
+        entry.set_password(&secret)?;
     }
     Ok(())
 }
@@ -272,7 +272,7 @@ pub fn store_mls_export_secret(
 ///
 /// # Arguments
 ///
-/// * `group_id` - A string slice containing the ID of the MLS group.
+/// * `mls_group_id` - A vector of bytes containing the ID of the MLS group.
 /// * `epoch` - The epoch number as a u64.
 /// * `file_path` - The path to the secrets file.
 ///
@@ -286,13 +286,13 @@ pub fn store_mls_export_secret(
 /// * The Entry creation fails
 /// * Retrieving the password from the keyring fails
 /// * Parsing the secret into Keys fails
-#[allow(dead_code)]
 pub fn get_export_secret_keys_for_group(
-    group_id: &str,
+    mls_group_id: Vec<u8>,
     epoch: u64,
     data_dir: &Path,
 ) -> Result<Keys> {
-    let key = format!("{group_id}:{epoch}");
+    let mls_group_id_hex = hex::encode(mls_group_id);
+    let key = format!("{mls_group_id_hex}:{epoch}");
     let service = get_service_name();
 
     if cfg!(target_os = "android") {
@@ -375,15 +375,17 @@ mod tests {
     #[test]
     fn test_store_and_retrieve_mls_export_secret() -> Result<()> {
         let temp_dir = setup_temp_dir();
-        let group_id = "test_group";
+        let group_id = vec![0u8; 32];
         let epoch = 42;
-        let secret = "9b9da9c6ee9a62016ab2db1a3397d267a575c02266c6ca9b5ec8e015db67c30e";
+        let secret =
+            String::from("9b9da9c6ee9a62016ab2db1a3397d267a575c02266c6ca9b5ec8e015db67c30e");
 
         // Store the MLS export secret
-        store_mls_export_secret(group_id, epoch, secret, temp_dir.path())?;
+        store_mls_export_secret(group_id.clone(), epoch, secret.clone(), temp_dir.path())?;
 
         // Retrieve the keys
-        let retrieved_keys = get_export_secret_keys_for_group(group_id, epoch, temp_dir.path())?;
+        let retrieved_keys =
+            get_export_secret_keys_for_group(group_id.clone(), epoch, temp_dir.path())?;
 
         // Verify that the retrieved keys match the original secret
         assert_eq!(retrieved_keys.secret_key().to_secret_hex(), secret);
@@ -394,7 +396,7 @@ mod tests {
     #[test]
     fn test_get_nonexistent_mls_export_secret() {
         let temp_dir = setup_temp_dir();
-        let nonexistent_group_id = "nonexistent_group";
+        let nonexistent_group_id = vec![0u8; 32];
         let nonexistent_epoch = 999;
 
         let result = get_export_secret_keys_for_group(

@@ -1,7 +1,7 @@
 use crate::groups::{Group, GroupType};
 use crate::invites::{Invite, InviteState};
+use nostr_openmls::nostr_group_data_extension::NostrGroupDataExtension;
 use nostr_sdk::prelude::*;
-use openmls_nostr::nostr_group_data_extension::NostrGroupDataExtension;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -160,20 +160,9 @@ impl GroupManager {
             for (key, invite) in state.invites.iter() {
                 let invite_bytes = serde_json::to_vec(invite)
                     .map_err(GroupManagerError::InviteSerializationError)?;
-                tracing::debug!(
-                    target: "whitenoise::group_manager::persist_state",
-                    "About to persist invite {}: {:?}",
-                    key,
-                    invite
-                );
                 invites_tree
                     .insert(key, invite_bytes)
                     .map_err(|e| GroupManagerError::DatabaseError(e.to_string()))?;
-                tracing::debug!(
-                    target: "whitenoise::group_manager::persist_state",
-                    "Successfully persisted invite {}",
-                    key
-                );
             }
         }
         // Flush changes to database to be sure they are written
@@ -231,6 +220,7 @@ impl GroupManager {
     pub fn add_group(
         &self,
         mls_group_id: Vec<u8>,
+        mls_group_epoch: u64,
         group_type: GroupType,
         group_data: NostrGroupDataExtension,
     ) -> Result<Group> {
@@ -245,6 +235,7 @@ impl GroupManager {
             last_message_at: None,
             relay_urls: group_data.relays(),
             group_type,
+            epoch: mls_group_epoch,
             transcript: Vec::new(),
         };
 
@@ -293,6 +284,20 @@ impl GroupManager {
             .get(&group_id_bytes)
             .cloned()
             .ok_or(GroupManagerError::GroupNotFound(mls_group_id))
+    }
+
+    pub fn get_group_by_nostr_id(&self, nostr_group_id: String) -> Result<Group> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|e| GroupManagerError::LockError(e.to_string()))?;
+
+        state
+            .groups
+            .values()
+            .find(|group| group.nostr_group_id == nostr_group_id)
+            .cloned()
+            .ok_or(GroupManagerError::GroupNotFound(nostr_group_id))
     }
 
     pub fn add_invite(&self, invite: Invite) -> Result<()> {

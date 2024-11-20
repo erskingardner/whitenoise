@@ -7,6 +7,7 @@ use std::time::Duration;
 use thiserror::Error;
 
 pub mod fetch;
+pub mod query;
 pub mod subscriptions;
 pub mod sync;
 
@@ -60,6 +61,14 @@ impl NostrManager {
         let client = Client::builder().database(db).opts(opts).build();
 
         let settings = NostrManagerSettings::default();
+
+        // Add the default relays
+        for relay in settings.relays.iter() {
+            client.add_relay(relay).await?;
+        }
+
+        // Connect to the default relays
+        client.connect().await;
 
         Ok(Self {
             client,

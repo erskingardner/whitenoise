@@ -2,7 +2,16 @@
     import { ChatsCircle, Eyes, Phone, Gear, Warning } from "phosphor-svelte";
     import Avatar from "./Avatar.svelte";
     import { accounts, setActiveAccount } from "$lib/stores/accounts";
+    import { goto } from "$app/navigation";
+
     let { activeTab } = $props();
+
+    function handleAccountChange(pubkey: string) {
+        goto(`/chats`);
+        setTimeout(() => {
+            setActiveAccount(pubkey);
+        }, 100);
+    }
 </script>
 
 <div class="hidden md:flex">
@@ -18,11 +27,7 @@
             <a href="/legacy" class="p-2">
                 <span class="sidebar-link relative {activeTab === 'legacy' ? 'active' : ''}">
                     <Eyes size={30} weight={activeTab === "legacy" ? "fill" : "light"} />
-                    <Warning
-                        size={18}
-                        weight="fill"
-                        class="absolute -bottom-2 -right-2 text-red-500"
-                    />
+                    <Warning size={18} weight="fill" class="absolute -bottom-2 -right-2 text-red-500" />
                 </span>
             </a>
             <a href="/calls" class="p-2">
@@ -33,7 +38,7 @@
         </div>
         <div class="flex flex-col gap-4 justify-between items-center mt-auto mb-0">
             {#each $accounts.accounts as account}
-                <button onclick={() => setActiveAccount(account.pubkey)}>
+                <button onclick={() => handleAccountChange(account.pubkey)}>
                     <Avatar
                         pubkey={account.pubkey}
                         picture={account.metadata.picture}

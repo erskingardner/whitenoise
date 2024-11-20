@@ -13,8 +13,6 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@nostr-dev-kit/ndk": "^2.10.6",
-    "@nostr-dev-kit/ndk-cache-dexie": "^2.5.7",
     "@tauri-apps/api": "^2.1.1",
     "@tauri-apps/plugin-shell": "^2.0.1",
     "nostr-tools": "^2.10.3"
@@ -30,7 +28,7 @@
     "postcss": "^8.4.49",
     "prettier": "^3.3.3",
     "prettier-plugin-svelte": "^3.2.8",
-    "svelte": "^5.2.2",
+    "svelte": "^5.2.3",
     "svelte-check": "^4.0.9",
     "tailwindcss": "^3.4.15",
     "tslib": "^2.8.1",

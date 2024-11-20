@@ -1,8 +1,8 @@
 use crate::account_manager::AccountError;
 use crate::nostr_manager;
 use crate::whitenoise::Whitenoise;
+use nostr_openmls::key_packages::KeyPackage;
 use nostr_sdk::prelude::*;
-use openmls_nostr::key_packages::KeyPackage;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -20,7 +20,7 @@ pub enum KeyPackageError {
     #[error("Nostr Signer Error: {0}")]
     NostrSignerError(#[from] nostr_sdk::SignerError),
     #[error("Nostr MLS Error: {0}")]
-    NostrMlsError(#[from] openmls_nostr::key_packages::KeyPackageError),
+    NostrMlsError(#[from] nostr_openmls::key_packages::KeyPackageError),
 }
 
 pub type Result<T> = std::result::Result<T, KeyPackageError>;
@@ -80,7 +80,7 @@ pub async fn fetch_key_package_for_pubkey(
         .iter()
         .filter_map(|event| {
             let nostr_mls = wn.nostr_mls.lock().expect("Failed to lock nostr_mls");
-            openmls_nostr::key_packages::parse_key_package(event.content.to_string(), &nostr_mls)
+            nostr_openmls::key_packages::parse_key_package(event.content.to_string(), &nostr_mls)
                 .ok()
         })
         .collect();
@@ -181,13 +181,13 @@ pub async fn delete_key_package_from_relays(
                 KeyPackageError::NoValidKeyPackage("Failed to lock nostr_mls".to_string())
             })?;
 
-            let key_package = openmls_nostr::key_packages::parse_key_package(
+            let key_package = nostr_openmls::key_packages::parse_key_package(
                 event.content.to_string(),
                 &nostr_mls,
             )
             .map_err(KeyPackageError::NostrMlsError)?;
 
-            openmls_nostr::key_packages::delete_key_package_from_storage(key_package, &nostr_mls)
+            nostr_openmls::key_packages::delete_key_package_from_storage(key_package, &nostr_mls)
                 .map_err(KeyPackageError::NostrMlsError)?;
         }
         let builder = EventBuilder::delete(vec![event.id]);

@@ -1,6 +1,6 @@
 use crate::{key_packages::fetch_key_package_for_pubkey, Whitenoise};
 use nostr_sdk::event::{EventBuilder, Kind, Tag, TagKind};
-use openmls_nostr::key_packages::create_key_package_for_event;
+use nostr_openmls::key_packages::create_key_package_for_event;
 
 /// Checks if a valid MLS key package exists for a given user
 ///

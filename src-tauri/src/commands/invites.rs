@@ -69,7 +69,7 @@ pub async fn get_invites(wn: tauri::State<'_, Whitenoise>) -> Result<InvitesWith
 
     let fetched_invite_events = wn
         .nostr
-        .fetch_user_welcomes(
+        .query_user_welcomes(
             wn.nostr
                 .client
                 .signer()
@@ -239,6 +239,7 @@ pub fn accept_invite(
         .group_manager
         .add_group(
             joined_group_result.mls_group.group_id().to_vec(),
+            joined_group_result.mls_group.epoch().as_u64(),
             group_type,
             joined_group_result.nostr_group_data,
         )

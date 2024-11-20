@@ -11,7 +11,7 @@
     }
 
     async function refetchAccount() {
-        await invoke("fetch_enriched_contact", {
+        await invoke("query_enriched_contact", {
             pubkey: $accounts.activeAccount,
             updateAccount: true,
         });

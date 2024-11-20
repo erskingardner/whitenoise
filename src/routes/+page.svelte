@@ -1,11 +1,5 @@
 <script lang="ts">
-    import {
-        accounts,
-        createAccount,
-        login,
-        LoginError,
-        updateAccountsStore,
-    } from "$lib/stores/accounts";
+    import { accounts, createAccount, login, LoginError, updateAccountsStore } from "$lib/stores/accounts";
     import { goto } from "$app/navigation";
     import { fly, type FlyParams } from "svelte/transition";
     import { expoInOut } from "svelte/easing";
@@ -56,6 +50,7 @@
 
     async function handleLogin(e: Event) {
         e.preventDefault();
+        console.log("handleLogin");
         if (loading) return;
         loading = true;
         login(nsecOrHex).catch((error) => {
@@ -81,13 +76,8 @@
         </span>
     </div>
 {/if}
-<div
-    class="flex flex-col items-center justify-center w-screen h-screen bg-gray-800"
-    transition:fly={flyParams}
->
-    <div
-        class="bg-gray-800 w-full md:w-1/2 h-2/3 flex flex-col items-center justify-center gap-6 py-12 px-6"
-    >
+<div class="flex flex-col items-center justify-center w-screen h-screen bg-gray-800" transition:fly={flyParams}>
+    <div class="bg-gray-800 w-full md:w-1/2 h-2/3 flex flex-col items-center justify-center gap-6 py-12 px-6">
         <h1 class="text-5xl font-extrabold text-center">White Noise</h1>
         <h2 class="text-3xl font-medium text-center">Secure. Distributed. Uncensorable.</h2>
         <div class="h-[40px]">

@@ -23,11 +23,10 @@
 
     $effect(() => {
         if (counterpartyPubkey) {
-            invoke("fetch_enriched_contact", {
+            invoke("query_enriched_contact", {
                 pubkey: counterpartyPubkey,
                 updateAccount: false,
             }).then((value) => {
-                console.log("Enriched counterparty: ", value);
                 enrichedCounterparty = value as EnrichedContact;
             });
         }

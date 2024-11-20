@@ -46,7 +46,7 @@
   - ✅ Show conversation transcript
   - ✅ Send & receive messages
   - ✅ Parse nostr events in messages
-    - ✅ Kind: 1
+    - ✅ Kind: 9
     - Reactions
     - Replies (as quotes?)
     - Media
@@ -81,9 +81,9 @@
 - ✅ You can log in with the same nsec twice
 - ✅ Login screen doesn't redirect to the app anymore
 - ✅ Contacts are showing the wrong user's when two user's are logged in.
-- Need to scope storage to each user better
-  - Groups
-  - Invites
+- ✅ Need to scope storage to each user better
+  - ✅ Groups
+  - ✅ Invites
 
 ## 🆘 Errors
 
@@ -99,7 +99,7 @@
 ## 💬 MLS
 
 - Grease values in prekeys, groups, etc.
-- Custom Nostr credential - can we create a Credential with out own type? 
+- ⛔ WONT DO for now: Custom Nostr credential - can we create a Credential with out own type? 
 
 
 ## 📱 Mobile
@@ -118,3 +118,10 @@
 - ✅ Update nostr_client methods to query db and check relays and not throw an error if we're offline.
 - ✅ Need to improve how we handle relays in general
 - ✅ Replace all mentions of prekey with key package
+
+## Updates to match the NIP
+
+- Need to verify that incoming messages pubkey and identity key match.
+- Need to rotate signing keys on entrance into the group. 
+- Need to check admin_pubkeys when processing proposals and commits. 
+- 

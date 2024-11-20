@@ -18,12 +18,11 @@
 
     $effect(() => {
         if (invite.inviter && !enrichedInviter) {
-            invoke("fetch_enriched_contact", { pubkey: invite.inviter, updateAccount: false }).then((value) => {
+            invoke("query_enriched_contact", { pubkey: invite.inviter, updateAccount: false }).then((value) => {
                 enrichedInviter = value as EnrichedContact;
             });
         }
-
-        if (groupType === NostrMlsGroupType.DirectMessage && invite.inviter && enrichedInviter && !groupName) {
+        if (groupType === NostrMlsGroupType.DirectMessage && invite.inviter && enrichedInviter) {
             groupName = nameFromMetadata((enrichedInviter as EnrichedContact).metadata, invite.inviter);
         } else {
             groupName = invite.group_name;

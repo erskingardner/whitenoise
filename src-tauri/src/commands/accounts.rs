@@ -1,8 +1,8 @@
 use crate::account_manager::{Account, AccountError, AccountManagerState};
 use crate::secrets_store;
 use crate::whitenoise::Whitenoise;
+use nostr_openmls::NostrMls;
 use nostr_sdk::Keys;
-use openmls_nostr::NostrMls;
 use tauri::Emitter;
 use tokio::spawn;
 
@@ -116,6 +116,30 @@ pub async fn login(
         // 1. Negentropy sync for past events
         // 2. Setup subscriptions to catch future events
         spawn(async move {
+            tracing::debug!(
+                target: "whitenoise::commands::accounts::login",
+                "Starting subscriptions"
+            );
+            match nostr.setup_subscriptions(pubkey, group_ids.clone()).await {
+                Ok(_) => {
+                    tracing::debug!(
+                        target: "whitenoise::commands::accounts::login",
+                        "Subscriptions setup completed"
+                    );
+                }
+                Err(e) => {
+                    tracing::error!(
+                    target: "whitenoise::commands::accounts::login",
+                    "Error subscribing to events: {}",
+                    e
+                    );
+                }
+            }
+
+            tracing::debug!(
+                target: "whitenoise::commands::accounts::login",
+                "Starting negentropy sync"
+            );
             match nostr
                 .sync_for_user(pubkey, last_synced, group_ids.clone())
                 .await
@@ -133,14 +157,6 @@ pub async fn login(
                         e
                     );
                 }
-            }
-
-            if let Err(e) = nostr.setup_subscriptions(pubkey, group_ids.clone()).await {
-                tracing::error!(
-                    target: "whitenoise::commands::accounts::login",
-                    "Error subscribing to events: {}",
-                    e
-                );
             }
         });
 
@@ -228,13 +244,53 @@ pub async fn set_active_account(
     let group_ids = active_account.nostr_group_ids.clone();
     let nostr = wn.nostr.clone();
 
+    // Spawn two tasks in parallel:
+    // 1. Negentropy sync for past events
+    // 2. Setup subscriptions to catch future events
     spawn(async move {
-        if let Err(e) = nostr.sync_for_user(pubkey, last_synced, group_ids).await {
-            tracing::error!("Error during background sync: {}", e);
+        tracing::debug!(
+            target: "whitenoise::commands::accounts::set_active_account",
+            "Starting subscriptions"
+        );
+        match nostr.setup_subscriptions(pubkey, group_ids.clone()).await {
+            Ok(_) => {
+                tracing::debug!(
+                    target: "whitenoise::commands::accounts::set_active_account",
+                    "Subscriptions setup completed"
+                );
+            }
+            Err(e) => {
+                tracing::error!(
+                    target: "whitenoise::commands::accounts::set_active_account",
+                    "Error subscribing to events: {}",
+                    e
+                );
+            }
+        }
+
+        tracing::debug!(
+            target: "whitenoise::commands::accounts::set_active_account",
+            "Starting negentropy sync"
+        );
+        match nostr
+            .sync_for_user(pubkey, last_synced, group_ids.clone())
+            .await
+        {
+            Ok(_) => {
+                tracing::debug!(
+                    target: "whitenoise::commands::accounts::set_active_account",
+                    "Negentropy event sync completed"
+                );
+            }
+            Err(e) => {
+                tracing::error!(
+                    target: "whitenoise::commands::accounts::set_active_account",
+                    "Error in negentropy sync: {}",
+                    e
+                );
+            }
         }
     });
-
-    // TODO: Create subscriptions
 
     app_handle
         .emit("nostr_ready", ())
@@ -246,7 +302,7 @@ pub async fn set_active_account(
             .nostr_mls
             .lock()
             .map_err(|e| format!("Error locking Nostr MLS: {}", e))?;
-        *nostr_mls = NostrMls::new(wn.data_dir.clone(), Some(hex_pubkey.clone()));
+        *nostr_mls = NostrMls::new(wn.data_dir.clone(), Some(keys.public_key().to_hex()));
     }
 
     Ok(wn.account_manager.get_accounts_state().unwrap())
@@ -320,13 +376,53 @@ pub async fn logout(
                 let group_ids = current_account.nostr_group_ids.clone();
                 let nostr = wn.nostr.clone();
 
+                // Spawn two tasks in parallel:
+                // 1. Negentropy sync for past events
+                // 2. Setup subscriptions to catch future events
                 spawn(async move {
-                    if let Err(e) = nostr.sync_for_user(pubkey, last_synced, group_ids).await {
-                        tracing::error!("Error during background sync: {}", e);
+                    tracing::debug!(
+                        target: "whitenoise::commands::accounts::logout",
+                        "Starting subscriptions"
+                    );
+                    match nostr.setup_subscriptions(pubkey, group_ids.clone()).await {
+                        Ok(_) => {
+                            tracing::debug!(
+                                target: "whitenoise::commands::accounts::logout",
+                                "Subscriptions setup completed"
+                            );
+                        }
+                        Err(e) => {
+                            tracing::error!(
+                                target: "whitenoise::commands::accounts::logout",
+                                "Error subscribing to events: {}",
+                                e
+                            );
+                        }
+                    }
+
+                    tracing::debug!(
+                        target: "whitenoise::commands::accounts::logout",
+                        "Starting negentropy sync"
+                    );
+                    match nostr
+                        .sync_for_user(pubkey, last_synced, group_ids.clone())
+                        .await
+                    {
+                        Ok(_) => {
+                            tracing::debug!(
+                                target: "whitenoise::commands::accounts::logout",
+                                "Negentropy event sync completed"
+                            );
+                        }
+                        Err(e) => {
+                            tracing::error!(
+                                target: "whitenoise::commands::accounts::logout",
+                                "Error in negentropy sync: {}",
+                                e
+                            );
+                        }
                     }
                 });
-
-                // TODO: Create subscriptions
 
                 app_handle
                     .emit("nostr_ready", ())

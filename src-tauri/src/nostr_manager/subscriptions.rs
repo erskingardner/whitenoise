@@ -1,4 +1,4 @@
-use crate::nostr_manager::{NostrManager, NostrManagerError, Result};
+use crate::nostr_manager::{NostrManager, Result};
 use nostr_sdk::prelude::*;
 
 impl NostrManager {
@@ -167,6 +167,11 @@ impl NostrManager {
                 Kind::MlsWelcome => self.handle_invite(unwrapped.rumor)?,
                 _ => {
                     // TODO: Handle other giftwrap kinds (NIP-17)
+                    tracing::debug!(
+                        target: "whitenoise::nostr_client::subscriptions::handle_giftwrap",
+                        "Received giftwrap of kind {:?}",
+                        unwrapped.rumor.kind
+                    );
                 }
             }
         }

@@ -23,6 +23,8 @@ pub struct Group {
     pub relay_urls: Vec<String>,
     /// Type of Nostr MLS group
     pub group_type: GroupType,
+    /// Epoch of the group
+    pub epoch: u64,
     /// Chat transscript
     pub transcript: Vec<UnsignedEvent>,
 }

@@ -30,13 +30,53 @@ pub async fn init_nostr_for_current_user(
     let group_ids = current_account.nostr_group_ids.clone();
     let nostr = wn.nostr.clone();
 
+    // Spawn two tasks in parallel:
+    // 1. Negentropy sync for past events
+    // 2. Setup subscriptions to catch future events
     spawn(async move {
-        if let Err(e) = nostr.sync_for_user(pubkey, last_synced, group_ids).await {
-            tracing::error!("Error during background sync: {}", e);
+        tracing::debug!(
+            target: "whitenoise::commands::nostr::init_nostr_for_current_user",
+            "Starting subscriptions"
+        );
+        match nostr.setup_subscriptions(pubkey, group_ids.clone()).await {
+            Ok(_) => {
+                tracing::debug!(
+                    target: "whitenoise::commands::nostr::init_nostr_for_current_user",
+                    "Subscriptions setup completed"
+                );
+            }
+            Err(e) => {
+                tracing::error!(
+                    target: "whitenoise::commands::nostr::init_nostr_for_current_user",
+                    "Error subscribing to events: {}",
+                    e
+                );
+            }
+        }
+
+        tracing::debug!(
+            target: "whitenoise::commands::nostr::init_nostr_for_current_user",
+            "Starting negentropy sync"
+        );
+        match nostr
+            .sync_for_user(pubkey, last_synced, group_ids.clone())
+            .await
+        {
+            Ok(_) => {
+                tracing::debug!(
+                    target: "whitenoise::commands::nostr::init_nostr_for_current_user",
+                    "Negentropy event sync completed"
+                );
+            }
+            Err(e) => {
+                tracing::error!(
+                    target: "whitenoise::commands::nostr::init_nostr_for_current_user",
+                    "Error in negentropy sync: {}",
+                    e
+                );
+            }
         }
     });
-
-    // TODO: Create subscriptions
 
     app_handle
         .emit("nostr_ready", ())
@@ -71,6 +111,51 @@ pub async fn fetch_enriched_contact(
     let key_package_relays = wn
         .nostr
         .fetch_user_key_package_relays(pubkey)
+        .await
+        .map_err(|_| "Failed to get key package relays".to_string())?;
+
+    let enriched_contact = EnrichedContact {
+        metadata,
+        nip17: !inbox_relays.is_empty(),
+        nip104: !key_package_relays.is_empty(),
+        inbox_relays,
+        key_package_relays,
+    };
+
+    if update_account {
+        wn.account_manager
+            .update_account(pubkey.to_hex(), enriched_contact.clone())
+            .map_err(|e| format!("Failed to update account: {}", e))?;
+        app_handle
+            .emit("account_changed", ())
+            .map_err(|e| e.to_string())?;
+    }
+
+    Ok(enriched_contact)
+}
+
+#[tauri::command]
+pub async fn query_enriched_contact(
+    pubkey: String,
+    update_account: bool,
+    wn: tauri::State<'_, Whitenoise>,
+    app_handle: tauri::AppHandle,
+) -> Result<EnrichedContact, String> {
+    let pubkey = PublicKey::from_hex(&pubkey).map_err(|_| "Invalid pubkey".to_string())?;
+
+    let metadata = wn
+        .nostr
+        .query_user_metadata(pubkey)
+        .await
+        .map_err(|_| "Failed to get metadata".to_string())?;
+    let inbox_relays = wn
+        .nostr
+        .query_user_inbox_relays(pubkey)
+        .await
+        .map_err(|_| "Failed to get inbox relays".to_string())?;
+    let key_package_relays = wn
+        .nostr
+        .query_user_key_package_relays(pubkey)
         .await
         .map_err(|_| "Failed to get key package relays".to_string())?;
 
@@ -223,6 +308,106 @@ pub async fn fetch_enriched_contacts(
 }
 
 #[tauri::command]
+pub async fn query_enriched_contacts(
+    wn: tauri::State<'_, Whitenoise>,
+) -> Result<HashMap<String, EnrichedContact>, String> {
+    // Fetch contact list public keys
+    let contact_list_pubkeys = wn
+        .nostr
+        .query_contact_list_pubkeys()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    tracing::debug!(
+        "contact_list_pubkeys length: {:?}",
+        contact_list_pubkeys.len()
+    );
+
+    let mut contacts_map: HashMap<String, EnrichedContact> = HashMap::new();
+
+    if !contact_list_pubkeys.is_empty() {
+        let contacts = wn.nostr.query_contacts().await.map_err(|e| e.to_string())?;
+
+        // Prepare filters for messaging capabilities
+        let dm_relay_list_filter = Filter::new()
+            .kind(Kind::Custom(10050))
+            .authors(contact_list_pubkeys.clone());
+        let prekey_filter = Filter::new()
+            .kind(Kind::MlsKeyPackage)
+            .authors(contact_list_pubkeys.clone());
+        let key_package_list_filter = Filter::new()
+            .kind(Kind::Custom(10051))
+            .authors(contact_list_pubkeys.clone());
+
+        // Fetch messaging capabilities for all contacts in a single query
+        let messaging_capabilities_events = wn
+            .nostr
+            .client
+            .database()
+            .query(vec![
+                dm_relay_list_filter,
+                prekey_filter,
+                key_package_list_filter,
+            ])
+            .await
+            .expect("Failed to fetch messaging capabilities");
+
+        // Process contacts and messaging capabilities
+        for contact in contacts {
+            let metadata = Metadata::from_json(contact.content).expect("Failed to parse metadata");
+            let author = contact.pubkey.to_string();
+
+            let mut enriched_contact = EnrichedContact {
+                metadata,
+                nip17: false,
+                nip104: false,
+                inbox_relays: Vec::new(),
+                key_package_relays: Vec::new(),
+            };
+
+            // Process messaging capabilities
+            for event in messaging_capabilities_events.clone() {
+                if event.pubkey.to_string() == author {
+                    match event.kind {
+                        Kind::Replaceable(10050) => {
+                            enriched_contact.nip17 = true;
+                            enriched_contact.inbox_relays.extend(
+                                event
+                                    .tags
+                                    .iter()
+                                    .filter(|tag| tag.kind() == TagKind::Relay)
+                                    .filter_map(|tag| tag.content())
+                                    .map(|s| s.to_string()),
+                            );
+                        }
+                        Kind::Replaceable(10051) => {
+                            enriched_contact.key_package_relays.extend(
+                                event
+                                    .tags
+                                    .iter()
+                                    .filter(|tag| tag.kind() == TagKind::Relay)
+                                    .filter_map(|tag| tag.content())
+                                    .map(|s| s.to_string()),
+                            );
+                        }
+                        Kind::MlsKeyPackage => {
+                            if event.tags.find(TagKind::MlsProtocolVersion).is_some() {
+                                enriched_contact.nip104 = true;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
+            contacts_map.insert(author, enriched_contact);
+        }
+    };
+
+    Ok(contacts_map)
+}
+
+#[tauri::command]
 pub async fn fetch_metadata(
     pubkey: String,
     wn: tauri::State<'_, Whitenoise>,
@@ -230,6 +415,18 @@ pub async fn fetch_metadata(
     let pubkey = PublicKey::from_hex(&pubkey).map_err(|_| "Invalid pubkey".to_string())?;
     wn.nostr
         .fetch_user_metadata(pubkey)
+        .await
+        .map_err(|e| format!("Failed to get metadata: {}", e))
+}
+
+#[tauri::command]
+pub async fn query_metadata(
+    pubkey: String,
+    wn: tauri::State<'_, Whitenoise>,
+) -> Result<Metadata, String> {
+    let pubkey = PublicKey::from_hex(&pubkey).map_err(|_| "Invalid pubkey".to_string())?;
+    wn.nostr
+        .query_user_metadata(pubkey)
         .await
         .map_err(|e| format!("Failed to get metadata: {}", e))
 }
@@ -253,6 +450,23 @@ pub async fn fetch_contacts_with_metadata(
     wn: tauri::State<'_, Whitenoise>,
 ) -> Result<HashMap<String, Metadata>, String> {
     let events = wn.nostr.fetch_contacts().await.map_err(|e| e.to_string())?;
+    let mut metadata_map = HashMap::new();
+
+    for event in events {
+        if let Ok(metadata) = serde_json::from_str::<Metadata>(&event.content) {
+            metadata_map.insert(event.pubkey.to_hex(), metadata);
+        }
+    }
+
+    Ok(metadata_map)
+}
+
+#[tauri::command]
+pub async fn query_contacts_with_metadata(
+    wn: tauri::State<'_, Whitenoise>,
+) -> Result<HashMap<String, Metadata>, String> {
+    let events = wn.nostr.query_contacts().await.map_err(|e| e.to_string())?;
+
     let mut metadata_map = HashMap::new();
 
     for event in events {

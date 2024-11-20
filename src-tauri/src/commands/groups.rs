@@ -1,8 +1,11 @@
 use crate::fetch_enriched_contact;
 use crate::groups::{validate_group_members, Group, GroupType};
 use crate::key_packages::fetch_key_packages_for_members;
+use crate::secrets_store;
 use crate::whitenoise::Whitenoise;
+use nostr_openmls::groups::GroupError;
 use nostr_sdk::prelude::*;
+use std::collections::HashMap;
 use std::ops::Add;
 use tauri::Emitter;
 
@@ -240,7 +243,12 @@ pub async fn create_group(
 
     let nostr_group = wn
         .group_manager
-        .add_group(group_id.clone(), group_type, group_data)
+        .add_group(
+            group_id.clone(),
+            mls_group.epoch().as_u64(),
+            group_type,
+            group_data,
+        )
         .map_err(|e| e.to_string())?;
 
     tracing::debug!(
@@ -295,16 +303,26 @@ pub async fn send_mls_message(
 
     let serialized_message;
     let export_secret_hex;
+    let epoch;
     {
         let nostr_mls = wn.nostr_mls.lock().unwrap();
         serialized_message = nostr_mls
             .create_message_for_group(group.mls_group_id.clone(), json_event_string)
             .map_err(|e| e.to_string())?;
 
-        export_secret_hex = nostr_mls
-            .export_secret_as_hex_secret_key(group.mls_group_id.clone())
+        (export_secret_hex, epoch) = nostr_mls
+            .export_secret_as_hex_secret_key_and_epoch(group.mls_group_id.clone())
             .map_err(|e| e.to_string())?;
     }
+
+    // Store the export secret key in the secrets store
+    secrets_store::store_mls_export_secret(
+        group.mls_group_id.clone(),
+        epoch,
+        export_secret_hex.clone(),
+        wn.data_dir.as_path(),
+    )
+    .map_err(|e| e.to_string())?;
 
     let export_nostr_keys = Keys::parse(&export_secret_hex).map_err(|e| e.to_string())?;
 
@@ -332,7 +350,7 @@ pub async fn send_mls_message(
 
     tracing::debug!(
         target: "whitenoise::commands::groups::send_mls_message",
-        "Publishing gift wrapped event to group relays"
+        "Publishing MLSMessage event to group relays"
     );
 
     let relays = if tauri::is_dev() {
@@ -359,36 +377,183 @@ pub async fn send_mls_message(
     Ok(inner_event)
 }
 
-// pub async fn fetch_mls_messages(wn: tauri::State<'_, Whitenoise>) -> Result<Events, String> {
-//     let group_ids: Vec<String> = wn
-//         .group_manager
-//         .get_groups()
-//         .expect("Failed to get groups")
-//         .iter()
-//         .map(|group| group.nostr_group_id.clone())
-//         .collect();
+// TODO: Make this use last synced so we don't fetch things we don't need repeatedly.
+// TODO: Maybe split this into a method to handle groups individually?
+#[tauri::command]
+pub async fn fetch_mls_messages(
+    wn: tauri::State<'_, Whitenoise>,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    let group_ids: Vec<String> = wn
+        .group_manager
+        .get_groups()
+        .expect("Failed to get groups")
+        .iter()
+        .map(|group| group.nostr_group_id.clone())
+        .collect();
 
-//     let mls_message_filter = Filter::new()
-//         .kind(Kind::MlsGroupMessage)
-//         .custom_tag(SingleLetterTag::lowercase(Alphabet::H), group_ids)
-//         .since(Timestamp::now());
+    let message_events = wn
+        .nostr
+        .query_mls_group_messages(group_ids)
+        .await
+        .map_err(|e| e.to_string())?;
 
-//     let stored_messages = wn
-//         .nostr
-//         .client
-//         .database()
-//         .query(vec![mls_message_filter])
-//         .await
-//         .map_err(|e| e.to_string())?;
+    let grouped_messages = message_events
+        .into_iter()
+        .filter_map(|event| {
+            event
+                .tags
+                .iter()
+                .find(|tag| tag.kind() == TagKind::h())
+                .and_then(|tag| {
+                    tag.content()
+                        .map(|group_id| (group_id.to_string(), event.clone()))
+                })
+        })
+        .fold(
+            HashMap::new(),
+            |mut acc: HashMap<String, Vec<Event>>, (group_id, event)| {
+                acc.entry(group_id).or_default().push(event);
+                acc
+            },
+        );
 
-//         wn.nostr.client.sync(urls, filter, opts)
-//     let fetched_messages = wn
-//         .nostr
-//         .client
-//         .fetch_events(vec![mls_message_filter], Some(wn.nostr.timeout()))
-//         .await
-//         .map_err(|e| e.to_string())?;
+    tracing::debug!(
+        target: "whitenoise::commands::groups::fetch_mls_messages",
+        "Grouped messages: {:?}",
+        grouped_messages
+    );
 
-//     let messages = stored_messages.merge(fetched_messages);
-//     Ok(messages)
-// }
+    for (group_id, events) in grouped_messages {
+        let group = wn
+            .group_manager
+            .get_group_by_nostr_id(group_id)
+            .map_err(|e| e.to_string())?;
+
+        // Sort the events by created_at (and then lexigraphically by ID)
+        let mut sorted_events = events.into_iter().collect::<Vec<_>>();
+        sorted_events.sort_by(|a, b| a.created_at.cmp(&b.created_at).then(a.id.cmp(&b.id)));
+
+        for event in sorted_events {
+            // TODO: Should we track the id's of the message_events that we've already processed?
+
+            tracing::debug!(
+                target: "whitenoise::commands::groups::fetch_mls_messages",
+                "Processing event: {:?}",
+                event.id
+            );
+
+            let nostr_keys = match secrets_store::get_export_secret_keys_for_group(
+                group.mls_group_id.clone(),
+                group.epoch,
+                wn.data_dir.as_path(),
+            ) {
+                Ok(keys) => keys,
+                Err(_) => {
+                    tracing::debug!(
+                        target: "whitenoise::commands::groups::fetch_mls_messages",
+                        "No export secret keys found, fetching from nostr_openmls",
+                    );
+                    // We need to get the export secret for the group from nostr_openmls
+                    let nostr_mls = wn.nostr_mls.lock().unwrap();
+                    let (export_secret_hex, epoch) = nostr_mls
+                        .export_secret_as_hex_secret_key_and_epoch(group.mls_group_id.clone())
+                        .map_err(|e| e.to_string())?;
+
+                    // Store the export secret key in the secrets store
+                    secrets_store::store_mls_export_secret(
+                        group.mls_group_id.clone(),
+                        epoch,
+                        export_secret_hex.clone(),
+                        wn.data_dir.as_path(),
+                    )
+                    .map_err(|e| e.to_string())?;
+
+                    Keys::parse(&export_secret_hex).map_err(|e| e.to_string())?
+                }
+            };
+
+            // Decrypt events using export secret key
+            let decrypted_content = nip44::decrypt_to_bytes(
+                nostr_keys.secret_key(),
+                &nostr_keys.public_key(),
+                &event.content,
+            )
+            .map_err(|e| format!("Error decrypting message: {}", e))?;
+
+            let message_vec;
+            {
+                let nostr_mls = wn.nostr_mls.lock().unwrap();
+
+                match nostr_mls.process_message_for_group(
+                    group.mls_group_id.clone(),
+                    decrypted_content.clone(),
+                ) {
+                    Ok(messages) => message_vec = messages,
+                    Err(e) => {
+                        match e {
+                            GroupError::ProcessMessageError(_) => {
+                                tracing::error!(
+                                    target: "whitenoise::commands::groups::fetch_mls_messages",
+                                    "Error processing message for group: {}",
+                                    e
+                                );
+                            }
+                            _ => {
+                                tracing::error!(
+                                    target: "whitenoise::commands::groups::fetch_mls_messages",
+                                    "UNRECOGNIZED ERROR processing message for group: {}",
+                                    e
+                                );
+                            }
+                        }
+                        continue;
+                    }
+                }
+            }
+
+            // This processes an application message into JSON.
+            match serde_json::from_slice::<serde_json::Value>(&message_vec) {
+                Ok(json_value) => {
+                    tracing::debug!(
+                        target: "whitenoise::commands::groups::fetch_mls_messages",
+                        "Deserialized JSON message: {}",
+                        json_value
+                    );
+                    let json_str = json_value.to_string();
+                    let json_event = UnsignedEvent::from_json(&json_str).unwrap();
+                    // Check to make sure we don't already have this event in the transcript
+                    if !group.transcript.iter().any(|e| e.id == json_event.id) {
+                        tracing::debug!(
+                            target: "whitenoise::commands::groups::fetch_mls_messages",
+                            "Adding new message to transcript: {:?}",
+                            json_event.id
+                        );
+
+                        wn.group_manager
+                            .add_message_to_group(group.mls_group_id.clone(), json_event.clone())
+                            .map_err(|e| e.to_string())?;
+
+                        app_handle
+                            .emit("mls_message_received", (group.clone(), json_event.clone()))
+                            .expect("Couldn't emit event");
+                    }
+                }
+                Err(e) => {
+                    tracing::error!(
+                        target: "whitenoise::commands::groups::fetch_mls_messages",
+                        "Failed to deserialize message into JSON: {}",
+                        e
+                    );
+                }
+            }
+            // TODO: Handle Proposal
+            // TODO: Handle Commit
+            // TODO: Handle External Join
+        }
+
+        // emit events to let the front end know
+    }
+
+    Ok(())
+}

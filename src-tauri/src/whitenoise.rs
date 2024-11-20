@@ -1,7 +1,7 @@
 use crate::account_manager::AccountManager;
 use crate::group_manager::GroupManager;
 use crate::nostr_manager::NostrManager;
-use openmls_nostr::NostrMls;
+use nostr_openmls::NostrMls;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 

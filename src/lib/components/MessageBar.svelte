@@ -3,7 +3,7 @@
     import { invoke } from "@tauri-apps/api/core";
     import type { NEvent, NostrMlsGroup } from "$lib/types/nostr";
 
-    let { group }: { group: NostrMlsGroup } = $props();
+    let { group, transcript = $bindable() }: { group: NostrMlsGroup; transcript: NEvent[] } = $props();
 
     let message = $state("");
     let textarea: HTMLTextAreaElement;
@@ -19,19 +19,20 @@
 
     async function sendMessage() {
         if (message.length === 0) return;
-
-        // TODO: Send message to the MLS group
-        const message_event: NEvent = await invoke("send_mls_message", {
+        await invoke("send_mls_message", {
             group,
             message: message,
+        }).then((messageEvent) => {
+            handleNewMessage(messageEvent as NEvent);
+            // Clear the message input and adjust the height of the textarea
+            message = "";
+            setTimeout(adjustTextareaHeight, 0);
         });
+    }
 
-        console.log("Message sent", message_event);
-        group.transcript.push(message_event);
-
-        // Clear the message input and adjust the height of the textarea
-        message = "";
-        setTimeout(adjustTextareaHeight, 0);
+    function handleNewMessage(message: NEvent) {
+        transcript = [...transcript, message];
+        console.log("handleNewMessage:", message);
     }
 
     function handleKeydown(event: KeyboardEvent) {

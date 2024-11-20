@@ -9,104 +9,35 @@
     import { hexMlsGroupId } from "$lib/utils/group";
     import GroupAvatar from "$lib/components/GroupAvatar.svelte";
     import { formatMessageTime } from "$lib/utils/time";
+    import { onMount } from "svelte";
+    import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+
+    let unlistenMlsMessageReceived: UnlistenFn;
 
     let { data } = $props();
 
     let group: NostrMlsGroup = data.group as NostrMlsGroup;
 
-    let counterpartyPubkey =
+    let counterpartyPubkey = $derived(
         group.group_type === NostrMlsGroupType.DirectMessage
             ? group.admin_pubkeys.filter((pubkey) => pubkey !== $accounts.activeAccount)[0]
-            : undefined;
+            : undefined
+    );
 
     let enrichedCounterparty: EnrichedContact | undefined = $state(undefined);
     let groupName = $state("");
 
-    // Test data - you can delete this later
-    // const testTranscript = [
-    //     {
-    //         id: "1234567890",
-    //         pubkey: $accounts.activeAccount,
-    //         kind: 1,
-    //         content: "Hey there! How are you?",
-    //         created_at: Math.floor(Date.now() / 1000) - 45000, // 1 hour ago
-    //     },
-    //     {
-    //         id: "1234567891",
-    //         pubkey: counterpartyPubkey,
-    //         kind: 1,
-    //         content: "I'm doing great! Thanks for asking. How about you?",
-    //         created_at: Math.floor(Date.now() / 1000) - 3500, // 58 minutes ago
-    //     },
-    //     {
-    //         id: "1234567892",
-    //         pubkey: $accounts.activeAccount,
-    //         kind: 1,
-    //         content: "Pretty good! Working on this new chat interface. What do you think about it?",
-    //         created_at: Math.floor(Date.now() / 1000) - 3400, // 56 minutes ago
-    //     },
-    //     {
-    //         id: "1234567893",
-    //         pubkey: counterpartyPubkey,
-    //         kind: 1,
-    //         content:
-    //             "It looks really nice! I especially like how the messages are aligned differently for each person.",
-    //         created_at: Math.floor(Date.now() / 1000) - 3300, // 55 minutes ago
-    //     },
-    //     {
-    //         id: "1234567894",
-    //         pubkey: $accounts.activeAccount,
-    //         kind: 1,
-    //         content:
-    //             "This is a longer message to test how the interface handles multiple lines of text. It should wrap nicely within the message bubble and not exceed 70% of the screen width.",
-    //         created_at: Math.floor(Date.now() / 1000) - 3200, // 53 minutes ago
-    //     },
-    //     {
-    //         id: "1234567895",
-    //         pubkey: $accounts.activeAccount,
-    //         kind: 1,
-    //         content: "",
-    //         created_at: Math.floor(Date.now() / 1000) - 3000, // 50 minutes ago
-    //     },
-    //     {
-    //         id: "1234567896",
-    //         pubkey: counterpartyPubkey,
-    //         kind: 1,
-    //         content:
-    //             "By the way, have you seen the new updates to the protocol? They added some interesting features for group messaging.",
-    //         created_at: Math.floor(Date.now() / 1000) - 2800, // ~47 minutes ago
-    //     },
-    //     {
-    //         id: "1234567897",
-    //         pubkey: $accounts.activeAccount,
-    //         kind: 1,
-    //         content:
-    //             "Yes! I'm particularly excited about the enhanced encryption methods. We should implement those soon.",
-    //         created_at: Math.floor(Date.now() / 1000) - 2700, // ~45 minutes ago
-    //     },
-    //     {
-    //         id: "1234567898",
-    //         pubkey: counterpartyPubkey,
-    //         kind: 1,
-    //         content: "Definitely! 🔐 Security first! When do you think we can start working on that?",
-    //         created_at: Math.floor(Date.now() / 1000) - 2600, // ~43 minutes ago
-    //     },
-    //     {
-    //         id: "1234567899",
-    //         pubkey: $accounts.activeAccount,
-    //         kind: 1,
-    //         content:
-    //             "Maybe we can start planning next week? I'll set up a meeting to discuss the implementation details.",
-    //         created_at: Math.floor(Date.now() / 1000) - 2500, // ~42 minutes ago
-    //     },
-    // ];
+    let transcript = $state(group.transcript);
 
-    // // Temporarily override the group transcript with test data
-    // group.transcript = testTranscript as NEvent[];
+    $inspect("transcript", transcript.length);
+    $inspect(
+        "transcript",
+        transcript.map((m) => m.content)
+    );
 
     $effect(() => {
         if (counterpartyPubkey) {
-            invoke("fetch_enriched_contact", {
+            invoke("query_enriched_contact", {
                 pubkey: counterpartyPubkey,
                 updateAccount: false,
             }).then((value) => {
@@ -120,6 +51,39 @@
             groupName = nameFromMetadata(enrichedCounterparty.metadata, counterpartyPubkey);
         } else {
             groupName = group.name;
+        }
+    });
+
+    async function loadMessages() {
+        await invoke("fetch_mls_messages");
+        scrollToBottom();
+    }
+
+    function scrollToBottom() {
+        let messagesContainer = document.getElementById("messagesContainer");
+        if (messagesContainer) {
+            const lastMessage = messagesContainer.lastElementChild;
+            lastMessage?.scrollIntoView({ behavior: "instant" });
+            messagesContainer.style.opacity = "1";
+        }
+    }
+
+    onMount(async () => {
+        await loadMessages();
+
+        if (!unlistenMlsMessageReceived) {
+            unlistenMlsMessageReceived = await listen<[NostrMlsGroup, NEvent]>(
+                "mls_message_received",
+                ({ payload: [updatedGroup, message] }) => {
+                    // console.log("updatedGroups:", updatedGroup);
+                    console.log("message received", message.content);
+                    if (!transcript.some((m) => m.id === message.id)) {
+                        console.log("pushing message to transcript");
+                        transcript = [...transcript, message];
+                    }
+                    scrollToBottom();
+                }
+            );
         }
     });
 </script>
@@ -145,13 +109,16 @@
 </HeaderToolbar>
 
 <main class="flex flex-col relative min-h-screen">
-    <div class="flex-1 overflow-y-auto px-8 flex flex-col gap-6 pt-10 pb-40">
-        {#each group.transcript as message (message.id)}
+    <div
+        id="messagesContainer"
+        class="flex-1 px-8 flex flex-col gap-2 pt-10 pb-40 overflow-y-auto opacity-0 transition-opacity ease-in-out duration-50"
+    >
+        {#each transcript as message (message.id)}
             <div class={`flex ${message.pubkey === $accounts.activeAccount ? "justify-end" : "justify-start"}`}>
                 <div
-                    class={`max-w-[70%] rounded-lg ${message.pubkey === $accounts.activeAccount ? "bg-chat-bg-me text-gray-50 rounded-br-none" : "bg-chat-bg-other text-gray-50 rounded-bl-none"} p-3`}
+                    class={`max-w-[70%] rounded-lg ${message.pubkey === $accounts.activeAccount ? "bg-chat-bg-me text-gray-50 rounded-br" : "bg-chat-bg-other text-gray-50 rounded-bl"} p-3`}
                 >
-                    <div class="flex flex-col">
+                    <div class="flex flex-row gap-4">
                         <span class="break-words">
                             {#if message.content.length > 0}
                                 {message.content}
@@ -159,7 +126,7 @@
                                 <span class="italic opacity-60">No message content</span>
                             {/if}
                         </span>
-                        <span class="text-sm opacity-60 self-end mt-2">
+                        <span class="text-sm opacity-60 self-end mt-2 whitespace-nowrap">
                             {formatMessageTime(message.created_at)}
                         </span>
                     </div>
@@ -167,5 +134,5 @@
             </div>
         {/each}
     </div>
-    <MessageBar {group} />
+    <MessageBar bind:transcript {group} />
 </main>
