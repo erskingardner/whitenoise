@@ -3,7 +3,7 @@
     import { invoke } from "@tauri-apps/api/core";
     import type { NEvent, NostrMlsGroup } from "$lib/types/nostr";
 
-    let { group, transcript = $bindable() }: { group: NostrMlsGroup; transcript: NEvent[] } = $props();
+    let { group, handleNewMessage }: { group: NostrMlsGroup; handleNewMessage: (message: NEvent) => void } = $props();
 
     let message = $state("");
     let textarea: HTMLTextAreaElement;
@@ -28,11 +28,6 @@
             message = "";
             setTimeout(adjustTextareaHeight, 0);
         });
-    }
-
-    function handleNewMessage(message: NEvent) {
-        transcript = [...transcript, message];
-        console.log("handleNewMessage:", message);
     }
 
     function handleKeydown(event: KeyboardEvent) {

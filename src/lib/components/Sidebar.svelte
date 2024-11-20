@@ -10,7 +10,7 @@
         goto(`/chats`);
         setTimeout(() => {
             setActiveAccount(pubkey);
-        }, 100);
+        }, 50);
     }
 </script>
 
