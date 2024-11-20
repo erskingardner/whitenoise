@@ -125,8 +125,14 @@ pub async fn create_group(
         member_key_packages
     );
 
-    // TODO: We'll need to set these based on the group creator?
-    let group_relays = vec!["ws://localhost:8080".to_string()];
+    let mut group_relays: Vec<String>;
+    {
+        let nostr_settings = wn.nostr.settings.lock().unwrap();
+        group_relays = nostr_settings.relays.clone();
+        if tauri::is_dev() {
+            group_relays.push("ws://localhost:8080".to_string());
+        }
+    }
 
     let create_group_result;
     {

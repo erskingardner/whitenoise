@@ -46,7 +46,6 @@ impl Default for NostrManagerSettings {
                 "wss://relay.primal.net".to_string(),
                 "wss://nos.lol".to_string(),
                 "wss://purplepag.es".to_string(),
-                "ws://localhost:8080".to_string(),
             ],
         }
     }
@@ -65,6 +64,10 @@ impl NostrManager {
         // Add the default relays
         for relay in settings.relays.iter() {
             client.add_relay(relay).await?;
+        }
+
+        if tauri::is_dev() {
+            client.add_relay("ws://localhost:8080".to_string()).await?;
         }
 
         // Connect to the default relays
