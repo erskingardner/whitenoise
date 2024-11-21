@@ -125,7 +125,7 @@ pub async fn fetch_enriched_contact(
         .map_err(|_| "Failed to get key packages".to_string())?;
 
     let enriched_contact = EnrichedContact {
-        metadata,
+        metadata: metadata.unwrap_or_default(),
         nip17: !inbox_relays.is_empty(),
         nip104: !key_packages.is_empty(),
         nostr_relays,
@@ -442,30 +442,6 @@ pub async fn query_enriched_contacts(
     }
 
     Ok(contacts_map)
-}
-
-#[tauri::command]
-pub async fn fetch_metadata(
-    pubkey: String,
-    wn: tauri::State<'_, Whitenoise>,
-) -> Result<Metadata, String> {
-    let pubkey = PublicKey::from_hex(&pubkey).map_err(|_| "Invalid pubkey".to_string())?;
-    wn.nostr
-        .fetch_user_metadata(pubkey)
-        .await
-        .map_err(|e| format!("Failed to get metadata: {}", e))
-}
-
-#[tauri::command]
-pub async fn query_metadata(
-    pubkey: String,
-    wn: tauri::State<'_, Whitenoise>,
-) -> Result<Metadata, String> {
-    let pubkey = PublicKey::from_hex(&pubkey).map_err(|_| "Invalid pubkey".to_string())?;
-    wn.nostr
-        .query_user_metadata(pubkey)
-        .await
-        .map_err(|e| format!("Failed to get metadata: {}", e))
 }
 
 #[tauri::command]

@@ -1,23 +1,10 @@
-use crate::nostr_manager::{NostrManager, NostrManagerError, Result};
+use crate::nostr_manager::{NostrManager, Result};
 use nostr_sdk::prelude::*;
 
 impl NostrManager {
     pub async fn query_user_metadata(&self, pubkey: PublicKey) -> Result<Metadata> {
-        let events = self
-            .client
-            .database()
-            .query(vec![Filter::new()
-                .kind(Kind::Metadata)
-                .authors(vec![pubkey])
-                .limit(1)])
-            .await?;
-
-        let metadata = if let Some(event) = events.first() {
-            Metadata::from_json(&event.content).map_err(NostrManagerError::Metadata)?
-        } else {
-            Metadata::default()
-        };
-        Ok(metadata)
+        let profile = self.client.database().profile(pubkey).await?;
+        Ok(profile.metadata())
     }
 
     #[allow(dead_code)]

@@ -2,17 +2,16 @@ use crate::nostr_manager::{NostrManager, NostrManagerError, Result};
 use nostr_sdk::prelude::*;
 
 impl NostrManager {
-    pub async fn fetch_user_metadata(&self, pubkey: PublicKey) -> Result<Metadata> {
-        let metadata = self
+    pub async fn fetch_user_metadata(&self, pubkey: PublicKey) -> Result<Option<Metadata>> {
+        match self
             .client
             .fetch_metadata(pubkey, Some(self.timeout()?))
-            .await?;
-        tracing::debug!(
-            target: "whitenoise::nostr_client::fetch_user_metadata",
-            "Fetched metadata: {:?}",
-            metadata
-        );
-        Ok(metadata)
+            .await
+        {
+            Ok(metadata) => Ok(Some(metadata)),
+            Err(nostr_sdk::client::Error::MetadataNotFound) => Ok(None),
+            Err(e) => Err(NostrManagerError::from(e)),
+        }
     }
 
     pub async fn fetch_user_relays(&self, pubkey: PublicKey) -> Result<Vec<String>> {

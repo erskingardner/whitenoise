@@ -222,6 +222,11 @@ impl AccountManager {
 
         let mut onboarding = AccountOnboarding::default();
 
+        let unwrapped_metadata = match metadata {
+            Ok(Some(metadata)) => metadata,
+            _ => Metadata::default(),
+        };
+
         let inbox_relays_unwrapped = inbox_relays.unwrap_or_default();
         let key_package_relays_unwrapped = key_package_relays.unwrap_or_default();
 
@@ -237,7 +242,7 @@ impl AccountManager {
 
         let account = Account {
             pubkey: pubkey.to_hex(),
-            metadata: metadata.unwrap_or_default(),
+            metadata: unwrapped_metadata,
             nostr_relays: nostr_relays.unwrap_or_default(),
             inbox_relays: inbox_relays_unwrapped,
             key_package_relays: key_package_relays_unwrapped,

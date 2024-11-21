@@ -51,8 +51,6 @@ pub fn run() {
             query_enriched_contact,
             fetch_enriched_contacts,
             query_enriched_contacts,
-            fetch_metadata,
-            query_metadata,
             fetch_relays,
             encrypt_content,
             decrypt_content,
