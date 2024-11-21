@@ -10,6 +10,7 @@ impl NostrManager {
     ) -> Result<()> {
         self.sync_user_metadata(pubkey, last_synced).await?;
         self.sync_contacts(last_synced).await?;
+        self.sync_contacts_metadata(last_synced).await?;
         self.sync_user_relays(pubkey, last_synced).await?;
         self.sync_user_inbox_relays(pubkey, last_synced).await?;
         self.sync_user_key_package_relays(pubkey, last_synced)
@@ -110,6 +111,21 @@ impl NostrManager {
         let filter = Filter::new()
             .kind(Kind::ContactList)
             .author(pubkey)
+            .since(last_synced)
+            .until(Timestamp::now());
+
+        self.client
+            .sync(filter, &nostr_sdk::SyncOptions::default())
+            .await?;
+        Ok(())
+    }
+
+    async fn sync_contacts_metadata(&self, last_synced: Timestamp) -> Result<()> {
+        let contacts_pubkeys = self.query_contact_list_pubkeys().await?;
+
+        let filter = Filter::new()
+            .kind(Kind::Metadata)
+            .authors(contacts_pubkeys)
             .since(last_synced)
             .until(Timestamp::now());
 

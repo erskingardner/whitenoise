@@ -10,8 +10,12 @@ import type { NMetadata, NEvent } from "../types/nostr";
  *          2. name
  *          3. truncated npub of the pubkey (if available)
  */
-export function nameFromMetadata(metadata: NMetadata, pubkey?: string): string {
-    return metadata.display_name || metadata.name || (pubkey ? npubFromPubkey(pubkey) : "");
+export function nameFromMetadata(metadata: NMetadata, pubkey?: string, truncate: boolean = true): string {
+    return (
+        metadata.display_name ||
+        metadata.name ||
+        (pubkey ? (truncate ? truncatedNpub(pubkey) : npubFromPubkey(pubkey)) : "")
+    );
 }
 
 /**
@@ -30,7 +34,7 @@ export function npubFromPubkey(pubkey: string): string {
  * @returns A truncated npub representation of the public key.
  */
 export function truncatedNpub(pubkey: string, length: number = 20): string {
-    return npubFromPubkey(pubkey).slice(0, length);
+    return `${npubFromPubkey(pubkey).slice(0, length)}...`;
 }
 
 /**

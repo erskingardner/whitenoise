@@ -103,6 +103,11 @@ pub async fn fetch_enriched_contact(
         .fetch_user_metadata(pubkey)
         .await
         .map_err(|_| "Failed to get metadata".to_string())?;
+    let nostr_relays = wn
+        .nostr
+        .fetch_user_relays(pubkey)
+        .await
+        .map_err(|_| "Failed to get user relays".to_string())?;
     let inbox_relays = wn
         .nostr
         .fetch_user_inbox_relays(pubkey)
@@ -113,11 +118,17 @@ pub async fn fetch_enriched_contact(
         .fetch_user_key_package_relays(pubkey)
         .await
         .map_err(|_| "Failed to get key package relays".to_string())?;
+    let key_packages = wn
+        .nostr
+        .fetch_user_key_packages(pubkey)
+        .await
+        .map_err(|_| "Failed to get key packages".to_string())?;
 
     let enriched_contact = EnrichedContact {
         metadata,
         nip17: !inbox_relays.is_empty(),
-        nip104: !key_package_relays.is_empty(),
+        nip104: !key_packages.is_empty(),
+        nostr_relays,
         inbox_relays,
         key_package_relays,
     };
@@ -148,6 +159,11 @@ pub async fn query_enriched_contact(
         .query_user_metadata(pubkey)
         .await
         .map_err(|_| "Failed to get metadata".to_string())?;
+    let nostr_relays = wn
+        .nostr
+        .query_user_relays(pubkey)
+        .await
+        .map_err(|_| "Failed to get user relays".to_string())?;
     let inbox_relays = wn
         .nostr
         .query_user_inbox_relays(pubkey)
@@ -158,11 +174,17 @@ pub async fn query_enriched_contact(
         .query_user_key_package_relays(pubkey)
         .await
         .map_err(|_| "Failed to get key package relays".to_string())?;
+    let key_packages = wn
+        .nostr
+        .query_user_key_packages(pubkey)
+        .await
+        .map_err(|_| "Failed to get key packages".to_string())?;
 
     let enriched_contact = EnrichedContact {
         metadata,
         nip17: !inbox_relays.is_empty(),
-        nip104: !key_package_relays.is_empty(),
+        nip104: !key_packages.is_empty(),
+        nostr_relays,
         inbox_relays,
         key_package_relays,
     };
@@ -198,111 +220,107 @@ pub async fn fetch_enriched_contacts(
 
     let mut contacts_map: HashMap<String, EnrichedContact> = HashMap::new();
 
-    if !contact_list_pubkeys.is_empty() {
-        // Fetch metadata for all contacts in a single query
-        let metadata_filter = Filter::new()
-            .kind(Kind::Metadata)
-            .authors(contact_list_pubkeys.clone());
-
-        tracing::debug!(
-            target: "whitenoise::commands::nostr::fetch_enriched_contacts",
-            "contact_metadata_filter: {:?}",
-            metadata_filter
-        );
-
-        let stored_contacts = wn
-            .nostr
-            .client
-            .database()
-            .query(vec![metadata_filter.clone()])
-            .await
-            .expect("Failed to query metadata");
-
-        let fetched_contacts = wn
-            .nostr
-            .client
-            .fetch_events(
-                vec![metadata_filter.clone()],
-                Some(wn.nostr.timeout().map_err(|e| e.to_string())?),
-            )
-            .await
-            .expect("Failed to fetch metadata");
-
-        let contacts = stored_contacts.merge(fetched_contacts);
-
-        // Prepare filters for messaging capabilities
-        let dm_relay_list_filter = Filter::new()
-            .kind(Kind::Custom(10050))
-            .authors(contact_list_pubkeys.clone());
-        let prekey_filter = Filter::new()
-            .kind(Kind::MlsKeyPackage)
-            .authors(contact_list_pubkeys.clone());
-        let key_package_list_filter = Filter::new()
-            .kind(Kind::Custom(10051))
-            .authors(contact_list_pubkeys.clone());
-
-        // Fetch messaging capabilities for all contacts in a single query
-        let messaging_capabilities_events = wn
-            .nostr
-            .client
-            .fetch_events(
-                vec![dm_relay_list_filter, prekey_filter, key_package_list_filter],
-                Some(wn.nostr.timeout().map_err(|e| e.to_string())?),
-            )
-            .await
-            .expect("Failed to fetch messaging capabilities");
-
-        // Process contacts and messaging capabilities
-        for contact in contacts {
-            let metadata = Metadata::from_json(contact.content).expect("Failed to parse metadata");
-            let author = contact.pubkey.to_string();
-
-            let mut enriched_contact = EnrichedContact {
-                metadata,
+    // Bail early if there are no contact list pubkeys
+    if contact_list_pubkeys.is_empty() {
+        return Ok(contacts_map);
+    }
+    // Initialize the map with default EnrichedContact for all pubkeys
+    for pubkey in &contact_list_pubkeys {
+        contacts_map.insert(
+            pubkey.to_string(),
+            EnrichedContact {
+                metadata: Metadata::default(),
                 nip17: false,
                 nip104: false,
+                nostr_relays: Vec::new(),
                 inbox_relays: Vec::new(),
                 key_package_relays: Vec::new(),
-            };
+            },
+        );
+    }
 
-            // Process messaging capabilities
-            for event in messaging_capabilities_events.clone() {
-                if event.pubkey.to_string() == author {
-                    match event.kind {
-                        Kind::Replaceable(10050) => {
-                            enriched_contact.nip17 = true;
-                            enriched_contact.inbox_relays.extend(
-                                event
-                                    .tags
-                                    .iter()
-                                    .filter(|tag| tag.kind() == TagKind::Relay)
-                                    .filter_map(|tag| tag.content())
-                                    .map(|s| s.to_string()),
-                            );
-                        }
-                        Kind::Replaceable(10051) => {
-                            enriched_contact.key_package_relays.extend(
-                                event
-                                    .tags
-                                    .iter()
-                                    .filter(|tag| tag.kind() == TagKind::Relay)
-                                    .filter_map(|tag| tag.content())
-                                    .map(|s| s.to_string()),
-                            );
-                        }
-                        Kind::MlsKeyPackage => {
-                            if event.tags.find(TagKind::MlsProtocolVersion).is_some() {
-                                enriched_contact.nip104 = true;
-                            }
-                        }
-                        _ => {}
+    // Prepare all filters
+    let filters = vec![
+        Filter::new()
+            .kind(Kind::Metadata)
+            .authors(contact_list_pubkeys.clone()),
+        Filter::new()
+            .kind(Kind::RelayList)
+            .authors(contact_list_pubkeys.clone()),
+        Filter::new()
+            .kind(Kind::InboxRelays)
+            .authors(contact_list_pubkeys.clone()),
+        Filter::new()
+            .kind(Kind::MlsKeyPackage)
+            .authors(contact_list_pubkeys.clone()),
+        Filter::new()
+            .kind(Kind::MlsKeyPackageRelays)
+            .authors(contact_list_pubkeys.clone()),
+    ];
+
+    // Fetch all events in parallel using a single request
+    let (stored_events, fetched_events) = tokio::join!(
+        wn.nostr.client.database().query(filters.clone()),
+        wn.nostr.client.fetch_events(
+            filters,
+            Some(wn.nostr.timeout().map_err(|e| e.to_string())?),
+        )
+    );
+
+    let all_events = stored_events
+        .expect("Failed to query stored events")
+        .merge(fetched_events.expect("Failed to fetch events"));
+
+    // Process all events
+    for event in all_events {
+        let author = event.pubkey.to_string();
+        if let Some(contact) = contacts_map.get_mut(&author) {
+            match event.kind {
+                Kind::Metadata => {
+                    if let Ok(metadata) = Metadata::from_json(&event.content) {
+                        contact.metadata = metadata;
                     }
                 }
+                Kind::RelayList => {
+                    contact.nostr_relays.extend(
+                        event
+                            .tags
+                            .iter()
+                            .filter(|tag| tag.kind() == TagKind::Relay)
+                            .filter_map(|tag| tag.content())
+                            .map(|s| s.to_string()),
+                    );
+                }
+                Kind::InboxRelays => {
+                    contact.nip17 = true;
+                    contact.inbox_relays.extend(
+                        event
+                            .tags
+                            .iter()
+                            .filter(|tag| tag.kind() == TagKind::Relay)
+                            .filter_map(|tag| tag.content())
+                            .map(|s| s.to_string()),
+                    );
+                }
+                Kind::MlsKeyPackageRelays => {
+                    contact.key_package_relays.extend(
+                        event
+                            .tags
+                            .iter()
+                            .filter(|tag| tag.kind() == TagKind::Relay)
+                            .filter_map(|tag| tag.content())
+                            .map(|s| s.to_string()),
+                    );
+                }
+                Kind::MlsKeyPackage => {
+                    if event.tags.find(TagKind::MlsProtocolVersion).is_some() {
+                        contact.nip104 = true;
+                    }
+                }
+                _ => {}
             }
-
-            contacts_map.insert(author, enriched_contact);
         }
-    };
+    }
 
     Ok(contacts_map)
 }
@@ -311,7 +329,7 @@ pub async fn fetch_enriched_contacts(
 pub async fn query_enriched_contacts(
     wn: tauri::State<'_, Whitenoise>,
 ) -> Result<HashMap<String, EnrichedContact>, String> {
-    // Fetch contact list public keys
+    // Query contact list public keys from local database
     let contact_list_pubkeys = wn
         .nostr
         .query_contact_list_pubkeys()
@@ -325,84 +343,103 @@ pub async fn query_enriched_contacts(
 
     let mut contacts_map: HashMap<String, EnrichedContact> = HashMap::new();
 
-    if !contact_list_pubkeys.is_empty() {
-        let contacts = wn.nostr.query_contacts().await.map_err(|e| e.to_string())?;
+    // Bail early if there are no contact list pubkeys
+    if contact_list_pubkeys.is_empty() {
+        return Ok(contacts_map);
+    }
 
-        // Prepare filters for messaging capabilities
-        let dm_relay_list_filter = Filter::new()
-            .kind(Kind::Custom(10050))
-            .authors(contact_list_pubkeys.clone());
-        let prekey_filter = Filter::new()
-            .kind(Kind::MlsKeyPackage)
-            .authors(contact_list_pubkeys.clone());
-        let key_package_list_filter = Filter::new()
-            .kind(Kind::Custom(10051))
-            .authors(contact_list_pubkeys.clone());
-
-        // Fetch messaging capabilities for all contacts in a single query
-        let messaging_capabilities_events = wn
-            .nostr
-            .client
-            .database()
-            .query(vec![
-                dm_relay_list_filter,
-                prekey_filter,
-                key_package_list_filter,
-            ])
-            .await
-            .expect("Failed to fetch messaging capabilities");
-
-        // Process contacts and messaging capabilities
-        for contact in contacts {
-            let metadata = Metadata::from_json(contact.content).expect("Failed to parse metadata");
-            let author = contact.pubkey.to_string();
-
-            let mut enriched_contact = EnrichedContact {
-                metadata,
+    // Initialize the map with default EnrichedContact for all pubkeys
+    for pubkey in &contact_list_pubkeys {
+        contacts_map.insert(
+            pubkey.to_string(),
+            EnrichedContact {
+                metadata: Metadata::default(),
                 nip17: false,
                 nip104: false,
+                nostr_relays: Vec::new(),
                 inbox_relays: Vec::new(),
                 key_package_relays: Vec::new(),
-            };
+            },
+        );
+    }
 
-            // Process messaging capabilities
-            for event in messaging_capabilities_events.clone() {
-                if event.pubkey.to_string() == author {
-                    match event.kind {
-                        Kind::Replaceable(10050) => {
-                            enriched_contact.nip17 = true;
-                            enriched_contact.inbox_relays.extend(
-                                event
-                                    .tags
-                                    .iter()
-                                    .filter(|tag| tag.kind() == TagKind::Relay)
-                                    .filter_map(|tag| tag.content())
-                                    .map(|s| s.to_string()),
-                            );
-                        }
-                        Kind::Replaceable(10051) => {
-                            enriched_contact.key_package_relays.extend(
-                                event
-                                    .tags
-                                    .iter()
-                                    .filter(|tag| tag.kind() == TagKind::Relay)
-                                    .filter_map(|tag| tag.content())
-                                    .map(|s| s.to_string()),
-                            );
-                        }
-                        Kind::MlsKeyPackage => {
-                            if event.tags.find(TagKind::MlsProtocolVersion).is_some() {
-                                enriched_contact.nip104 = true;
-                            }
-                        }
-                        _ => {}
+    // Prepare all filters
+    let filters = vec![
+        Filter::new()
+            .kind(Kind::Metadata)
+            .authors(contact_list_pubkeys.clone()),
+        Filter::new()
+            .kind(Kind::RelayList)
+            .authors(contact_list_pubkeys.clone()),
+        Filter::new()
+            .kind(Kind::InboxRelays)
+            .authors(contact_list_pubkeys.clone()),
+        Filter::new()
+            .kind(Kind::MlsKeyPackage)
+            .authors(contact_list_pubkeys.clone()),
+        Filter::new()
+            .kind(Kind::MlsKeyPackageRelays)
+            .authors(contact_list_pubkeys.clone()),
+    ];
+
+    let stored_events = wn
+        .nostr
+        .client
+        .database()
+        .query(filters.clone())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // Process all events
+    for event in stored_events {
+        let author = event.pubkey.to_string();
+        if let Some(contact) = contacts_map.get_mut(&author) {
+            match event.kind {
+                Kind::Metadata => {
+                    if let Ok(metadata) = Metadata::from_json(&event.content) {
+                        contact.metadata = metadata;
                     }
                 }
+                Kind::RelayList => {
+                    contact.nostr_relays.extend(
+                        event
+                            .tags
+                            .iter()
+                            .filter(|tag| tag.kind() == TagKind::Relay)
+                            .filter_map(|tag| tag.content())
+                            .map(|s| s.to_string()),
+                    );
+                }
+                Kind::InboxRelays => {
+                    contact.nip17 = true;
+                    contact.inbox_relays.extend(
+                        event
+                            .tags
+                            .iter()
+                            .filter(|tag| tag.kind() == TagKind::Relay)
+                            .filter_map(|tag| tag.content())
+                            .map(|s| s.to_string()),
+                    );
+                }
+                Kind::MlsKeyPackageRelays => {
+                    contact.key_package_relays.extend(
+                        event
+                            .tags
+                            .iter()
+                            .filter(|tag| tag.kind() == TagKind::Relay)
+                            .filter_map(|tag| tag.content())
+                            .map(|s| s.to_string()),
+                    );
+                }
+                Kind::MlsKeyPackage => {
+                    if event.tags.find(TagKind::MlsProtocolVersion).is_some() {
+                        contact.nip104 = true;
+                    }
+                }
+                _ => {}
             }
-
-            contacts_map.insert(author, enriched_contact);
         }
-    };
+    }
 
     Ok(contacts_map)
 }
@@ -544,6 +581,7 @@ pub async fn publish_relay_list(
             metadata: active_account.metadata,
             nip17: true,
             nip104: true,
+            nostr_relays: active_account.nostr_relays,
             inbox_relays: relays.clone(),
             key_package_relays: active_account.key_package_relays,
         },
@@ -551,6 +589,7 @@ pub async fn publish_relay_list(
             metadata: active_account.metadata,
             nip17: true,
             nip104: true,
+            nostr_relays: active_account.nostr_relays,
             inbox_relays: active_account.inbox_relays,
             key_package_relays: relays.clone(),
         },

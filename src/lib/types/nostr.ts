@@ -19,6 +19,7 @@ export type EnrichedContact = {
     metadata: NMetadata;
     nip17: boolean;
     nip104: boolean;
+    nostr_relays: string[];
     inbox_relays: string[];
     key_package_relays: string[];
 };
