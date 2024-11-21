@@ -97,14 +97,12 @@ impl GroupManager {
 
         tracing::debug!(
             target: "whitenoise::group_manager::new",
-            "Loaded groups state: {:?}",
-            groups
+            "Loaded groups state",
         );
 
         tracing::debug!(
             target: "whitenoise::group_manager::new",
-            "Loaded invites state: {:?}",
-            invites
+            "Loaded invites state",
         );
 
         Ok((groups, invites))

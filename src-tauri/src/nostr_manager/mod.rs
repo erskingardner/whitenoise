@@ -67,6 +67,10 @@ impl NostrManager {
         }
 
         if tauri::is_dev() {
+            tracing::debug!(
+                target: "whitenoise::nostr_manager::new",
+                "IN DEV: Adding local relay"
+            );
             client.add_relay("ws://localhost:8080".to_string()).await?;
         }
 

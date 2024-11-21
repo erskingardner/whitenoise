@@ -123,8 +123,7 @@ impl AccountManager {
 
         tracing::debug!(
             target: "whitenoise::account_manager::new",
-            "Loaded accounts state: {:?}",
-            account_state.get_accounts_state().unwrap()
+            "Loaded accounts state",
         );
         Ok(account_state)
     }

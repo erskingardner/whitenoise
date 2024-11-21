@@ -66,7 +66,7 @@ pub fn get_group(group_id: String, wn: tauri::State<'_, Whitenoise>) -> Result<G
 /// * `Err(String)` - Error message if group creation fails
 ///
 /// # Flow
-/// 1. Validates that active account is the creator
+/// 1. Validates that active account is the creator and signer
 /// 2. Validates member and admin lists
 /// 3. Fetches key packages for all members
 /// 4. Creates MLS group with NostrMls
@@ -161,11 +161,19 @@ pub async fn create_group(
             .await
             .map_err(|e| e.to_string())?;
 
-        // If we're in dev mode, use the local relay, otherwise use the relays from the contact
-        let relay_urls = if tauri::is_dev() {
-            vec!["ws://localhost:8080".to_string()]
-        } else {
+        let relay_urls = if !contact.inbox_relays.is_empty() {
             contact.inbox_relays
+        } else if !contact.nostr_relays.is_empty() {
+            contact.nostr_relays
+        } else {
+            // Get default relays from the client
+            wn.nostr
+                .client
+                .relays()
+                .await
+                .keys()
+                .map(|url| url.to_string())
+                .collect()
         };
 
         let welcome_rumor = EventBuilder::new(
@@ -215,6 +223,12 @@ pub async fn create_group(
                     break;
                 }
                 Err(e) => {
+                    tracing::error!(
+                        target: "whitenoise::groups::create_group",
+                        "Failed to send welcome message to {:?}: {:?}",
+                        &member_pubkey,
+                        e
+                    );
                     last_error = Some(e);
                     retry_count += 1;
                     if retry_count < max_retries {
