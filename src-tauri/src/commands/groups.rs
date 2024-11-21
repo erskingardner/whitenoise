@@ -225,8 +225,9 @@ pub async fn create_group(
                 Err(e) => {
                     tracing::error!(
                         target: "whitenoise::groups::create_group",
-                        "Failed to send welcome message to {:?}: {:?}",
+                        "Failed to send welcome message to {:?} on {:?}: {:?}",
                         &member_pubkey,
+                        &relay_urls,
                         e
                     );
                     last_error = Some(e);
@@ -241,8 +242,8 @@ pub async fn create_group(
 
         if retry_count == max_retries {
             return Err(format!(
-                "Failed to send event after {} attempts. Last error: {:?}",
-                max_retries, last_error
+                "Failed to send welcome message to {:?} on {:?} after {} attempts. Last error: {:?}",
+                &member_pubkey, &relay_urls, max_retries, last_error
             ));
         }
 
