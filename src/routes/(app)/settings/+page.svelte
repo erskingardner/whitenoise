@@ -178,7 +178,7 @@
         title="Publish Key Package?"
         body="Are you sure you want to publish a new Key Package event to relays?"
         acceptFn={publishKeyPackage}
-        acceptText="Publish New Key Package"
+        acceptText="Publish Key Package"
         acceptStyle="primary"
         cancelText="Cancel"
         bind:showAlert={showKeyPackageAlert}
@@ -261,13 +261,13 @@
     <h2 class="section-title">Privacy & Security</h2>
     <div class="section">
         <ul class="section-list">
-            <li class="section-list-item">
+            <!-- <li class="section-list-item">
                 <button onclick={() => goto("/settings/lockdown/")} class="row-button">
                     <Lock size={24} />
                     <span>Lockdown Mode</span>
                     <CaretRight size={24} class="ml-auto mr-0" />
                 </button>
-            </li>
+            </li> -->
             <li class="section-list-item">
                 <button onclick={deleteAll} class="row-button">
                     <Skull size={24} />
@@ -293,7 +293,7 @@
                     <span>Publish Key Package Events</span>
                 </button>
             </li>
-            <li class="section-list-item">
+            <!-- <li class="section-list-item">
                 <button onclick={() => goto("/settings/key_packages/")} class="row-button">
                     <Binoculars size={24} />
                     <span>Inspect Key Package Events</span>
@@ -306,7 +306,7 @@
                     <span>Inspect Invites</span>
                     <CaretRight size={24} class="ml-auto mr-0" />
                 </button>
-            </li>
+            </li> -->
             <li class="section-list-item">
                 <button onclick={toggleInspectAccounts} class="row-button">
                     <UserFocus size={24} />
@@ -319,7 +319,7 @@
                 </button>
                 {#if showAccountsState}
                     <div class="flex flex-col gap-4 items-start w-full mt-4 p-4">
-                        <pre>{accountsState}</pre>
+                        <pre class="whitespace-pre overflow-x-auto w-full">{accountsState}</pre>
                     </div>
                 {/if}
             </li>

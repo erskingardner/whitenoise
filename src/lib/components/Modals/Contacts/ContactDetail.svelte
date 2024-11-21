@@ -8,6 +8,7 @@
     import { getToastState } from "$lib/stores/toast-state.svelte";
     import Loader from "$lib/components/Loader.svelte";
     import type { CloseModal } from "$lib/types/modal";
+    import { Warning } from "phosphor-svelte";
 
     let toastState = getToastState();
 
@@ -52,10 +53,10 @@
 <div>
     <div class="flex flex-col items-center justify-start gap-2">
         <Avatar {pubkey} picture={contact.metadata.picture} pxSize={80} />
-        <div class="text-4xl font-bold mt-6">
-            <Name {pubkey} metadata={contact.metadata} unstyled={true} />
+        <div class="text-4xl font-bold mt-6 w-full truncate">
+            <Name {pubkey} metadata={contact.metadata} unstyled={false} extraClasses="text-[2rem] text-center" />
         </div>
-        <p class="text-gray-500">
+        <p class="text-gray-500 text-center">
             {contact.metadata.about}
         </p>
     </div>
@@ -71,13 +72,14 @@
             </p>
             <button class="button-primary" onclick={startSecureChat}> Start secure chat </button>
         {:else}
-            <p>
+            <p class="flex flex-row items-center gap-2">
+                <Warning class="text-red-500" weight="bold" size={24} />
                 {nameFromMetadata(contact.metadata, pubkey)} is not yet set up to use secure MLS messaging.
             </p>
 
-            <button class="button-primary" onclick={inviteToWhiteNoise}>
+            <!-- <button class="button-primary" onclick={inviteToWhiteNoise}>
                 Invite {nameFromMetadata(contact.metadata, pubkey)} to White Noise
-            </button>
+            </button> -->
         {/if}
         {#if isLoading}
             <Loader size={40} fullscreen={false} />

@@ -35,11 +35,11 @@
     >
         <h2 class="text-2xl font-bold">{title}</h2>
         <div class="whitespace-pre-wrap">{body}</div>
-        <div class="flex flex-row gap-4 items-center justify-around">
-            <button onclick={() => acceptFn()} class="button-{acceptStyle} w-full text-center">
+        <div class="flex flex-col md:flex-row gap-4 items-center justify-around">
+            <button onclick={() => acceptFn()} class="button-{acceptStyle} w-full text-center whitespace-nowrap">
                 {acceptText}
             </button>
-            <button onclick={toggleAlert} class="button-outline w-full text-center">
+            <button onclick={toggleAlert} class="button-outline w-full text-center whitespace-nowrap">
                 {cancelText}
             </button>
         </div>

@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { ChatCircle, Phone, Gear } from "phosphor-svelte";
+    import { ChatCircle, Phone, GearSix } from "phosphor-svelte";
 
     let { activeTab = $bindable("chats") }: { activeTab: string } = $props();
 </script>
@@ -10,19 +10,19 @@
     <div class="max-w-screen-xl mx-auto px-4 flex justify-around items-center">
         <a href="/chats">
             <span class="tabbar-link {activeTab === 'chats' ? 'active' : ''}">
-                <ChatCircle size={28} weight={activeTab === "chats" ? "fill" : "light"} />
+                <ChatCircle size={30} weight={activeTab === "chats" ? "fill" : "light"} />
                 Chats
             </span>
         </a>
         <a href="/calls">
             <span class="tabbar-link {activeTab === 'calls' ? 'active' : ''}">
-                <Phone size={28} weight={activeTab === "calls" ? "fill" : "light"} />
+                <Phone size={30} weight={activeTab === "calls" ? "fill" : "light"} />
                 Calls
             </span>
         </a>
         <a href="/settings">
             <span class="tabbar-link {activeTab === 'settings' ? 'active' : ''}">
-                <Gear size={28} weight={activeTab === "settings" ? "fill" : "light"} />
+                <GearSix size={30} weight={activeTab === "settings" ? "fill" : "light"} />
                 Settings
             </span>
         </a>
@@ -31,7 +31,7 @@
 
 <style lang="postcss">
     .tabbar-link {
-        @apply flex flex-col items-center font-medium text-lg gap-2;
+        @apply flex flex-col items-center font-medium  gap-2;
     }
     .tabbar-link.active {
         @apply text-blue-500;
