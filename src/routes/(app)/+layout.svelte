@@ -73,7 +73,9 @@
 
 <main class="flex flex-col md:flex-row min-w-96">
     <Sidebar {activeTab} />
-    <Tabbar {activeTab} />
+    {#if !$page.url.pathname.match(/^\/chats\/*[a-zA-Z0-9]+\/*/)}
+        <Tabbar {activeTab} />
+    {/if}
     <div class="flex flex-col grow">
         {@render children()}
     </div>

@@ -159,6 +159,18 @@
             });
         }
     }
+
+    let showInvitesState = $state(false);
+    let invitesState = $state("");
+    async function toggleInspectInvites() {
+        showInvitesState = !showInvitesState;
+        if (showInvitesState) {
+            invoke("get_invites").then((invites) => {
+                invitesState = JSON.stringify(invites, null, 2);
+                console.log(invitesState);
+            });
+        }
+    }
 </script>
 
 {#if showDeleteAlert}
@@ -299,14 +311,8 @@
                     <span>Inspect Key Package Events</span>
                     <CaretRight size={24} class="ml-auto mr-0" />
                 </button>
-            </li>
-            <li class="section-list-item">
-                <button onclick={() => goto("/settings/invites/")} class="row-button">
-                    <Envelope size={24} />
-                    <span>Inspect Invites</span>
-                    <CaretRight size={24} class="ml-auto mr-0" />
-                </button>
             </li> -->
+
             <li class="section-list-item">
                 <button onclick={toggleInspectAccounts} class="row-button">
                     <UserFocus size={24} />
@@ -324,6 +330,22 @@
                 {/if}
             </li>
             <li class="section-list-item">
+                <button onclick={toggleInspectInvites} class="row-button">
+                    <Envelope size={24} />
+                    <span>Inspect Invites</span>
+                    {#if showInvitesState}
+                        <CaretDown size={24} class="ml-auto mr-0" />
+                    {:else}
+                        <CaretRight size={24} class="ml-auto mr-0" />
+                    {/if}
+                </button>
+                {#if showInvitesState}
+                    <div class="flex flex-col gap-4 items-start w-full mt-4 p-4">
+                        <pre class="whitespace-pre overflow-x-auto w-full">{invitesState}</pre>
+                    </div>
+                {/if}
+            </li>
+            <li class="section-list-item">
                 <button onclick={toggleInspectGroups} class="row-button">
                     <Users size={24} />
                     <span>Inspect Groups</span>
@@ -335,7 +357,7 @@
                 </button>
                 {#if showGroupsState}
                     <div class="flex flex-col gap-4 items-start w-full mt-4 p-4">
-                        <pre>{groupsState}</pre>
+                        <pre class="whitespace-pre overflow-x-auto w-full">{groupsState}</pre>
                     </div>
                 {/if}
             </li>

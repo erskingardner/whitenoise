@@ -211,6 +211,20 @@ pub async fn create_group(
         let mut retry_count = 0;
         let mut last_error = None;
 
+        let mut relays_to_remove: Vec<String> = Vec::new();
+
+        for url in relay_urls.clone() {
+            let to_remove = wn
+                .nostr
+                .client
+                .add_relay(url.clone())
+                .await
+                .map_err(|e| e.to_string())?;
+            if to_remove {
+                relays_to_remove.push(url);
+            }
+        }
+
         while retry_count < max_retries {
             match wn
                 .nostr
@@ -252,6 +266,14 @@ pub async fn create_group(
             "Published welcome message to {:?}",
             &member_pubkey
         );
+
+        for url in relays_to_remove {
+            wn.nostr
+                .client
+                .remove_relay(url)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
     }
 
     let group_type = if mls_group.members().count() == 2 {
