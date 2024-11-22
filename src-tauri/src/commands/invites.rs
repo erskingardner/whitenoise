@@ -52,8 +52,6 @@ pub async fn get_invites(wn: tauri::State<'_, Whitenoise>) -> Result<InvitesWith
 
     let stored_invites = wn.group_manager.get_invites().map_err(|e| e.to_string())?;
 
-    tracing::debug!(target: "whitenoise::commands::invites::get_invites", "Stored invites: {:?}", stored_invites);
-
     let stored_invite_ids: Vec<_> = stored_invites
         .iter()
         .map(|invite| invite.event.id.unwrap())
@@ -64,8 +62,6 @@ pub async fn get_invites(wn: tauri::State<'_, Whitenoise>) -> Result<InvitesWith
             invites.push(invite);
         }
     }
-
-    tracing::debug!(target: "whitenoise::commands::invites::get_invites", "Invites: {:?}", invites);
 
     let fetched_invite_events = wn
         .nostr

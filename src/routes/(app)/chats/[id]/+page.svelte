@@ -59,12 +59,13 @@
     }
 
     function scrollToBottom() {
-        let messagesContainer = document.getElementById("messagesContainer");
-        if (messagesContainer) {
+        const messagesContainer = document.getElementById("messagesContainer");
+        const screenHeight = window.innerHeight;
+        if (messagesContainer && screenHeight < messagesContainer.scrollHeight) {
             const lastMessage = messagesContainer.lastElementChild;
             lastMessage?.scrollIntoView({ behavior: "instant" });
-            messagesContainer.style.opacity = "1";
         }
+        messagesContainer ? (messagesContainer.style.opacity = "1") : null;
     }
 
     onMount(async () => {
@@ -114,7 +115,7 @@
         {/snippet}
     </HeaderToolbar>
 
-    <main class="flex flex-col relative min-h-screen">
+    <main id="mainContainer" class="flex flex-col relative min-h-screen">
         <div
             id="messagesContainer"
             class="flex-1 px-8 flex flex-col gap-2 pt-10 pb-40 overflow-y-auto opacity-0 transition-opacity ease-in-out duration-50"

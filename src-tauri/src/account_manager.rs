@@ -86,9 +86,9 @@ pub struct AccountManagerState {
     active_account: Option<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AccountManager {
-    state: Mutex<AccountManagerState>,
+    state: Arc<Mutex<AccountManagerState>>,
     db: Arc<sled::Db>,
 }
 
@@ -114,10 +114,10 @@ impl AccountManager {
             .map(|bytes| String::from_utf8_lossy(&bytes).to_string());
 
         let account_state = Self {
-            state: Mutex::new(AccountManagerState {
+            state: Arc::new(Mutex::new(AccountManagerState {
                 accounts,
                 active_account: active_account_pubkey,
-            }),
+            })),
             db: database,
         };
 
@@ -198,6 +198,8 @@ impl AccountManager {
         }
 
         // Fetch metadata & relays from Nostr
+        // We only fetch the data at this point to store on the account
+        // We'll add and connect to the relays in another step
         let metadata = nostr_manager
             .fetch_user_metadata(pubkey)
             .await
@@ -364,6 +366,25 @@ impl AccountManager {
         Ok(())
     }
 
+    pub fn update_account_last_synced(&self, pubkey: String) -> Result<()> {
+        let now = Timestamp::now();
+        {
+            let mut state = self
+                .state
+                .lock()
+                .map_err(|e| AccountError::LockError(e.to_string()))?;
+
+            if let Some(account) = state.accounts.get_mut(&pubkey) {
+                account.last_synced = now;
+            }
+        }
+
+        self.persist_state()
+            .map_err(|e| AccountError::DatabaseError(e.to_string()))?;
+
+        Ok(())
+    }
+
     pub fn add_group_ids(
         &self,
         pubkey: String,
@@ -442,20 +463,6 @@ impl AccountManager {
             .state
             .lock()
             .map_err(|e| AccountError::LockError(e.to_string()))?;
-
-        // If we have somehow gotten into a strange state where there are
-        // accounts but no active account, we should try and fix it
-        // if !state.accounts.is_empty()
-        //     && (state.active_account.is_none()
-        //         || state
-        //             .active_account
-        //             .as_ref()
-        //             .is_some_and(|pubkey| pubkey.is_empty()))
-        // {
-        //     state.active_account = Some(state.accounts.keys().next().unwrap().clone());
-        //     self.persist_state()
-        //         .map_err(|e| AccountError::DatabaseError(e.to_string()))?;
-        // }
 
         Ok(state.clone())
     }

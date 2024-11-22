@@ -125,14 +125,7 @@ pub async fn create_group(
         member_key_packages
     );
 
-    let mut group_relays: Vec<String>;
-    {
-        let nostr_settings = wn.nostr.settings.lock().unwrap();
-        group_relays = nostr_settings.relays.clone();
-        if tauri::is_dev() {
-            group_relays.push("ws://localhost:8080".to_string());
-        }
-    }
+    let group_relays = wn.nostr.relays().map_err(|e| e.to_string())?;
 
     let create_group_result;
     {
@@ -263,8 +256,10 @@ pub async fn create_group(
 
         tracing::debug!(
             target: "whitenoise::groups::create_group",
-            "Published welcome message to {:?}",
-            &member_pubkey
+            "Published welcome message to {:?} on {:?}: ID: {:?}",
+            &member_pubkey,
+            &relay_urls,
+            wrapped_event.id
         );
 
         for url in relays_to_remove {
@@ -396,11 +391,7 @@ pub async fn send_mls_message(
         "Publishing MLSMessage event to group relays"
     );
 
-    let relays = if tauri::is_dev() {
-        vec!["ws://localhost:8080".to_string()]
-    } else {
-        group.relay_urls.clone()
-    };
+    let relays = group.relay_urls.clone();
 
     wn.nostr
         .client

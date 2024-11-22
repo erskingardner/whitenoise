@@ -32,9 +32,29 @@ impl NostrManager {
             .author(pubkey)
             .since(last_synced)
             .until(Timestamp::now());
-        self.client
+        let output = self
+            .client
             .sync(filter, &nostr_sdk::SyncOptions::default())
             .await?;
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_user_metadata",
+            "SUCCESS: {:?}",
+            output.success
+        );
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_user_metadata",
+            "FAILED: {:?}",
+            output.failed
+        );
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_user_metadata",
+            "VALUES: local: {:?}, remote: {:?}, sent: {:?}, received: {:?}, send_failed: {:?}",
+            output.val.local.len(),
+            output.val.remote.len(),
+            output.val.sent.len(),
+            output.val.received.len(),
+            output.val.send_failures.len()
+        );
         Ok(())
     }
 
@@ -44,9 +64,29 @@ impl NostrManager {
             .kind(Kind::RelayList)
             .since(last_synced)
             .until(Timestamp::now());
-        self.client
+        let output = self
+            .client
             .sync(filter, &nostr_sdk::SyncOptions::default())
             .await?;
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_user_relays",
+            "SUCCESS: {:?}",
+            output.success
+        );
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_user_relays",
+            "FAILED: {:?}",
+            output.failed
+        );
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_user_relays",
+            "VALUES: local: {:?}, remote: {:?}, sent: {:?}, received: {:?}, send_failed: {:?}",
+            output.val.local.len(),
+            output.val.remote.len(),
+            output.val.sent.len(),
+            output.val.received.len(),
+            output.val.send_failures.len()
+        );
         Ok(())
     }
 
@@ -60,9 +100,29 @@ impl NostrManager {
             .kind(Kind::InboxRelays)
             .since(last_synced)
             .until(Timestamp::now());
-        self.client
+        let output = self
+            .client
             .sync(filter, &nostr_sdk::SyncOptions::default())
             .await?;
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_user_inbox_relays",
+            "SUCCESS: {:?}",
+            output.success
+        );
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_user_inbox_relays",
+            "FAILED: {:?}",
+            output.failed
+        );
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_user_inbox_relays",
+            "VALUES: local: {:?}, remote: {:?}, sent: {:?}, received: {:?}, send_failed: {:?}",
+            output.val.local.len(),
+            output.val.remote.len(),
+            output.val.sent.len(),
+            output.val.received.len(),
+            output.val.send_failures.len()
+        );
         Ok(())
     }
 
@@ -76,9 +136,29 @@ impl NostrManager {
             .kind(Kind::MlsKeyPackageRelays)
             .since(last_synced)
             .until(Timestamp::now());
-        self.client
+        let output = self
+            .client
             .sync(filter, &nostr_sdk::SyncOptions::default())
             .await?;
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_user_key_package_relays",
+            "SUCCESS: {:?}",
+            output.success
+        );
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_user_key_package_relays",
+            "FAILED: {:?}",
+            output.failed
+        );
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_user_key_package_relays",
+            "VALUES: local: {:?}, remote: {:?}, sent: {:?}, received: {:?}, send_failed: {:?}",
+            output.val.local.len(),
+            output.val.remote.len(),
+            output.val.sent.len(),
+            output.val.received.len(),
+            output.val.send_failures.len()
+        );
         Ok(())
     }
 
@@ -92,9 +172,29 @@ impl NostrManager {
             .kind(Kind::MlsKeyPackage)
             .since(last_synced)
             .until(Timestamp::now());
-        self.client
+        let output = self
+            .client
             .sync(filter, &nostr_sdk::SyncOptions::default())
             .await?;
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_user_key_packages",
+            "SUCCESS: {:?}",
+            output.success
+        );
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_user_key_packages",
+            "FAILED: {:?}",
+            output.failed
+        );
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_user_key_packages",
+            "VALUES: local: {:?}, remote: {:?}, sent: {:?}, received: {:?}, send_failed: {:?}",
+            output.val.local.len(),
+            output.val.remote.len(),
+            output.val.sent.len(),
+            output.val.received.len(),
+            output.val.send_failures.len()
+        );
         Ok(())
     }
 
@@ -114,9 +214,29 @@ impl NostrManager {
             .since(last_synced)
             .until(Timestamp::now());
 
-        self.client
+        let output = self
+            .client
             .sync(filter, &nostr_sdk::SyncOptions::default())
             .await?;
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_contacts",
+            "SUCCESS: {:?}",
+            output.success
+        );
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_contacts",
+            "FAILED: {:?}",
+            output.failed
+        );
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_contacts",
+            "VALUES: local: {:?}, remote: {:?}, sent: {:?}, received: {:?}, send_failed: {:?}",
+            output.val.local.len(),
+            output.val.remote.len(),
+            output.val.sent.len(),
+            output.val.received.len(),
+            output.val.send_failures.len()
+        );
         Ok(())
     }
 
@@ -129,9 +249,29 @@ impl NostrManager {
             .since(last_synced)
             .until(Timestamp::now());
 
-        self.client
+        let output = self
+            .client
             .sync(filter, &nostr_sdk::SyncOptions::default())
             .await?;
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_contacts_metadata",
+            "SUCCESS: {:?}",
+            output.success
+        );
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_contacts_metadata",
+            "FAILED: {:?}",
+            output.failed
+        );
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_contacts_metadata",
+            "VALUES: local: {:?}, remote: {:?}, sent: {:?}, received: {:?}, send_failed: {:?}",
+            output.val.local.len(),
+            output.val.remote.len(),
+            output.val.sent.len(),
+            output.val.received.len(),
+            output.val.send_failures.len()
+        );
         Ok(())
     }
 
@@ -146,9 +286,29 @@ impl NostrManager {
             .since(last_synced)
             .until(Timestamp::now());
 
-        self.client
+        let output = self
+            .client
             .sync(filter, &nostr_sdk::SyncOptions::default())
             .await?;
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_group_messages",
+            "SUCCESS: {:?}",
+            output.success
+        );
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_group_messages",
+            "FAILED: {:?}",
+            output.failed
+        );
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_group_messages",
+            "VALUES: local: {:?}, remote: {:?}, sent: {:?}, received: {:?}, send_failed: {:?}",
+            output.val.local.len(),
+            output.val.remote.len(),
+            output.val.sent.len(),
+            output.val.received.len(),
+            output.val.send_failures.len()
+        );
         Ok(())
     }
 
@@ -162,9 +322,29 @@ impl NostrManager {
             .pubkeys(vec![pubkey])
             .since(last_synced)
             .until(Timestamp::now());
-        self.client
+        let output = self
+            .client
             .sync(filter, &nostr_sdk::SyncOptions::default())
             .await?;
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_user_giftwrapped_events",
+            "SUCCESS: {:?}",
+            output.success
+        );
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_user_giftwrapped_events",
+            "FAILED: {:?}",
+            output.failed
+        );
+        tracing::debug!(
+            target: "whitenoise::nostr_client::sync_user_giftwrapped_events",
+            "VALUES: local: {:?}, remote: {:?}, sent: {:?}, received: {:?}, send_failed: {:?}",
+            output.val.local.len(),
+            output.val.remote.len(),
+            output.val.sent.len(),
+            output.val.received.len(),
+            output.val.send_failures.len()
+        );
         Ok(())
     }
 }

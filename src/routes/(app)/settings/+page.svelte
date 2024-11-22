@@ -177,7 +177,10 @@
     <Alert
         title="Delete everything?"
         body="Are you sure you want to delete all data? This cannot be undone."
-        acceptFn={() => console.log("delete")}
+        acceptFn={() => {
+            toastState.add("Two weeks™", "Not implemented yet.", "info");
+            showDeleteAlert = false;
+        }}
         acceptText="Burn it all down"
         acceptStyle="warning"
         cancelText="Cancel"

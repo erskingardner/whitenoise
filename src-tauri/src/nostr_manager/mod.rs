@@ -45,7 +45,7 @@ impl Default for NostrManagerSettings {
                 "wss://relay.damus.io".to_string(),
                 "wss://relay.primal.net".to_string(),
                 "wss://nos.lol".to_string(),
-                "wss://purplepag.es".to_string(),
+                "wss://nostr.oxtr.dev".to_string(),
             ],
         }
     }
@@ -56,7 +56,7 @@ impl NostrManager {
     pub async fn new(db_path: PathBuf) -> Result<Self> {
         let full_path = db_path.join("nostr_lmdb");
         let db = NostrLMDB::open(full_path).expect("Failed to open Nostr database");
-        let opts = Options::new();
+        let opts = Options::default();
         let client = Client::builder().database(db).opts(opts).build();
 
         let settings = NostrManagerSettings::default();
@@ -64,14 +64,6 @@ impl NostrManager {
         // Add the default relays
         for relay in settings.relays.iter() {
             client.add_relay(relay).await?;
-        }
-
-        if tauri::is_dev() {
-            tracing::debug!(
-                target: "whitenoise::nostr_manager::new",
-                "IN DEV: Adding local relay"
-            );
-            client.add_relay("ws://localhost:8080".to_string()).await?;
         }
 
         // Connect to the default relays
@@ -154,6 +146,11 @@ impl NostrManager {
         for relay in relays.iter() {
             self.client.add_relay(relay).await?;
             self.client.connect_relay(relay).await?;
+            tracing::debug!(
+                target: "whitenoise::nostr_client::update_nostr_identity",
+                "Connected to user relay: {}",
+                relay
+            );
         }
 
         // Add the new user's inbox relays
@@ -162,6 +159,26 @@ impl NostrManager {
         for relay in inbox_relays.iter() {
             self.client.add_read_relay(relay).await?;
             self.client.connect_relay(relay).await?;
+            tracing::debug!(
+                target: "whitenoise::nostr_client::update_nostr_identity",
+                "Connected to user inbox relay: {}",
+                relay
+            );
+        }
+
+        // Add the new user's key package relays
+        // TODO: We should query first and only fetch if we don't have them
+        let key_package_relays = self
+            .fetch_user_key_package_relays(keys.public_key())
+            .await?;
+        for relay in key_package_relays.iter() {
+            self.client.add_relay(relay).await?;
+            self.client.connect_relay(relay).await?;
+            tracing::debug!(
+                target: "whitenoise::nostr_client::update_nostr_identity",
+                "Connected to user key package relay: {}",
+                relay
+            );
         }
 
         tracing::debug!(

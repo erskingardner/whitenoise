@@ -46,4 +46,18 @@ impl Whitenoise {
             data_dir,
         }
     }
+
+    // pub async fn clear_all_data(&self) -> Result<(), Error> {
+    //     tracing::debug!(target: "whitenoise::clear_all_data", "Clearing all data");
+    //     // Shutdown and reset Nostr
+    //     // Delete nostr cache db
+    //     // Clear database trees data
+    //     // - Accounts
+    //     // - Groups
+    //     // - Invites
+    //     // Clear the all accounts data
+    //     // Clear all groups data
+    //     // Clear all Nostr MLS data - clear the sled db
+    //     Ok(())
+    // }
 }

@@ -8,12 +8,6 @@ impl NostrManager {
             .author(pubkey)
             .since(Timestamp::now());
 
-        tracing::debug!(
-            target: "whitenoise::nostr_client::setup_contact_list_sub",
-            "contacts_filter: {:?}",
-            contacts_filter
-        );
-
         Ok(self.client.subscribe(vec![contacts_filter], None).await?)
     }
 
@@ -27,12 +21,6 @@ impl NostrManager {
             .kind(Kind::Metadata)
             .authors(contact_list_pubkeys)
             .since(Timestamp::now());
-
-        tracing::debug!(
-            target: "whitenoise::nostr_client::setup_subscriptions",
-            "contact_metadata_filter: {:?}",
-            contact_metadata_filter
-        );
 
         Ok(self
             .client

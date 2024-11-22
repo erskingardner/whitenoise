@@ -25,52 +25,63 @@ pub async fn init_nostr_for_current_user(
         .await
         .map_err(|e| e.to_string())?;
 
-    let pubkey = keys.public_key();
-    let last_synced = current_account.last_synced;
-    let group_ids = current_account.nostr_group_ids.clone();
-    let nostr = wn.nostr.clone();
-
     // Spawn two tasks in parallel:
     // 1. Negentropy sync for past events
     // 2. Setup subscriptions to catch future events
+    let pubkey = keys.public_key();
+    let last_synced = current_account.last_synced;
+
+    let group_ids_clone_subs = current_account.nostr_group_ids.clone();
+    let nostr_clone_subs = wn.nostr.clone();
     spawn(async move {
         tracing::debug!(
-            target: "whitenoise::commands::nostr::init_nostr_for_current_user",
+            target: "whitenoise::commands::accounts::login",
             "Starting subscriptions"
         );
-        match nostr.setup_subscriptions(pubkey, group_ids.clone()).await {
-            Ok(_) => {
-                tracing::debug!(
-                    target: "whitenoise::commands::nostr::init_nostr_for_current_user",
-                    "Subscriptions setup completed"
-                );
-            }
-            Err(e) => {
-                tracing::error!(
-                    target: "whitenoise::commands::nostr::init_nostr_for_current_user",
-                    "Error subscribing to events: {}",
-                    e
-                );
-            }
-        }
-
-        tracing::debug!(
-            target: "whitenoise::commands::nostr::init_nostr_for_current_user",
-            "Starting negentropy sync"
-        );
-        match nostr
-            .sync_for_user(pubkey, last_synced, group_ids.clone())
+        match nostr_clone_subs
+            .setup_subscriptions(pubkey, group_ids_clone_subs)
             .await
         {
             Ok(_) => {
                 tracing::debug!(
-                    target: "whitenoise::commands::nostr::init_nostr_for_current_user",
-                    "Negentropy event sync completed"
+                    target: "whitenoise::commands::accounts::login",
+                    "Subscriptions shutdown triggered"
                 );
             }
             Err(e) => {
                 tracing::error!(
-                    target: "whitenoise::commands::nostr::init_nostr_for_current_user",
+                target: "whitenoise::commands::accounts::login",
+                "Error subscribing to events: {}",
+                e
+                );
+            }
+        }
+    });
+
+    let group_ids_clone_sync = current_account.nostr_group_ids.clone();
+    let nostr_clone_sync = wn.nostr.clone();
+    let account_manager_clone_sync = wn.account_manager.clone();
+    spawn(async move {
+        tracing::debug!(
+            target: "whitenoise::commands::accounts::login",
+            "Starting negentropy sync"
+        );
+        match nostr_clone_sync
+            .sync_for_user(pubkey, last_synced, group_ids_clone_sync)
+            .await
+        {
+            Ok(_) => {
+                tracing::debug!(
+                    target: "whitenoise::commands::accounts::login",
+                    "Negentropy event sync completed"
+                );
+                let _ = account_manager_clone_sync
+                    .update_account_last_synced(pubkey.to_hex())
+                    .map_err(|e| format!("Error updating account last synced: {}", e));
+            }
+            Err(e) => {
+                tracing::error!(
+                    target: "whitenoise::commands::accounts::login",
                     "Error in negentropy sync: {}",
                     e
                 );
@@ -222,6 +233,10 @@ pub async fn fetch_enriched_contacts(
 
     // Bail early if there are no contact list pubkeys
     if contact_list_pubkeys.is_empty() {
+        tracing::debug!(
+            target: "whitenoise::commands::nostr::fetch_enriched_contacts",
+            "No contact list pubkeys found"
+        );
         return Ok(contacts_map);
     }
     // Initialize the map with default EnrichedContact for all pubkeys
