@@ -66,8 +66,7 @@ pub fn run() {
             accept_invite,
             decline_invite,
             send_mls_message,
-            fetch_mls_messages,
-            close_splashscreen
+            fetch_mls_messages
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

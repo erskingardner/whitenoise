@@ -15,14 +15,6 @@
                 "title": "White Noise",
                 "label": "main",
                 "width": 1200,
-                "height": 1000,
-                "visible": false
-            },
-            {
-                "label": "splashscreen",
-                "title": "White Noise",
-                "url": "/splashscreen",
-                "width": 1200,
                 "height": 1000
             }
         ],

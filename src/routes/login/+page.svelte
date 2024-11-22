@@ -22,6 +22,8 @@
             unlistenAccountChanged = await listen<string>("account_changed", (_event) => {
                 updateAccountsStore().then(async () => {
                     console.log("Event received on root page: account_changed");
+                    loading = false;
+                    goto("/chats");
                 });
             });
         }
@@ -29,8 +31,6 @@
         if (!unlistenNostrReady) {
             unlistenNostrReady = await listen<string>("nostr_ready", async (_event) => {
                 console.log("Event received on root page: nostr_ready");
-                loading = false;
-                goto("/chats");
             });
         }
 

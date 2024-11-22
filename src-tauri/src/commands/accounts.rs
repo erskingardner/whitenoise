@@ -1,23 +1,10 @@
-use crate::account_manager::{Account, AccountManagerState};
+use crate::account_manager::{Account, AccountError, AccountManagerState};
 use crate::secrets_store;
 use crate::whitenoise::Whitenoise;
 use nostr_openmls::NostrMls;
 use nostr_sdk::Keys;
-use tauri::{Emitter, Manager};
+use tauri::Emitter;
 use tokio::spawn;
-
-#[tauri::command]
-pub fn close_splashscreen(app_handle: tauri::AppHandle) -> Result<(), String> {
-    let splash_window = app_handle.get_webview_window("splashscreen");
-    let main_window = app_handle.get_webview_window("main");
-    if let Some(splash_window) = splash_window {
-        splash_window.close().unwrap();
-    }
-    if let Some(main_window) = main_window {
-        main_window.show().unwrap();
-    }
-    Ok(())
-}
 
 /// Retrieves the currently active account.
 ///
@@ -393,101 +380,99 @@ pub async fn logout(
     secrets_store::remove_private_key_for_pubkey(&hex_pubkey, &wn.data_dir)
         .map_err(|e| format!("Error removing private key: {}", e))?;
 
-    set_active_account(hex_pubkey, wn, app_handle).await
+    // Update Nostr identity to the new current user
+    match wn.account_manager.get_active_account() {
+        Ok(current_account) => {
+            // If the current identity is not the same as the Nostr identity, update the Nostr identity
+            if current_account.pubkey
+                != wn
+                    .nostr
+                    .client
+                    .signer()
+                    .await
+                    .map_err(|e| format!("Error fetching signer: {}", e))?
+                    .get_public_key()
+                    .await
+                    .map_err(|e| format!("Error fetching public key: {}", e))?
+                    .to_hex()
+            {
+                let keys =
+                    secrets_store::get_nostr_keys_for_pubkey(&current_account.pubkey, &wn.data_dir)
+                        .map_err(|e| format!("Error fetching keys: {}", e))?;
 
-    // // Update Nostr identity to the new current user
-    // match wn.account_manager.get_active_account() {
-    //     Ok(current_account) => {
-    //         // If the current identity is not the same as the Nostr identity, update the Nostr identity
-    //         if current_account.pubkey
-    //             != wn
-    //                 .nostr
-    //                 .client
-    //                 .signer()
-    //                 .await
-    //                 .map_err(|e| format!("Error fetching signer: {}", e))?
-    //                 .get_public_key()
-    //                 .await
-    //                 .map_err(|e| format!("Error fetching public key: {}", e))?
-    //                 .to_hex()
-    //         {
-    //             let keys =
-    //                 secrets_store::get_nostr_keys_for_pubkey(&current_account.pubkey, &wn.data_dir)
-    //                     .map_err(|e| format!("Error fetching keys: {}", e))?;
+                // Update Nostr identity and connect relays
+                wn.nostr
+                    .update_nostr_identity(keys.clone())
+                    .await
+                    .map_err(|e| e.to_string())?;
 
-    //             // Update Nostr identity and connect relays
-    //             wn.nostr
-    //                 .update_nostr_identity(keys.clone())
-    //                 .await
-    //                 .map_err(|e| e.to_string())?;
+                let pubkey = keys.public_key();
+                let last_synced = current_account.last_synced;
+                let group_ids = current_account.nostr_group_ids.clone();
+                let nostr = wn.nostr.clone();
 
-    //             let pubkey = keys.public_key();
-    //             let last_synced = current_account.last_synced;
-    //             let group_ids = current_account.nostr_group_ids.clone();
-    //             let nostr = wn.nostr.clone();
+                // Spawn two tasks in parallel:
+                // 1. Negentropy sync for past events
+                // 2. Setup subscriptions to catch future events
+                spawn(async move {
+                    tracing::debug!(
+                        target: "whitenoise::commands::accounts::logout",
+                        "Starting subscriptions"
+                    );
+                    match nostr.setup_subscriptions(pubkey, group_ids.clone()).await {
+                        Ok(_) => {
+                            tracing::debug!(
+                                target: "whitenoise::commands::accounts::logout",
+                                "Subscriptions setup completed"
+                            );
+                        }
+                        Err(e) => {
+                            tracing::error!(
+                                target: "whitenoise::commands::accounts::logout",
+                                "Error subscribing to events: {}",
+                                e
+                            );
+                        }
+                    }
 
-    //             // Spawn two tasks in parallel:
-    //             // 1. Negentropy sync for past events
-    //             // 2. Setup subscriptions to catch future events
-    //             spawn(async move {
-    //                 tracing::debug!(
-    //                     target: "whitenoise::commands::accounts::logout",
-    //                     "Starting subscriptions"
-    //                 );
-    //                 match nostr.setup_subscriptions(pubkey, group_ids.clone()).await {
-    //                     Ok(_) => {
-    //                         tracing::debug!(
-    //                             target: "whitenoise::commands::accounts::logout",
-    //                             "Subscriptions setup completed"
-    //                         );
-    //                     }
-    //                     Err(e) => {
-    //                         tracing::error!(
-    //                             target: "whitenoise::commands::accounts::logout",
-    //                             "Error subscribing to events: {}",
-    //                             e
-    //                         );
-    //                     }
-    //                 }
+                    tracing::debug!(
+                        target: "whitenoise::commands::accounts::logout",
+                        "Starting negentropy sync"
+                    );
+                    match nostr
+                        .sync_for_user(pubkey, last_synced, group_ids.clone())
+                        .await
+                    {
+                        Ok(_) => {
+                            tracing::debug!(
+                                target: "whitenoise::commands::accounts::logout",
+                                "Negentropy event sync completed"
+                            );
+                        }
+                        Err(e) => {
+                            tracing::error!(
+                                target: "whitenoise::commands::accounts::logout",
+                                "Error in negentropy sync: {}",
+                                e
+                            );
+                        }
+                    }
+                });
 
-    //                 tracing::debug!(
-    //                     target: "whitenoise::commands::accounts::logout",
-    //                     "Starting negentropy sync"
-    //                 );
-    //                 match nostr
-    //                     .sync_for_user(pubkey, last_synced, group_ids.clone())
-    //                     .await
-    //                 {
-    //                     Ok(_) => {
-    //                         tracing::debug!(
-    //                             target: "whitenoise::commands::accounts::logout",
-    //                             "Negentropy event sync completed"
-    //                         );
-    //                     }
-    //                     Err(e) => {
-    //                         tracing::error!(
-    //                             target: "whitenoise::commands::accounts::logout",
-    //                             "Error in negentropy sync: {}",
-    //                             e
-    //                         );
-    //                     }
-    //                 }
-    //             });
+                app_handle
+                    .emit("nostr_ready", ())
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+        Err(AccountError::NoAccountsExist) => return Err("No accounts exist".to_string()),
+        Err(e) => return Err(format!("Error fetching active account: {}", e)),
+    }
 
-    //             app_handle
-    //                 .emit("nostr_ready", ())
-    //                 .map_err(|e| e.to_string())?;
-    //         }
-    //     }
-    //     Err(AccountError::NoAccountsExist) => return Err("No accounts exist".to_string()),
-    //     Err(e) => return Err(format!("Error fetching active account: {}", e)),
-    // }
+    app_handle
+        .emit("account_changed", ())
+        .map_err(|e| e.to_string())?;
 
-    // app_handle
-    //     .emit("account_changed", ())
-    //     .map_err(|e| e.to_string())?;
-
-    // Ok(wn.account_manager.get_accounts_state().unwrap())
+    Ok(wn.account_manager.get_accounts_state().unwrap())
 }
 
 /// Updates the onboarding state of an account.
