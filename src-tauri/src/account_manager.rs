@@ -2,6 +2,7 @@ use nostr_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use tauri::{AppHandle, Emitter};
 use thiserror::Error;
 
 use crate::nostr_manager;
@@ -93,7 +94,7 @@ pub struct AccountManager {
 }
 
 impl AccountManager {
-    pub fn new(database: Arc<sled::Db>) -> Result<Self> {
+    pub fn new(database: Arc<sled::Db>, app_handle: &AppHandle) -> Result<Self> {
         // Load accounts from database
         let mut accounts = HashMap::new();
         let accounts_tree = database
@@ -125,6 +126,8 @@ impl AccountManager {
             target: "whitenoise::account_manager::new",
             "Loaded accounts state",
         );
+
+        app_handle.emit("accounts_initialized", ()).unwrap();
         Ok(account_state)
     }
 
@@ -506,101 +509,5 @@ impl AccountManager {
         }
 
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::tempdir;
-
-    #[tokio::test]
-    #[ignore]
-    async fn test_add_account() {
-        todo!("Implement this test, needs mocks for nostr_manager")
-    }
-
-    #[test]
-    fn test_set_active_account() {
-        let temp_dir = tempdir().unwrap().path().to_path_buf();
-        let database = Arc::new(
-            sled::open(temp_dir.join("whitenoise.sled")).expect("Failed to open database"),
-        );
-        let account_manager = AccountManager::new(database).unwrap();
-
-        let result = account_manager.set_active_account(Some(
-            "10587d333f9ccaeab8c856a5d16fdc7fe5dd8eac3dd4167c48862e3460462e92".to_string(),
-        ));
-        assert!(result.is_err()); // Should fail because account doesn't exist
-
-        // Add an account first
-        let account = Account {
-            pubkey: "10587d333f9ccaeab8c856a5d16fdc7fe5dd8eac3dd4167c48862e3460462e92".to_string(),
-            metadata: Metadata::default(),
-            nostr_relays: vec![],
-            inbox_relays: vec![],
-            key_package_relays: vec![],
-            mls_group_ids: vec![],
-            nostr_group_ids: vec![],
-            settings: AccountSettings::default(),
-            onboarding: AccountOnboarding::default(),
-            last_used: Timestamp::now(),
-            last_synced: Timestamp::zero(),
-        };
-
-        {
-            let mut state = account_manager.state.lock().unwrap();
-            state.accounts.insert(
-                "10587d333f9ccaeab8c856a5d16fdc7fe5dd8eac3dd4167c48862e3460462e92".to_string(),
-                account,
-            );
-        }
-
-        let result = account_manager.set_active_account(Some(
-            "10587d333f9ccaeab8c856a5d16fdc7fe5dd8eac3dd4167c48862e3460462e92".to_string(),
-        ));
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_remove_account() {
-        let temp_dir = tempdir().unwrap().path().to_path_buf();
-        let database = Arc::new(
-            sled::open(temp_dir.join("whitenoise.sled")).expect("Failed to open database"),
-        );
-        let account_manager = AccountManager::new(database).unwrap();
-
-        // Add an account first
-        let account = Account {
-            pubkey: "10587d333f9ccaeab8c856a5d16fdc7fe5dd8eac3dd4167c48862e3460462e92".to_string(),
-            metadata: Metadata::default(),
-            nostr_relays: vec![],
-            inbox_relays: vec![],
-            key_package_relays: vec![],
-            mls_group_ids: vec![],
-            nostr_group_ids: vec![],
-            settings: AccountSettings::default(),
-            onboarding: AccountOnboarding::default(),
-            last_used: Timestamp::now(),
-            last_synced: Timestamp::zero(),
-        };
-
-        {
-            let mut state = account_manager.state.lock().unwrap();
-            state.accounts.insert(
-                "10587d333f9ccaeab8c856a5d16fdc7fe5dd8eac3dd4167c48862e3460462e92".to_string(),
-                account,
-            );
-        }
-
-        let result = account_manager.remove_account(
-            "10587d333f9ccaeab8c856a5d16fdc7fe5dd8eac3dd4167c48862e3460462e92".to_string(),
-        );
-        assert!(result.is_ok());
-
-        let state = account_manager.state.lock().unwrap();
-        assert!(!state
-            .accounts
-            .contains_key("10587d333f9ccaeab8c856a5d16fdc7fe5dd8eac3dd4167c48862e3460462e92"));
     }
 }

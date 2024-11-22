@@ -13,7 +13,16 @@
         "windows": [
             {
                 "title": "White Noise",
-                "width": 1800,
+                "label": "main",
+                "width": 1200,
+                "height": 1000,
+                "visible": false
+            },
+            {
+                "label": "splashscreen",
+                "title": "White Noise",
+                "url": "/splashscreen",
+                "width": 1200,
                 "height": 1000
             }
         ],

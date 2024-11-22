@@ -25,14 +25,14 @@ pub fn run() {
         .setup(|app| {
             tracing_subscriber::fmt::init();
 
-            tauri::async_runtime::block_on(async move {
-                let data_dir = app
-                    .handle()
-                    .path()
-                    .app_data_dir()
-                    .expect("Failed to get data dir");
+            let data_dir = app
+                .handle()
+                .path()
+                .app_data_dir()
+                .expect("Failed to get data dir");
 
-                let whitenoise = Whitenoise::new(data_dir).await;
+            tauri::async_runtime::block_on(async move {
+                let whitenoise = Whitenoise::new(data_dir, app.handle()).await;
                 app.manage(whitenoise);
             });
             Ok(())
@@ -67,6 +67,7 @@ pub fn run() {
             decline_invite,
             send_mls_message,
             fetch_mls_messages,
+            close_splashscreen
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -3,8 +3,21 @@ use crate::secrets_store;
 use crate::whitenoise::Whitenoise;
 use nostr_openmls::NostrMls;
 use nostr_sdk::Keys;
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 use tokio::spawn;
+
+#[tauri::command]
+pub fn close_splashscreen(app_handle: tauri::AppHandle) -> Result<(), String> {
+    let splash_window = app_handle.get_webview_window("splashscreen");
+    let main_window = app_handle.get_webview_window("main");
+    if let Some(splash_window) = splash_window {
+        splash_window.close().unwrap();
+    }
+    if let Some(main_window) = main_window {
+        main_window.show().unwrap();
+    }
+    Ok(())
+}
 
 /// Retrieves the currently active account.
 ///

@@ -4,6 +4,7 @@ use crate::nostr_manager::NostrManager;
 use nostr_openmls::NostrMls;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use tauri::AppHandle;
 
 pub struct Whitenoise {
     pub account_manager: AccountManager,
@@ -14,14 +15,19 @@ pub struct Whitenoise {
 }
 
 impl Whitenoise {
-    pub async fn new(data_dir: PathBuf) -> Self {
-        tracing::debug!(target: "whitenoise::whitenoise::new", "Creating Whitenoise instance with data_dir: {:?}", data_dir);
+    pub async fn new(data_dir: PathBuf, app_handle: &AppHandle) -> Self {
+        tracing::debug!(
+            target: "whitenoise::whitenoise::new",
+            "Creating Whitenoise instance with data_dir: {:?}",
+            data_dir
+        );
+
         let database = Arc::new(
             sled::open(data_dir.join("whitenoise.sled")).expect("Failed to open database"),
         );
 
-        let account_manager =
-            AccountManager::new(database.clone()).expect("Failed to create account manager");
+        let account_manager = AccountManager::new(database.clone(), app_handle)
+            .expect("Failed to create account manager");
 
         let active_account = account_manager.get_active_account().ok();
 

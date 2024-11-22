@@ -17,11 +17,12 @@
 
     let unlistenNostrReady: UnlistenFn;
 
-    let keyPackagePublished = $state(false);
-    let keyPackageRelaysPublished = $state(false);
-    let inboxRelaysPublished = $state(false);
-    let showPreflightModal = $state(false);
+    // Start with true so we don't show until the preflight checks are done
+    let keyPackagePublished = $state(true);
+    let keyPackageRelaysPublished = $state(true);
+    let inboxRelaysPublished = $state(true);
 
+    let showPreflightModal = $state(false);
     $effect(() => {
         showPreflightModal = !keyPackageRelaysPublished || !inboxRelaysPublished || !keyPackagePublished;
     });
@@ -31,7 +32,7 @@
         isLoadingAccounts = false;
 
         if (!!!$accounts.activeAccount) {
-            goto("/");
+            goto("/login");
         }
 
         if ($accounts.activeAccount) {
@@ -42,15 +43,9 @@
                 if (!activeAccount.metadata.display_name || !activeAccount.metadata.picture) {
                     await invoke("query_enriched_contact", { pubkey: activeAccount.pubkey, updateAccount: true });
                 }
-                if (activeAccount.onboarding.inbox_relays) {
-                    inboxRelaysPublished = true;
-                }
-                if (activeAccount.onboarding.key_package_relays) {
-                    keyPackageRelaysPublished = true;
-                }
-                if (activeAccount.onboarding.publish_key_package) {
-                    keyPackagePublished = true;
-                }
+                inboxRelaysPublished = activeAccount.onboarding.inbox_relays;
+                keyPackageRelaysPublished = activeAccount.onboarding.key_package_relays;
+                keyPackagePublished = activeAccount.onboarding.publish_key_package;
             }
         }
     }
