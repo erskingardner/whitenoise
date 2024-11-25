@@ -16,20 +16,26 @@ use crate::commands::invites::*;
 use crate::commands::key_packages::*;
 use crate::commands::nostr::*;
 use crate::whitenoise::Whitenoise;
+use once_cell::sync::Lazy;
+use std::path::PathBuf;
+use std::sync::Mutex;
 use tauri::Manager;
+use tracing_subscriber::{filter::EnvFilter, fmt::Layer, prelude::*, registry::Registry};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            tracing_subscriber::fmt::init();
-
             let data_dir = app
                 .handle()
                 .path()
                 .app_data_dir()
                 .expect("Failed to get data dir");
+
+            let logs_dir = app.handle().path().app_log_dir().unwrap();
+            tracing::debug!(target: "whitenoise::lib::run", "Logs directory: {:?}", logs_dir);
+            setup_logging(logs_dir)?;
 
             tauri::async_runtime::block_on(async move {
                 let whitenoise = Whitenoise::new(data_dir, app.handle()).await;
@@ -70,4 +76,26 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+fn setup_logging(logs_dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    let file_appender = tracing_appender::rolling::RollingFileAppender::new(
+        tracing_appender::rolling::Rotation::DAILY,
+        &logs_dir,
+        "whitenoise",
+    );
+
+    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+
+    static GUARD: Lazy<Mutex<Option<tracing_appender::non_blocking::WorkerGuard>>> =
+        Lazy::new(|| Mutex::new(None));
+    *GUARD.lock().unwrap() = Some(guard);
+
+    Registry::default()
+        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with(Layer::new().with_writer(std::io::stdout))
+        .with(Layer::new().with_writer(non_blocking))
+        .init();
+
+    Ok(())
 }

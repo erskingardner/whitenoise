@@ -84,6 +84,8 @@
 - ✅ Need to scope storage to each user better
   - ✅ Groups
   - ✅ Invites
+- Poisoned lock on nostr_openmls sometimes when logging out/in from the settings page
+- 
 
 ## 🆘 Errors
 
