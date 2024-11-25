@@ -52,8 +52,6 @@
     $inspect("Failures", failures); // TODO: Store failures in the database so we don't check them in the future
 
     onMount(async () => {
-        await loadEvents();
-
         if (!unlistenAccountChanging) {
             unlistenAccountChanging = await listen<string>("account_changing", async (_event) => {
                 console.log("Event received on chats page: account_changing");

@@ -79,11 +79,11 @@ pub fn run() {
 }
 
 fn setup_logging(logs_dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-    let file_appender = tracing_appender::rolling::RollingFileAppender::new(
-        tracing_appender::rolling::Rotation::DAILY,
-        &logs_dir,
-        "whitenoise",
-    );
+    let file_appender = tracing_appender::rolling::RollingFileAppender::builder()
+        .rotation(tracing_appender::rolling::Rotation::DAILY)
+        .filename_prefix("whitenoise")
+        .filename_suffix("log")
+        .build(logs_dir)?;
 
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
