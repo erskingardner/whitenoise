@@ -21,7 +21,15 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                mono: ["Inconsolata", "Menlo", "Monaco", "Ubuntu Mono", "Consolas", "Courier New", "monospace"],
+                mono: [
+                    "Inconsolata",
+                    "Menlo",
+                    "Monaco",
+                    "Ubuntu Mono",
+                    "Consolas",
+                    "Courier New",
+                    "monospace",
+                ],
             },
             colors: {
                 "primary-blue": colors.blue[700],
