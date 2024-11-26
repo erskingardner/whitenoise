@@ -171,15 +171,13 @@ pub async fn create_group(
 
         let welcome_rumor = EventBuilder::new(
             Kind::MlsWelcome,
-            hex::encode(&serialized_welcome_message),
+            hex::encode(&serialized_welcome_message)).tags(
             vec![Tag::from_standardized_without_cell(TagStandard::Relays(
                 relay_urls
                     .iter()
                     .filter_map(|r| Url::parse(r).ok())
                     .collect(),
-            ))],
-        )
-        .build(signer.get_public_key().await.map_err(|e| e.to_string())?);
+            ))]);
 
         tracing::debug!(
             target: "whitenoise::groups::create_group",
@@ -190,7 +188,6 @@ pub async fn create_group(
         // Create a timestamp 1 month in the future
         let one_month_future = Timestamp::now().add(30 * 24 * 60 * 60);
 
-        // TODO: We'll probably want to refactor this to be async eventually.
         let wrapped_event = EventBuilder::gift_wrap(
             &signer,
             &member_pubkey,
@@ -374,17 +371,13 @@ pub async fn send_mls_message(
 
     let ephemeral_nostr_keys = Keys::generate();
 
-    let published_message_event = EventBuilder::new(
-        Kind::MlsGroupMessage,
-        encrypted_content,
-        vec![Tag::custom(
-            TagKind::h(),
-            vec![group.nostr_group_id.clone()],
-        )],
-    )
-    .sign(&ephemeral_nostr_keys)
-    .await
-    .map_err(|e| e.to_string())?;
+    let published_message_event = EventBuilder::new(Kind::MlsGroupMessage, encrypted_content)
+        .tags(vec![
+            Tag::custom(TagKind::h(), vec![group.nostr_group_id.clone()]),
+        ])
+        .sign(&ephemeral_nostr_keys)
+        .await
+        .map_err(|e| e.to_string())?;
 
     tracing::debug!(
         target: "whitenoise::commands::groups::send_mls_message",

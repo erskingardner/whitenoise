@@ -18,7 +18,7 @@ pub enum NostrManagerError {
     #[error("Metadata Error: {0}")]
     Metadata(#[from] nostr_sdk::types::metadata::Error),
     #[error("Database Error: {0}")]
-    Database(#[from] nostr_sdk::database::DatabaseError),
+    Database(#[from] DatabaseError),
     #[error("Signer Error: {0}")]
     Signer(#[from] nostr_sdk::signer::SignerError),
     #[error("Failed to acquire lock: {0}")]

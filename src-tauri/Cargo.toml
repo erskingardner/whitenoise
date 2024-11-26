@@ -33,7 +33,7 @@ nostr-sdk = { version = "0.36", features = [
     "nip04",
     "nip44",
     "nip59",
-], path = "../../rust-nostr/crates/nostr-sdk" }
+], git = "https://github.com/erskingardner/rust-nostr", rev = "16693d2"}
 thiserror = "1"
 chrono = { version = "0.4", features = ["serde"] }
 sled = "0.34"
@@ -44,7 +44,7 @@ keyring = { version = "3.2.0", features = [
 ] }
 uuid = { version = "1.3.0", features = ["v4"] }
 base64 = "0.22"
-nostr-openmls = { version = "0.1.0", path = "../../nostr-openmls" }
+nostr-openmls = { version = "0.1.0", git="https://github.com/erskingardner/nostr-openmls", branch="master" }
 
 [dev-dependencies]
 tempfile = "3"

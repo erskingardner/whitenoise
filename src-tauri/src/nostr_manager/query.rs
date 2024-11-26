@@ -2,9 +2,8 @@ use crate::nostr_manager::{NostrManager, Result};
 use nostr_sdk::prelude::*;
 
 impl NostrManager {
-    pub async fn query_user_metadata(&self, pubkey: PublicKey) -> Result<Metadata> {
-        let profile = self.client.database().profile(pubkey).await?;
-        Ok(profile.metadata())
+    pub async fn query_user_metadata(&self, pubkey: PublicKey) -> Result<Option<Metadata>> {
+        Ok(self.client.database().metadata(pubkey).await?)
     }
 
     #[allow(dead_code)]

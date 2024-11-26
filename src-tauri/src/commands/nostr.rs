@@ -192,7 +192,7 @@ pub async fn query_enriched_contact(
         .map_err(|_| "Failed to get key packages".to_string())?;
 
     let enriched_contact = EnrichedContact {
-        metadata,
+        metadata: metadata.unwrap_or_default(),
         nip17: !inbox_relays.is_empty(),
         nip104: !key_packages.is_empty(),
         nostr_relays,
@@ -551,7 +551,8 @@ pub async fn publish_relay_list(
         _ => return Err("Invalid relay list kind".to_string()),
     };
 
-    let event = EventBuilder::new(event_kind, "", tags)
+    let event = EventBuilder::new(event_kind, "")
+        .tags(tags)
         .sign(&signer)
         .await
         .map_err(|e| e.to_string())?;

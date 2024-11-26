@@ -93,14 +93,14 @@ pub async fn publish_key_package(wn: tauri::State<'_, Whitenoise>) -> Result<(),
 
         event = EventBuilder::new(
             Kind::MlsKeyPackage,
-            serialized_key_package,
+            serialized_key_package).tags(
             [
                 Tag::custom(TagKind::MlsProtocolVersion, ["1.0"]),
                 Tag::custom(TagKind::MlsCiphersuite, [ciphersuite]),
                 Tag::custom(TagKind::MlsExtensions, [extensions]),
                 Tag::custom(TagKind::Client, ["whitenoise"]),
                 Tag::custom(TagKind::Relays, key_package_relays.clone()),
-            ],
+            ]
         );
     }
     wn.nostr

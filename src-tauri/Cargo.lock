@@ -2666,6 +2666,7 @@ checksum = "72ef4a56884ca558e5ddb05a1d1e7e1bfd9a68d9ed024c21704cc98872dae1bb"
 [[package]]
 name = "nostr"
 version = "0.36.0"
+source = "git+https://github.com/erskingardner/rust-nostr?rev=16693d2#16693d25aa38aff507aaea94953a8bbcd400b9fd"
 dependencies = [
  "aes",
  "async-trait",
@@ -2691,6 +2692,7 @@ dependencies = [
 [[package]]
 name = "nostr-database"
 version = "0.36.0"
+source = "git+https://github.com/erskingardner/rust-nostr?rev=16693d2#16693d25aa38aff507aaea94953a8bbcd400b9fd"
 dependencies = [
  "async-trait",
  "flatbuffers",
@@ -2704,6 +2706,7 @@ dependencies = [
 [[package]]
 name = "nostr-lmdb"
 version = "0.36.0"
+source = "git+https://github.com/erskingardner/rust-nostr?rev=16693d2#16693d25aa38aff507aaea94953a8bbcd400b9fd"
 dependencies = [
  "heed",
  "nostr",
@@ -2716,6 +2719,7 @@ dependencies = [
 [[package]]
 name = "nostr-openmls"
 version = "0.1.0"
+source = "git+https://github.com/erskingardner/nostr-openmls?branch=master#ba1cc178e4d15d64660a5bc10ec98659bab3ea2d"
 dependencies = [
  "bincode",
  "ed25519-dalek",
@@ -2736,6 +2740,7 @@ dependencies = [
 [[package]]
 name = "nostr-relay-pool"
 version = "0.36.0"
+source = "git+https://github.com/erskingardner/rust-nostr?rev=16693d2#16693d25aa38aff507aaea94953a8bbcd400b9fd"
 dependencies = [
  "async-utility",
  "async-wsocket",
@@ -2753,6 +2758,7 @@ dependencies = [
 [[package]]
 name = "nostr-sdk"
 version = "0.36.0"
+source = "git+https://github.com/erskingardner/rust-nostr?rev=16693d2#16693d25aa38aff507aaea94953a8bbcd400b9fd"
 dependencies = [
  "async-utility",
  "atomic-destructor",

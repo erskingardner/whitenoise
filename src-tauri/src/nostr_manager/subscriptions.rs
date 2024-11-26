@@ -113,16 +113,18 @@ impl NostrManager {
                         self.handle_message(relay_url, message)?;
                         Ok(false)
                     }
-                    RelayPoolNotification::RelayStatus { relay_url, status } => {
-                        self.handle_relay_status(relay_url, status)?;
-                        Ok(false)
-                    }
                     RelayPoolNotification::Shutdown => {
                         self.handle_shutdown()?;
                         Ok(true)
                     }
                     RelayPoolNotification::Authenticated { relay_url } => {
                         self.handle_authenticated(relay_url)?;
+                        Ok(false)
+                    }
+                    // TODO: Remove this once we update to 0.37
+                    #[allow(deprecated)]
+                    RelayPoolNotification::RelayStatus { relay_url, status } => {
+                        self.handle_relay_status(relay_url, status)?;
                         Ok(false)
                     }
                 }
