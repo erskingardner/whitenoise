@@ -24,7 +24,7 @@ export let fullscreen = true;
     }
     .lds-ripple div {
         position: absolute;
-        border: calc(var(--size) * 0.05) solid currentColor;
+        border: calc(var(--size) * 0.08) solid currentColor;
         opacity: 1;
         border-radius: 50%;
         animation: lds-ripple 1.5s cubic-bezier(0, 0.2, 0.8, 1) infinite;

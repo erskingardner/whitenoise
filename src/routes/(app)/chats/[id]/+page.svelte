@@ -26,6 +26,8 @@ let enrichedCounterparty: EnrichedContact | undefined = $state(undefined);
 let groupName = $state("");
 let transcript: NEvent[] = $state([]);
 
+$inspect(transcript);
+
 $effect(() => {
     if (
         group &&

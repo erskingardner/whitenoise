@@ -2,6 +2,7 @@
 import type { NEvent, NostrMlsGroup } from "$lib/types/nostr";
 import { invoke } from "@tauri-apps/api/core";
 import { PaperPlaneTilt } from "phosphor-svelte";
+import Loader from "./Loader.svelte";
 
 let {
     group,
@@ -10,6 +11,7 @@ let {
 
 let message = $state("");
 let textarea: HTMLTextAreaElement;
+let sendingMessage: boolean = $state(false);
 
 function adjustTextareaHeight() {
     textarea.style.height = "auto";
@@ -22,15 +24,20 @@ function handleInput() {
 
 async function sendMessage() {
     if (message.length === 0) return;
+    sendingMessage = true;
     await invoke("send_mls_message", {
         group,
         message: message,
-    }).then((messageEvent) => {
-        handleNewMessage(messageEvent as NEvent);
-        // Clear the message input and adjust the height of the textarea
-        message = "";
-        setTimeout(adjustTextareaHeight, 0);
-    });
+    })
+        .then((messageEvent) => {
+            handleNewMessage(messageEvent as NEvent);
+            // Clear the message input and adjust the height of the textarea
+            message = "";
+            setTimeout(adjustTextareaHeight, 0);
+        })
+        .finally(() => {
+            sendingMessage = false;
+        });
 }
 
 function handleKeydown(event: KeyboardEvent) {
@@ -52,9 +59,16 @@ function handleKeydown(event: KeyboardEvent) {
         onkeydown={handleKeydown}
     ></textarea>
     <button
-        class="p-3 bg-blue-700 rounded-full text-white ring-1 ring-blue-500 hover:bg-blue-600"
+        class="p-3 bg-blue-700 rounded-full text-white ring-1 ring-blue-500 hover:bg-blue-600 disabled:hidden"
         onclick={sendMessage}
+        disabled={sendingMessage}
     >
         <PaperPlaneTilt size={24} />
     </button>
+    <div
+        class="p-3 bg-blue-700 rounded-full text-white ring-1 ring-blue-500"
+        class:hidden={!sendingMessage}
+    >
+        <Loader fullscreen={false} size={24} />
+    </div>
 </div>

@@ -445,12 +445,6 @@ pub async fn fetch_mls_messages(
             },
         );
 
-    tracing::debug!(
-        target: "whitenoise::commands::groups::fetch_mls_messages",
-        "Grouped messages: {:?}",
-        grouped_messages
-    );
-
     for (group_id, events) in grouped_messages {
         let group = wn
             .group_manager
