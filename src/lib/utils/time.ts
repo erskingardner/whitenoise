@@ -11,17 +11,18 @@ export function formatMessageTime(timestamp: number): string {
 
     if (isToday) {
         return localDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-    } else if (isThisWeek) {
-        return localDate.toLocaleDateString("en-US", { weekday: "short" });
-    } else if (isThisYear) {
-        return localDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    } else {
-        return localDate.toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-        });
     }
+    if (isThisWeek) {
+        return localDate.toLocaleDateString("en-US", { weekday: "short" });
+    }
+    if (isThisYear) {
+        return localDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    }
+    return localDate.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+    });
 }
 
 export function unixTimestamp(): number {
