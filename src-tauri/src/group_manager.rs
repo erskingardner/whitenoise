@@ -403,4 +403,24 @@ impl GroupManager {
 
         Ok(new_group)
     }
+
+    pub fn delete_all_data(&self) -> Result<()> {
+        {
+            let mut state = self
+                .state
+                .lock()
+                .map_err(|e| GroupManagerError::LockError(e.to_string()))?;
+
+            state.groups.clear();
+            state.invites.clear();
+
+            let mut active_account = self
+                .active_account
+                .lock()
+                .map_err(|e| GroupManagerError::LockError(e.to_string()))?;
+
+            *active_account = String::new();
+        }
+        Ok(())
+    }
 }

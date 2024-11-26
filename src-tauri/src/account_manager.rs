@@ -510,4 +510,17 @@ impl AccountManager {
 
         Ok(())
     }
+
+    pub fn delete_all_data(&self) -> Result<()> {
+        {
+            let mut state = self
+                .state
+                .lock()
+                .map_err(|e| AccountError::LockError(e.to_string()))?;
+
+            state.accounts.clear();
+            state.active_account = None;
+        }
+        Ok(())
+    }
 }

@@ -11,6 +11,7 @@ mod utils;
 mod whitenoise;
 
 use crate::commands::accounts::*;
+use crate::commands::delete_all_data;
 use crate::commands::groups::*;
 use crate::commands::invites::*;
 use crate::commands::key_packages::*;
@@ -35,10 +36,10 @@ pub fn run() {
 
             let logs_dir = app.handle().path().app_log_dir().unwrap();
             tracing::debug!(target: "whitenoise::lib::run", "Logs directory: {:?}", logs_dir);
-            setup_logging(logs_dir)?;
+            setup_logging(logs_dir.clone())?;
 
             tauri::async_runtime::block_on(async move {
-                let whitenoise = Whitenoise::new(data_dir, app.handle()).await;
+                let whitenoise = Whitenoise::new(data_dir, logs_dir, app.handle()).await;
                 app.manage(whitenoise);
             });
             Ok(())
@@ -72,7 +73,8 @@ pub fn run() {
             accept_invite,
             decline_invite,
             send_mls_message,
-            fetch_mls_messages
+            fetch_mls_messages,
+            delete_all_data
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

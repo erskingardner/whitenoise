@@ -260,4 +260,18 @@ impl NostrManager {
             .map_while(|tag| tag.content().map(|c| c.to_string()))
             .collect()
     }
+
+    pub async fn delete_all_data(&self) -> Result<()> {
+        tracing::debug!(
+            target: "whitenoise::nostr_manager::delete_all_data",
+            "Deleting Nostr data"
+        );
+        self.client.reset().await.map_err(NostrManagerError::from)?;
+        self.client
+            .database()
+            .wipe()
+            .await
+            .map_err(NostrManagerError::from)?;
+        Ok(())
+    }
 }

@@ -12,10 +12,11 @@ pub struct Whitenoise {
     pub nostr: NostrManager,
     pub nostr_mls: Arc<Mutex<NostrMls>>,
     pub data_dir: PathBuf,
+    pub logs_dir: PathBuf,
 }
 
 impl Whitenoise {
-    pub async fn new(data_dir: PathBuf, app_handle: &AppHandle) -> Self {
+    pub async fn new(data_dir: PathBuf, logs_dir: PathBuf, app_handle: &AppHandle) -> Self {
         tracing::debug!(
             target: "whitenoise::whitenoise::new",
             "Creating Whitenoise instance with data_dir: {:?}",
@@ -50,20 +51,31 @@ impl Whitenoise {
                 active_account.map(|a| a.pubkey),
             ))),
             data_dir,
+            logs_dir,
         }
     }
 
-    // pub async fn clear_all_data(&self) -> Result<(), Error> {
-    //     tracing::debug!(target: "whitenoise::clear_all_data", "Clearing all data");
-    //     // Shutdown and reset Nostr
-    //     // Delete nostr cache db
-    //     // Clear database trees data
-    //     // - Accounts
-    //     // - Groups
-    //     // - Invites
-    //     // Clear the all accounts data
-    //     // Clear all groups data
-    //     // Clear all Nostr MLS data - clear the sled db
-    //     Ok(())
-    // }
+    pub async fn delete_all_data(&self) -> Result<(), Box<dyn std::error::Error>> {
+        tracing::debug!(target: "whitenoise::delete_all_data", "Deleting all data");
+        // Shutdown and reset Nostr
+        // Delete nostr cache db
+        self.nostr.delete_all_data().await?;
+        // Drop the app database completely
+        let db_path = self.data_dir.join("whitenoise.sled");
+        if db_path.exists() {
+            std::fs::remove_dir_all(&db_path)
+                .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+        }
+        // Clear all accounts data
+        self.account_manager.delete_all_data()?;
+        // Clear all groups data
+        self.group_manager.delete_all_data()?;
+        // Clear Nostr MLS data - this includes all the MLS group state and secrets.
+        self.nostr_mls.lock().unwrap().delete_all_data()?;
+        // Clear logs
+        std::fs::remove_dir_all(&self.logs_dir)
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+
+        Ok(())
+    }
 }

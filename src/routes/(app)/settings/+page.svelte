@@ -177,11 +177,19 @@
     <Alert
         title="Delete everything?"
         body="Are you sure you want to delete all data? This cannot be undone."
-        acceptFn={() => {
-            toastState.add("Two weeks™", "Not implemented yet.", "info");
-            showDeleteAlert = false;
+        acceptFn={async () => {
+            invoke("delete_all_data")
+                .then(() => {
+                    toastState.add("All data deleted", "All data has been deleted.", "info");
+                    showDeleteAlert = false;
+                    goto("/login");
+                })
+                .catch((e) => {
+                    toastState.add("Error deleting data", `Failed to delete data: ${e.toString()}`, "error");
+                    console.error(e);
+                });
         }}
-        acceptText="Burn it all down"
+        acceptText="Yes, delete everything"
         acceptStyle="warning"
         cancelText="Cancel"
         bind:showAlert={showDeleteAlert}
