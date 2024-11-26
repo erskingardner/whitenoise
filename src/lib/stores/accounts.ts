@@ -1,6 +1,6 @@
-import { writable, type Writable, get } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
+import { type Writable, get, writable } from "svelte/store";
 import type { NMetadata } from "../types/nostr";
 
 export type Accounts = {
@@ -83,9 +83,8 @@ export async function logout(pubkey: string): Promise<void> {
     const accountState = await invoke("logout", { hexPubkey: pubkey }).catch((e) => {
         if (e === "No accounts exist") {
             throw new LogoutError("No accounts exist");
-        } else {
-            throw new LogoutError(e);
         }
+        throw new LogoutError(e);
     });
     await updateAccountsStore(accountState as AccountsData);
     await fetchRelays();
@@ -101,17 +100,19 @@ export async function login(nsecOrHex: string): Promise<void> {
 }
 
 export async function updateAccountsStore(accountState?: AccountsData): Promise<void> {
-    if (!accountState) {
-        accountState = await invoke("get_accounts_state");
+    let state = accountState;
+    if (!state) {
+        state = await invoke("get_accounts_state");
     }
+    if (!state) return;
     accounts.set({
-        accounts: Object.values(accountState!.accounts),
-        activeAccount: accountState!.active_account,
+        accounts: Object.values(state.accounts),
+        activeAccount: state.active_account,
     });
 }
 
 export async function fetchRelays(): Promise<void> {
-    let fetchedRelays: Record<string, string> = await invoke("fetch_relays");
+    const fetchedRelays: Record<string, string> = await invoke("fetch_relays");
     relays.set(fetchedRelays);
 }
 

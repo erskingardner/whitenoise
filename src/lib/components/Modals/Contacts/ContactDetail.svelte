@@ -1,14 +1,14 @@
 <script lang="ts">
-import Avatar from "../../Avatar.svelte";
-import Name from "../../Name.svelte";
+import Loader from "$lib/components/Loader.svelte";
+import { accounts } from "$lib/stores/accounts";
+import { getToastState } from "$lib/stores/toast-state.svelte";
+import type { CloseModal } from "$lib/types/modal";
 import type { EnrichedContact } from "$lib/types/nostr";
 import { nameFromMetadata } from "$lib/utils/nostr";
-import { accounts } from "$lib/stores/accounts";
 import { invoke } from "@tauri-apps/api/core";
-import { getToastState } from "$lib/stores/toast-state.svelte";
-import Loader from "$lib/components/Loader.svelte";
-import type { CloseModal } from "$lib/types/modal";
 import { Warning } from "phosphor-svelte";
+import Avatar from "../../Avatar.svelte";
+import Name from "../../Name.svelte";
 
 let toastState = getToastState();
 

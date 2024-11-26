@@ -1,10 +1,10 @@
 <script lang="ts">
-import { accounts, updateAccountsStore } from "$lib/stores/accounts";
 import { goto } from "$app/navigation";
-import { onMount } from "svelte";
+import Loader from "$lib/components/Loader.svelte";
+import { accounts, updateAccountsStore } from "$lib/stores/accounts";
 import { isValidHexPubkey } from "$lib/types/nostr";
 import { invoke } from "@tauri-apps/api/core";
-import Loader from "$lib/components/Loader.svelte";
+import { onMount } from "svelte";
 
 onMount(async () => {
     updateAccountsStore().then(() => {

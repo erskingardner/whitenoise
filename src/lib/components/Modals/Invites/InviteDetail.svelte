@@ -1,7 +1,7 @@
 <script lang="ts">
 import Avatar from "$lib/components/Avatar.svelte";
 import Name from "$lib/components/Name.svelte";
-import type { Invite, EnrichedContact } from "$lib/types/nostr";
+import type { EnrichedContact, Invite } from "$lib/types/nostr";
 import { invoke } from "@tauri-apps/api/core";
 
 let { invite, enrichedInviter, closeModal } = $props<{

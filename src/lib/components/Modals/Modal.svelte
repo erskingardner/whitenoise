@@ -1,10 +1,10 @@
 <script lang="ts">
-import { fly, fade } from "svelte/transition";
-import { X, CaretLeft } from "phosphor-svelte";
+import type { ModalView } from "$lib/types/modal";
+import { CaretLeft, X } from "phosphor-svelte";
 import { onDestroy } from "svelte";
 import type { Component } from "svelte";
+import { fade, fly } from "svelte/transition";
 import HeaderToolbar from "../HeaderToolbar.svelte";
-import type { ModalView } from "$lib/types/modal";
 
 let {
     initialComponent,

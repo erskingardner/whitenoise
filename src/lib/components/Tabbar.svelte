@@ -1,5 +1,5 @@
 <script lang="ts">
-import { ChatCircle, Phone, GearSix } from "phosphor-svelte";
+import { ChatCircle, GearSix, Phone } from "phosphor-svelte";
 
 let { activeTab = $bindable("chats") }: { activeTab: string } = $props();
 </script>

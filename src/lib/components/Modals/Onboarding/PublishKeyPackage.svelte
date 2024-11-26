@@ -1,10 +1,10 @@
 <script lang="ts">
-import OnboardingNumbers from "./OnboardingNumbers.svelte";
-import { invoke } from "@tauri-apps/api/core";
+import { accounts } from "$lib/stores/accounts";
 import { getToastState } from "$lib/stores/toast-state.svelte";
 import type { PushView } from "$lib/types/modal";
+import { invoke } from "@tauri-apps/api/core";
+import OnboardingNumbers from "./OnboardingNumbers.svelte";
 import PostOnboard from "./PostOnboard.svelte";
-import { accounts } from "$lib/stores/accounts";
 
 let toastState = getToastState();
 

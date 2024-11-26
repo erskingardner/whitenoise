@@ -1,11 +1,11 @@
 <script lang="ts">
-import OnboardingNumbers from "./OnboardingNumbers.svelte";
-import { Trash, Plus } from "phosphor-svelte";
-import { invoke } from "@tauri-apps/api/core";
+import { accounts } from "$lib/stores/accounts";
 import { getToastState } from "$lib/stores/toast-state.svelte";
 import type { PushView } from "$lib/types/modal";
+import { invoke } from "@tauri-apps/api/core";
+import { Plus, Trash } from "phosphor-svelte";
+import OnboardingNumbers from "./OnboardingNumbers.svelte";
 import PublishKeyPackage from "./PublishKeyPackage.svelte";
-import { accounts } from "$lib/stores/accounts";
 
 let toastState = getToastState();
 

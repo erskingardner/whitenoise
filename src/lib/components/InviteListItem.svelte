@@ -1,11 +1,11 @@
 <script lang="ts">
-import GroupAvatar from "./GroupAvatar.svelte";
-import { invoke } from "@tauri-apps/api/core";
 import type { EnrichedContact, Invite } from "$lib/types/nostr";
-import Modal from "./Modals/Modal.svelte";
-import InviteDetail from "./Modals/Invites/InviteDetail.svelte";
 import { NostrMlsGroupType } from "$lib/types/nostr";
+import { invoke } from "@tauri-apps/api/core";
 import { nameFromMetadata } from "../utils/nostr";
+import GroupAvatar from "./GroupAvatar.svelte";
+import InviteDetail from "./Modals/Invites/InviteDetail.svelte";
+import Modal from "./Modals/Modal.svelte";
 
 let { invite }: { invite: Invite } = $props<{
     invite: Invite;

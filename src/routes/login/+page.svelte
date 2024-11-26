@@ -1,19 +1,19 @@
 <script lang="ts">
+import { goto } from "$app/navigation";
+import Loader from "$lib/components/Loader.svelte";
 import {
+    LoginError,
     accounts,
     createAccount,
     login,
-    LoginError,
     updateAccountsStore,
 } from "$lib/stores/accounts";
-import { goto } from "$app/navigation";
-import { fly, type FlyParams } from "svelte/transition";
-import { expoInOut } from "svelte/easing";
-import { onMount, onDestroy } from "svelte";
 import { isValidHexPubkey } from "$lib/types/nostr";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import Loader from "$lib/components/Loader.svelte";
 import { invoke } from "@tauri-apps/api/core";
+import { type UnlistenFn, listen } from "@tauri-apps/api/event";
+import { onDestroy, onMount } from "svelte";
+import { expoInOut } from "svelte/easing";
+import { type FlyParams, fly } from "svelte/transition";
 
 let nsecOrHex = $state("");
 let loading = $state(true);

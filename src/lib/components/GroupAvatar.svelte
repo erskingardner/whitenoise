@@ -1,7 +1,7 @@
 <script lang="ts">
-import Avatar from "./Avatar.svelte";
 import { NostrMlsGroupType } from "$lib/types/nostr";
 import type { EnrichedContact } from "$lib/types/nostr";
+import Avatar from "./Avatar.svelte";
 
 let {
     groupType = $bindable(),

@@ -1,13 +1,13 @@
 <script lang="ts">
 import { page } from "$app/stores";
-import { type NostrMlsGroup, NostrMlsGroupType } from "$lib/types/nostr";
-import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
-import { CaretLeft, LockKey } from "phosphor-svelte";
-import { invoke } from "@tauri-apps/api/core";
-import { nameFromMetadata } from "$lib/utils/nostr";
-import type { EnrichedContact, NEvent } from "$lib/types/nostr";
-import { accounts } from "$lib/stores/accounts";
 import GroupAvatar from "$lib/components/GroupAvatar.svelte";
+import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
+import { accounts } from "$lib/stores/accounts";
+import { type NostrMlsGroup, NostrMlsGroupType } from "$lib/types/nostr";
+import type { EnrichedContact, NEvent } from "$lib/types/nostr";
+import { nameFromMetadata } from "$lib/utils/nostr";
+import { invoke } from "@tauri-apps/api/core";
+import { CaretLeft, LockKey } from "phosphor-svelte";
 import { onMount } from "svelte";
 
 let group: NostrMlsGroup | undefined = $state(undefined);

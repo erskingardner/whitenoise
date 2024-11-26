@@ -1,6 +1,6 @@
 <script lang="ts">
-import Toast from "./Toast.svelte";
 import { getToastState } from "$lib/stores/toast-state.svelte";
+import Toast from "./Toast.svelte";
 
 let toastState = getToastState();
 </script>

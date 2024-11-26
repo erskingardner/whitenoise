@@ -1,6 +1,6 @@
 <script lang="ts">
-import { setToastState } from "$lib/stores/toast-state.svelte";
 import Toaster from "$lib/components/Toaster.svelte";
+import { setToastState } from "$lib/stores/toast-state.svelte";
 import type { Snippet } from "svelte";
 import "../app.css";
 

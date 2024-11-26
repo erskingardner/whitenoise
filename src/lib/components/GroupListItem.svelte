@@ -1,12 +1,12 @@
 <script lang="ts">
-import { type NostrMlsGroup, NostrMlsGroupType } from "$lib/types/nostr";
-import GroupAvatar from "./GroupAvatar.svelte";
-import { Checks, LockKey } from "phosphor-svelte";
-import { invoke } from "@tauri-apps/api/core";
-import { nameFromMetadata } from "../utils/nostr";
-import type { EnrichedContact } from "$lib/types/nostr";
 import { accounts } from "$lib/stores/accounts";
+import { type NostrMlsGroup, NostrMlsGroupType } from "$lib/types/nostr";
+import type { EnrichedContact } from "$lib/types/nostr";
 import { hexMlsGroupId } from "$lib/utils/group";
+import { invoke } from "@tauri-apps/api/core";
+import { Checks, LockKey } from "phosphor-svelte";
+import { nameFromMetadata } from "../utils/nostr";
+import GroupAvatar from "./GroupAvatar.svelte";
 
 let { group } = $props<{
     group: NostrMlsGroup;

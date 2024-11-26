@@ -2,8 +2,8 @@
 import { goto } from "$app/navigation";
 import Header from "$lib/components/Header.svelte";
 import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
+import { colorForRelayStatus, relays } from "$lib/stores/accounts";
 import { CaretLeft } from "phosphor-svelte";
-import { relays, colorForRelayStatus } from "$lib/stores/accounts";
 import { HardDrives } from "phosphor-svelte";
 
 function goBack() {

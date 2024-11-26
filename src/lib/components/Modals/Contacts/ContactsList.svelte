@@ -1,16 +1,16 @@
 <script lang="ts">
-import Avatar from "../../Avatar.svelte";
-import Name from "../../Name.svelte";
-import { npubFromPubkey } from "$lib/utils/nostr";
-import { CaretRight } from "phosphor-svelte";
-import ContactDetail from "./ContactDetail.svelte";
-import type { EnrichedContactsMap, EnrichedContact } from "$lib/types/nostr";
-import type { PushView } from "$lib/types/modal";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { onMount, onDestroy } from "svelte";
 import { getToastState } from "$lib/stores/toast-state.svelte";
+import type { PushView } from "$lib/types/modal";
+import type { EnrichedContact, EnrichedContactsMap } from "$lib/types/nostr";
+import { npubFromPubkey } from "$lib/utils/nostr";
 import { invoke } from "@tauri-apps/api/core";
+import { type UnlistenFn, listen } from "@tauri-apps/api/event";
+import { CaretRight } from "phosphor-svelte";
+import { onDestroy, onMount } from "svelte";
+import Avatar from "../../Avatar.svelte";
 import Loader from "../../Loader.svelte";
+import Name from "../../Name.svelte";
+import ContactDetail from "./ContactDetail.svelte";
 
 let toastState = getToastState();
 

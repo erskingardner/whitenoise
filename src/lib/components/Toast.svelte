@@ -1,7 +1,7 @@
 <script lang="ts">
 import type { Toast } from "$lib/stores/toast-state.svelte";
-import { X } from "phosphor-svelte";
 import { getToastState } from "$lib/stores/toast-state.svelte";
+import { X } from "phosphor-svelte";
 import { fly } from "svelte/transition";
 
 let toastState = getToastState();
