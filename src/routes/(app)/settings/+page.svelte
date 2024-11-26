@@ -20,7 +20,6 @@ import { nameFromMetadata, npubFromPubkey } from "$lib/utils/nostr";
 import { invoke } from "@tauri-apps/api/core";
 import { type UnlistenFn, listen } from "@tauri-apps/api/event";
 import {
-    Binoculars,
     CaretDown,
     CaretRight,
     Envelope,
@@ -30,6 +29,7 @@ import {
     PlusCircle,
     SignIn,
     Skull,
+    Trash,
     UserFocus,
     UserPlus,
     Users,
@@ -38,6 +38,7 @@ import { onDestroy, onMount } from "svelte";
 
 let showDeleteAlert = $state(false);
 let showKeyPackageAlert = $state(false);
+let showDeleteKeyPackagesAlert = $state(false);
 let showLogin = $state(false);
 let nsecOrHex = $state("");
 let showLoginError = $state(false);
@@ -122,6 +123,10 @@ async function deleteAll() {
 
 function launchKeyPackage() {
     showKeyPackageAlert = true;
+}
+
+function deleteAllKeyPackages() {
+    showDeleteKeyPackagesAlert = true;
 }
 
 function publishKeyPackage() {
@@ -210,6 +215,28 @@ async function toggleInspectInvites() {
         acceptStyle="primary"
         cancelText="Cancel"
         bind:showAlert={showKeyPackageAlert}
+    />
+{/if}
+
+{#if showDeleteKeyPackagesAlert}
+    <Alert
+        title="Delete All Key Packages?"
+        body="Are you sure you want to send delete requests to all relays where your key packages are found?"
+        acceptFn={async () => {
+            invoke("delete_all_key_packages")
+                .then(() => {
+                    toastState.add("Key Packages Deleted", "All key packages have been deleted.", "success");
+                    showDeleteKeyPackagesAlert = false;
+                })
+                .catch((e) => {
+                    toastState.add("Error Deleting Key Packages", `Failed to delete key packages: ${e.toString()}`, "error");
+                    console.error(e);
+                });
+        }}
+        acceptText="Yes, delete all key packages"
+        acceptStyle="warning"
+        cancelText="Cancel"
+        bind:showAlert={showDeleteKeyPackagesAlert}
     />
 {/if}
 
@@ -321,13 +348,13 @@ async function toggleInspectInvites() {
                     <span>Publish Key Package Events</span>
                 </button>
             </li>
-            <!-- <li class="section-list-item">
-                <button onclick={() => goto("/settings/key_packages/")} class="row-button">
-                    <Binoculars size={24} />
-                    <span>Inspect Key Package Events</span>
+            <li class="section-list-item">
+                <button onclick={deleteAllKeyPackages} class="row-button">
+                    <Trash size={24} />
+                    <span>Delete All Key Package Events</span>
                     <CaretRight size={24} class="ml-auto mr-0" />
                 </button>
-            </li> -->
+            </li>
 
             <li class="section-list-item">
                 <button onclick={toggleInspectAccounts} class="row-button">

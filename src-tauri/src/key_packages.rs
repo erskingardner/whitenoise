@@ -23,13 +23,20 @@ pub enum KeyPackageError {
     NostrMlsError(#[from] nostr_openmls::key_packages::KeyPackageError),
 }
 
+#[derive(Debug)]
+pub struct KeyPackageResponse {
+    pub pubkey: String,
+    pub event_id: EventId,
+    pub key_package: KeyPackage,
+}
+
 pub type Result<T> = std::result::Result<T, KeyPackageError>;
 
 pub async fn fetch_key_packages_for_members(
     member_pubkeys: &[String],
     wn: &tauri::State<'_, Whitenoise>,
-) -> Result<Vec<KeyPackage>> {
-    let mut member_key_packages: Vec<KeyPackage> = Vec::new();
+) -> Result<Vec<KeyPackageResponse>> {
+    let mut member_key_packages: Vec<KeyPackageResponse> = Vec::new();
 
     tracing::debug!(
         target: "whitenoise::key_packages::fetch_key_packages_for_members",
@@ -37,27 +44,31 @@ pub async fn fetch_key_packages_for_members(
         member_pubkeys
     );
 
-    // Check that members are valid pubkeys & fetch prekeys
+    // Check that members are valid pubkeys & fetch key packages
     for pubkey in member_pubkeys.iter() {
         // Fetch prekeys from the members
-        let key_package = match fetch_key_package_for_pubkey(pubkey.clone(), wn).await {
-            Ok(kp) => match kp {
-                Some(kp) => kp,
+        match fetch_key_package_for_pubkey(pubkey.clone(), wn).await {
+            Ok(event_and_key_package) => match event_and_key_package {
+                Some((event_id, kp)) => member_key_packages.push(KeyPackageResponse {
+                    pubkey: pubkey.clone(),
+                    event_id,
+                    key_package: kp,
+                }),
                 None => {
+                    // TODO: Need to fix this when we get to adding more than one member to a group at once.
                     return Err(KeyPackageError::NoValidKeyPackage(format!(
-                        "No valid prekey found for member: {}",
+                        "No valid key package event found for member: {}",
                         pubkey
                     )));
                 }
             },
             Err(_) => {
                 return Err(KeyPackageError::FetchingKeyPackage(format!(
-                    "Error fetching valid prekey for member: {}",
+                    "Error fetching valid key package event for member: {}",
                     pubkey
                 )));
             }
         };
-        member_key_packages.push(key_package);
     }
     Ok(member_key_packages)
 }
@@ -65,50 +76,43 @@ pub async fn fetch_key_packages_for_members(
 pub async fn fetch_key_package_for_pubkey(
     pubkey: String,
     wn: &tauri::State<'_, Whitenoise>,
-) -> Result<Option<KeyPackage>> {
+) -> Result<Option<(EventId, KeyPackage)>> {
     tracing::debug!(target: "whitenoise::key_packages::fetch_key_package_for_pubkey", "Fetching key package for pubkey: {:?}", pubkey);
     let public_key = PublicKey::from_hex(pubkey.clone()).expect("Invalid pubkey");
-    let prekey_filter = Filter::new().kind(Kind::MlsKeyPackage).author(public_key);
-    let prekey_events = wn
+    let key_package_filter = Filter::new().kind(Kind::MlsKeyPackage).author(public_key);
+    let key_package_events = wn
         .nostr
         .client
-        .fetch_events(vec![prekey_filter], Some(wn.nostr.timeout()?))
+        .fetch_events(vec![key_package_filter], Some(wn.nostr.timeout()?))
         .await
-        .expect("Error fetching prekey events");
+        .expect("Error fetching key_package events");
 
-    let key_packages: Vec<KeyPackage> = prekey_events
-        .iter()
-        .filter_map(|event| {
-            let nostr_mls = wn.nostr_mls.lock().expect("Failed to lock nostr_mls");
-            nostr_openmls::key_packages::parse_key_package(event.content.to_string(), &nostr_mls)
-                .ok()
-        })
-        .collect();
+    let nostr_mls = wn.nostr_mls.lock().expect("Failed to lock nostr_mls");
+    let ciphersuite = nostr_mls.ciphersuite;
+    let extensions = nostr_mls.extensions.clone();
 
-    // Get the first valid key package
-    let valid_key_package = key_packages.iter().find(|&kp| {
-        // Check that the ciphersuite and extensions are the same
-        let nostr_mls = wn.nostr_mls.lock().expect("Failed to lock nostr_mls");
-        kp.ciphersuite() == nostr_mls.ciphersuite
-            && kp.last_resort()
-            && kp.leaf_node().capabilities().extensions().len() == nostr_mls.extensions.len()
-            && nostr_mls.extensions.iter().all(|&ext_type| {
-                kp.leaf_node()
-                    .capabilities()
-                    .extensions()
-                    .iter()
-                    .any(|ext| ext == &ext_type)
-            })
-    });
+    let mut valid_key_packages: Vec<(EventId, KeyPackage)> = Vec::new();
+    for event in key_package_events.iter() {
+        let key_package = nostr_openmls::key_packages::parse_key_package(event.content.to_string(), &nostr_mls)
+            .map_err(KeyPackageError::NostrMlsError)?;
+        if key_package.ciphersuite() == ciphersuite
+            && key_package.last_resort()
+            && key_package.leaf_node().capabilities().extensions().len() == extensions.len()
+            && extensions.iter().all(|&ext_type| {
+                key_package.leaf_node().capabilities().extensions().iter().any(|ext| ext == &ext_type)
+            }) {
+            valid_key_packages.push((event.id, key_package));
+        }
+    }
 
-    match valid_key_package {
-        Some(kp) => {
+    match valid_key_packages.first() {
+        Some((event_id, kp)) => {
             tracing::debug!(
                 target: "whitenoise::key_packages::fetch_key_package_for_pubkey",
                 "Found valid key package for user {:?}",
                 pubkey.clone()
             );
-            Ok(Some(kp.clone()))
+            Ok(Some((*event_id, kp.clone())))
         }
         None => {
             tracing::debug!(

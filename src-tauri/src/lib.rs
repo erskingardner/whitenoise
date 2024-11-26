@@ -65,6 +65,7 @@ pub fn run() {
             get_groups,
             get_invites,
             publish_key_package,
+            delete_all_key_packages,
             valid_key_package_exists_for_user,
             publish_relay_list,
             update_account_onboarding,

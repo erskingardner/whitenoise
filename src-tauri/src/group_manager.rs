@@ -1,4 +1,4 @@
-use crate::groups::{Group, GroupType};
+use crate::groups::{Group, GroupState, GroupType};
 use crate::invites::{Invite, InviteState};
 use nostr_openmls::nostr_group_data_extension::NostrGroupDataExtension;
 use nostr_sdk::prelude::*;
@@ -235,6 +235,7 @@ impl GroupManager {
             group_type,
             epoch: mls_group_epoch,
             transcript: Vec::new(),
+            state: GroupState::Active,
         };
 
         {

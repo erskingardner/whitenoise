@@ -27,6 +27,8 @@ pub struct Group {
     pub epoch: u64,
     /// Chat transscript
     pub transcript: Vec<UnsignedEvent>,
+    /// The state of the group
+    pub state: GroupState,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -35,6 +37,12 @@ pub enum GroupType {
     DirectMessage,
     /// A group with more than two members
     Group,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum GroupState {
+    Active,
+    Inactive,
 }
 
 /// Validates the members and admins of a group during creation

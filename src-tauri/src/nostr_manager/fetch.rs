@@ -57,8 +57,7 @@ impl NostrManager {
     pub async fn fetch_user_key_packages(&self, pubkey: PublicKey) -> Result<Events> {
         let filter = Filter::new()
             .author(pubkey)
-            .kind(Kind::MlsKeyPackage)
-            .limit(1);
+            .kind(Kind::MlsKeyPackage);
         let events = self
             .client
             .fetch_events(vec![filter], Some(self.timeout()?))

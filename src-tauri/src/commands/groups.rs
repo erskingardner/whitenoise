@@ -135,7 +135,7 @@ pub async fn create_group(
             .create_group(
                 group_name,
                 description,
-                member_key_packages,
+                member_key_packages.iter().map(|kp| kp.key_package.clone()).collect(),
                 admin_pubkeys,
                 creator_pubkey,
                 group_relays,
@@ -148,9 +148,9 @@ pub async fn create_group(
     let group_data = create_group_result.nostr_group_data;
 
     // Fan out the welcome message to all members
-    for member in &member_pubkeys {
-        let member_pubkey = PublicKey::from_hex(member).map_err(|e| e.to_string())?;
-        let contact = fetch_enriched_contact(member.clone(), false, wn.clone(), app_handle.clone())
+    for member in member_key_packages {
+        let member_pubkey = PublicKey::from_hex(member.pubkey.clone()).map_err(|e| e.to_string())?;
+        let contact = fetch_enriched_contact(member.pubkey.clone(), false, wn.clone(), app_handle.clone())
             .await
             .map_err(|e| e.to_string())?;
 
@@ -172,12 +172,12 @@ pub async fn create_group(
         let welcome_rumor = EventBuilder::new(
             Kind::MlsWelcome,
             hex::encode(&serialized_welcome_message)).tags(
-            vec![Tag::from_standardized_without_cell(TagStandard::Relays(
+            vec![Tag::from_standardized(TagStandard::Relays(
                 relay_urls
                     .iter()
                     .filter_map(|r| Url::parse(r).ok())
                     .collect(),
-            ))]);
+            )), Tag::event(member.event_id)]);
 
         tracing::debug!(
             target: "whitenoise::groups::create_group",
