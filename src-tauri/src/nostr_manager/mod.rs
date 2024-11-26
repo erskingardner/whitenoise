@@ -40,11 +40,10 @@ pub struct NostrManager {
 impl Default for NostrManagerSettings {
     fn default() -> Self {
         Self {
-            timeout: Duration::from_secs(5),
+            timeout: Duration::from_secs(3),
             relays: vec![
                 "wss://relay.damus.io".to_string(),
                 "wss://relay.primal.net".to_string(),
-                "wss://nos.lol".to_string(),
                 "wss://nostr.oxtr.dev".to_string(),
             ],
         }
