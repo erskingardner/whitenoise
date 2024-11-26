@@ -2,6 +2,7 @@
 import { accounts } from "$lib/stores/accounts";
 import { getToastState } from "$lib/stores/toast-state.svelte";
 import type { PushView } from "$lib/types/modal";
+import { isValidWebSocketURL } from "$lib/utils/nostr";
 import { invoke } from "@tauri-apps/api/core";
 import { Plus, Trash } from "phosphor-svelte";
 import OnboardingNumbers from "./OnboardingNumbers.svelte";
@@ -27,6 +28,7 @@ let keyPackageRelays: string[] = $state([
     "wss://nos.lol",
 ]);
 let newKeyPackageRelay: string = $state("");
+let inputError: string | null = $state(null);
 
 function goToKeyPackagePublish(): void {
     pushView(PublishKeyPackage, {
@@ -34,6 +36,22 @@ function goToKeyPackagePublish(): void {
         keyPackageRelaysPublished,
         keyPackagePublished,
     });
+}
+
+function addKeyPackageRelay(): void {
+    if (!newKeyPackageRelay.trim()) {
+        inputError = "Please enter a relay URL";
+        return;
+    }
+
+    if (!isValidWebSocketURL(newKeyPackageRelay)) {
+        inputError = "Please enter a valid WebSocket URL (ws:// or wss://)";
+        return;
+    }
+
+    keyPackageRelays = [...keyPackageRelays, newKeyPackageRelay];
+    newKeyPackageRelay = "";
+    inputError = null;
 }
 
 async function publishKeyPackageRelays() {
@@ -77,18 +95,20 @@ async function publishKeyPackageRelays() {
                 </button>
             </div>
         {/each}
-        <div class="flex flex-row gap-2 mt-8">
+        <div class="flex flex-col gap-2 mt-8">
+            <div class="flex flex-row gap-2">
             <input
                 type="text"
                 bind:value={newKeyPackageRelay}
                 class="w-full bg-transparent border-gray-700 rounded-md"
             />
-            <button
-                class="button-secondary"
-                onclick={() => (keyPackageRelays = [...keyPackageRelays, newKeyPackageRelay])}
-            >
-                <Plus size={20} />
+            <button class="button-outline flex flex-row gap-2 items-center whitespace-nowrap" onclick={addKeyPackageRelay}>
+                <Plus size={18} /> Add relay
             </button>
+            </div>
+            {#if inputError}
+                <span class="text-red-500 text-sm">{inputError}</span>
+            {/if}
         </div>
     </div>
     <button class="button-primary" onclick={publishKeyPackageRelays}> Publish a new key package relays event </button>

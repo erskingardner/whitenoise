@@ -2,6 +2,7 @@
 import { accounts } from "$lib/stores/accounts";
 import { getToastState } from "$lib/stores/toast-state.svelte";
 import type { PushView } from "$lib/types/modal";
+import { isValidWebSocketURL } from "$lib/utils/nostr";
 import { invoke } from "@tauri-apps/api/core";
 import { Plus, Trash } from "phosphor-svelte";
 import OnboardingNumbers from "./OnboardingNumbers.svelte";
@@ -11,6 +12,7 @@ let toastState = getToastState();
 
 let inboxRelays: string[] = $state(["wss://auth.nostr1.com"]);
 let newInboxRelay: string = $state("");
+let inputError: string | null = $state(null);
 
 let {
     pushView,
@@ -30,6 +32,22 @@ function goToKeyPackageRelays(): void {
         keyPackageRelaysPublished,
         keyPackagePublished,
     });
+}
+
+function addInboxRelay(): void {
+    if (!newInboxRelay.trim()) {
+        inputError = "Please enter a relay URL";
+        return;
+    }
+
+    if (!isValidWebSocketURL(newInboxRelay)) {
+        inputError = "Please enter a valid WebSocket URL (ws:// or wss://)";
+        return;
+    }
+
+    inboxRelays = [...inboxRelays, newInboxRelay];
+    newInboxRelay = "";
+    inputError = null;
 }
 
 async function publishInboxRelays() {
@@ -72,11 +90,21 @@ async function publishInboxRelays() {
                 </button>
             </div>
         {/each}
-        <div class="flex flex-row gap-2 mt-8">
-            <input type="text" bind:value={newInboxRelay} class="w-full bg-transparent border-gray-700 rounded-md" />
-            <button class="button-secondary" onclick={() => (inboxRelays = [...inboxRelays, newInboxRelay])}>
-                <Plus size={20} />
-            </button>
+        <div class="flex flex-col gap-2 mt-8">
+            <div class="flex flex-row gap-2">
+                <input 
+                    type="text" 
+                    bind:value={newInboxRelay} 
+                    class="w-full bg-transparent border-gray-700 rounded-md" 
+                    class:border-red-500={inputError}
+                />
+                <button class="button-outline flex flex-row gap-2 items-center whitespace-nowrap" onclick={addInboxRelay}>
+                    <Plus size={18} /> Add relay
+                </button>
+            </div>
+            {#if inputError}
+                <span class="text-red-500 text-sm">{inputError}</span>
+            {/if}
         </div>
     </div>
     <button class="button-primary" onclick={publishInboxRelays}> Publish a new inbox relays event </button>

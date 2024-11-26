@@ -53,3 +53,12 @@ export function isInsecure(event: NEvent): boolean {
     const insecureKinds = [4, 14];
     return insecureKinds.includes(event.kind);
 }
+
+export function isValidWebSocketURL(url: string): boolean {
+    try {
+        const wsURL = new URL(url);
+        return wsURL.protocol === "ws:" || wsURL.protocol === "wss:";
+    } catch {
+        return false;
+    }
+}
