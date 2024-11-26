@@ -1,40 +1,40 @@
 <script lang="ts">
+import { goto } from "$app/navigation";
 import Alert from "$lib/components/Alert.svelte";
+import Avatar from "$lib/components/Avatar.svelte";
 import Header from "$lib/components/Header.svelte";
 import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
 import {
-    accounts,
-    setActiveAccount,
-    fetchRelays,
-    updateAccountsStore,
-    createAccount,
-    logout,
     LogoutError,
+    accounts,
+    createAccount,
+    fetchRelays,
     login,
+    logout,
+    setActiveAccount,
+    updateAccountsStore,
 } from "$lib/stores/accounts";
-import Avatar from "$lib/components/Avatar.svelte";
-import { npubFromPubkey, nameFromMetadata } from "$lib/utils/nostr";
-import { isValidNsec, isValidHexPubkey } from "$lib/types/nostr";
-import { goto } from "$app/navigation";
-import { onMount, onDestroy } from "svelte";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
 import { getToastState } from "$lib/stores/toast-state.svelte";
+import { isValidHexPubkey, isValidNsec } from "$lib/types/nostr";
+import { nameFromMetadata, npubFromPubkey } from "$lib/utils/nostr";
+import { invoke } from "@tauri-apps/api/core";
+import { type UnlistenFn, listen } from "@tauri-apps/api/event";
 import {
-    SignIn,
-    PlusCircle,
-    Skull,
-    Lock,
-    CaretRight,
-    CaretDown,
-    Key,
     Binoculars,
-    UserPlus,
-    HardDrives,
-    UserFocus,
+    CaretDown,
+    CaretRight,
     Envelope,
+    HardDrives,
+    Key,
+    Lock,
+    PlusCircle,
+    SignIn,
+    Skull,
+    UserFocus,
+    UserPlus,
     Users,
 } from "phosphor-svelte";
+import { onDestroy, onMount } from "svelte";
 
 let showDeleteAlert = $state(false);
 let showKeyPackageAlert = $state(false);
@@ -151,7 +151,6 @@ async function toggleInspectAccounts() {
     if (showAccountsState) {
         invoke("get_accounts_state").then((accounts) => {
             accountsState = JSON.stringify(accounts, null, 2);
-            console.log(accountsState);
         });
     }
 }
@@ -163,7 +162,6 @@ async function toggleInspectGroups() {
     if (showGroupsState) {
         invoke("get_groups").then((groups) => {
             groupsState = JSON.stringify(groups, null, 2);
-            console.log(groupsState);
         });
     }
 }
@@ -175,7 +173,6 @@ async function toggleInspectInvites() {
     if (showInvitesState) {
         invoke("get_invites").then((invites) => {
             invitesState = JSON.stringify(invites, null, 2);
-            console.log(invitesState);
         });
     }
 }

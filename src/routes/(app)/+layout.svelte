@@ -32,7 +32,7 @@ async function checkPreflight() {
     await updateAccountsStore();
     isLoadingAccounts = false;
 
-    if (!Boolean($accounts.activeAccount)) {
+    if (!$accounts.activeAccount) {
         goto("/login");
     }
 

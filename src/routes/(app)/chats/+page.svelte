@@ -1,17 +1,17 @@
 <script lang="ts">
+import GroupListItem from "$lib/components/GroupListItem.svelte";
 import Header from "$lib/components/Header.svelte";
 import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
-import { PlusCircle } from "phosphor-svelte";
-import { invoke } from "@tauri-apps/api/core";
-import type { NostrMlsGroup, Invite, InvitesWithFailures } from "$lib/types/nostr";
-import { onMount, onDestroy } from "svelte";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import InviteListItem from "$lib/components/InviteListItem.svelte";
 import Loader from "$lib/components/Loader.svelte";
-import { getToastState } from "$lib/stores/toast-state.svelte";
 import ContactsList from "$lib/components/Modals/Contacts/ContactsList.svelte";
 import Modal from "$lib/components/Modals/Modal.svelte";
-import GroupListItem from "$lib/components/GroupListItem.svelte";
-import InviteListItem from "$lib/components/InviteListItem.svelte";
+import { getToastState } from "$lib/stores/toast-state.svelte";
+import type { Invite, InvitesWithFailures, NostrMlsGroup } from "$lib/types/nostr";
+import { invoke } from "@tauri-apps/api/core";
+import { type UnlistenFn, listen } from "@tauri-apps/api/event";
+import { PlusCircle } from "phosphor-svelte";
+import { onDestroy, onMount } from "svelte";
 
 let unlistenAccountChanging: UnlistenFn;
 let unlistenAccountChanged: UnlistenFn;
@@ -49,10 +49,6 @@ async function loadEvents() {
         isLoading = false;
     }
 }
-
-$inspect("Groups", groups);
-$inspect("Invites", invites);
-$inspect("Failures", failures); // TODO: Store failures in the database so we don't check them in the future
 
 onMount(async () => {
     await loadEvents();
