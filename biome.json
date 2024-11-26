@@ -20,7 +20,9 @@
             "./package",
             "**/.env",
             "**/.env.*",
-            "**/bun.lockb"
+            "**/bun.lockb",
+            "./src-tauri/gen",
+            "./src-tauri/target"
         ]
     },
     "organizeImports": { "enabled": true },

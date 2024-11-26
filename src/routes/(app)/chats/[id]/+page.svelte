@@ -1,97 +1,104 @@
 <script lang="ts">
-    import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
-    import { type NostrMlsGroup, type EnrichedContact, NostrMlsGroupType, type NEvent } from "$lib/types/nostr";
-    import { invoke } from "@tauri-apps/api/core";
-    import { nameFromMetadata } from "$lib/utils/nostr";
-    import { accounts } from "$lib/stores/accounts";
-    import { CaretLeft } from "phosphor-svelte";
-    import MessageBar from "$lib/components/MessageBar.svelte";
-    import { hexMlsGroupId } from "$lib/utils/group";
-    import GroupAvatar from "$lib/components/GroupAvatar.svelte";
-    import { formatMessageTime } from "$lib/utils/time";
-    import { onMount } from "svelte";
-    import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-    import { page } from "$app/stores";
+import { page } from "$app/stores";
+import GroupAvatar from "$lib/components/GroupAvatar.svelte";
+import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
+import MessageBar from "$lib/components/MessageBar.svelte";
+import { accounts } from "$lib/stores/accounts";
+import {
+    type EnrichedContact,
+    type NEvent,
+    type NostrMlsGroup,
+    NostrMlsGroupType,
+} from "$lib/types/nostr";
+import { hexMlsGroupId } from "$lib/utils/group";
+import { nameFromMetadata } from "$lib/utils/nostr";
+import { formatMessageTime } from "$lib/utils/time";
+import { invoke } from "@tauri-apps/api/core";
+import { type UnlistenFn, listen } from "@tauri-apps/api/event";
+import { CaretLeft } from "phosphor-svelte";
+import { onMount } from "svelte";
 
-    let unlistenMlsMessageReceived: UnlistenFn;
+let unlistenMlsMessageReceived: UnlistenFn;
 
-    let group: NostrMlsGroup | undefined = $state(undefined);
-    let counterpartyPubkey: string | undefined = $state(undefined);
-    let enrichedCounterparty: EnrichedContact | undefined = $state(undefined);
-    let groupName = $state("");
-    let transcript: NEvent[] = $state([]);
+let group: NostrMlsGroup | undefined = $state(undefined);
+let counterpartyPubkey: string | undefined = $state(undefined);
+let enrichedCounterparty: EnrichedContact | undefined = $state(undefined);
+let groupName = $state("");
+let transcript: NEvent[] = $state([]);
 
-    $effect(() => {
-        if (
-            group &&
-            group.group_type === NostrMlsGroupType.DirectMessage &&
-            counterpartyPubkey &&
-            enrichedCounterparty
-        ) {
-            groupName = nameFromMetadata(enrichedCounterparty.metadata, counterpartyPubkey);
-        } else if (group) {
-            groupName = group.name;
+$effect(() => {
+    if (
+        group &&
+        group.group_type === NostrMlsGroupType.DirectMessage &&
+        counterpartyPubkey &&
+        enrichedCounterparty
+    ) {
+        groupName = nameFromMetadata(enrichedCounterparty.metadata, counterpartyPubkey);
+    } else if (group) {
+        groupName = group.name;
+    }
+});
+
+async function loadGroup() {
+    invoke("get_group", { groupId: $page.params.id }).then((groupResponse) => {
+        group = groupResponse as NostrMlsGroup;
+        transcript = group.transcript;
+        counterpartyPubkey =
+            group.group_type === NostrMlsGroupType.DirectMessage
+                ? group.admin_pubkeys.filter((pubkey) => pubkey !== $accounts.activeAccount)[0]
+                : undefined;
+        if (counterpartyPubkey) {
+            invoke("query_enriched_contact", {
+                pubkey: counterpartyPubkey,
+                updateAccount: false,
+            }).then((value) => {
+                enrichedCounterparty = value as EnrichedContact;
+            });
         }
     });
+}
 
-    async function loadGroup() {
-        invoke("get_group", { groupId: $page.params.id }).then((groupResponse) => {
-            group = groupResponse as NostrMlsGroup;
-            transcript = group.transcript;
-            counterpartyPubkey =
-                group.group_type === NostrMlsGroupType.DirectMessage
-                    ? group.admin_pubkeys.filter((pubkey) => pubkey !== $accounts.activeAccount)[0]
-                    : undefined;
-            if (counterpartyPubkey) {
-                invoke("query_enriched_contact", {
-                    pubkey: counterpartyPubkey,
-                    updateAccount: false,
-                }).then((value) => {
-                    enrichedCounterparty = value as EnrichedContact;
-                });
-            }
-        });
+async function loadMessages() {
+    await invoke("fetch_mls_messages");
+    scrollToBottom();
+}
+
+function scrollToBottom() {
+    const messagesContainer = document.getElementById("messagesContainer");
+    const screenHeight = window.innerHeight;
+    if (messagesContainer && screenHeight < messagesContainer.scrollHeight) {
+        const lastMessage = messagesContainer.lastElementChild;
+        lastMessage?.scrollIntoView({ behavior: "instant" });
     }
-
-    async function loadMessages() {
-        await invoke("fetch_mls_messages");
-        scrollToBottom();
+    if (messagesContainer) {
+        messagesContainer.style.opacity = "1";
     }
+}
 
-    function scrollToBottom() {
-        const messagesContainer = document.getElementById("messagesContainer");
-        const screenHeight = window.innerHeight;
-        if (messagesContainer && screenHeight < messagesContainer.scrollHeight) {
-            const lastMessage = messagesContainer.lastElementChild;
-            lastMessage?.scrollIntoView({ behavior: "instant" });
-        }
-        messagesContainer ? (messagesContainer.style.opacity = "1") : null;
-    }
-
-    onMount(async () => {
-        if (!unlistenMlsMessageReceived) {
-            unlistenMlsMessageReceived = await listen<[NostrMlsGroup, NEvent]>(
-                "mls_message_received",
-                ({ payload: [updatedGroup, message] }) => {
-                    // console.log("updatedGroups:", updatedGroup);
-                    console.log("message received", message.content);
-                    if (!transcript.some((m) => m.id === message.id)) {
-                        console.log("pushing message to transcript");
-                        transcript = [...transcript, message];
-                    }
-                    scrollToBottom();
+onMount(async () => {
+    if (!unlistenMlsMessageReceived) {
+        unlistenMlsMessageReceived = await listen<[NostrMlsGroup, NEvent]>(
+            "mls_message_received",
+            ({ payload: [updatedGroup, message] }) => {
+                // console.log("updatedGroups:", updatedGroup);
+                console.log("message received", message.content);
+                if (!transcript.some((m) => m.id === message.id)) {
+                    console.log("pushing message to transcript");
+                    transcript = [...transcript, message];
                 }
-            );
-        }
-
-        await loadGroup();
-        await loadMessages();
-    });
-
-    function handleNewMessage(message: NEvent) {
-        transcript = [...transcript, message];
-        scrollToBottom();
+                scrollToBottom();
+            }
+        );
     }
+
+    await loadGroup();
+    await loadMessages();
+});
+
+function handleNewMessage(message: NEvent) {
+    transcript = [...transcript, message];
+    scrollToBottom();
+}
 </script>
 
 {#if group}
