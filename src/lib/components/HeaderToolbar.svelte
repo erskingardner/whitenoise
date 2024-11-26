@@ -1,23 +1,23 @@
 <script lang="ts">
-    import type { Snippet } from "svelte";
+import type { Snippet } from "svelte";
 
-    let { left, center, right, alwaysShowCenter } = $props<{
-        left?: () => Snippet;
-        center?: () => Snippet;
-        right?: () => Snippet;
-        alwaysShowCenter?: boolean;
-    }>();
+let { left, center, right, alwaysShowCenter } = $props<{
+    left?: () => Snippet;
+    center?: () => Snippet;
+    right?: () => Snippet;
+    alwaysShowCenter?: boolean;
+}>();
 
-    // Fade the center text in when scrolling down
-    let centerOpacity = $state(alwaysShowCenter ? 1 : 0);
-    let headerOpacity = $state(0);
-    window.addEventListener("scroll", () => {
-        if (!alwaysShowCenter) {
-            centerOpacity = Math.min(window.scrollY / 200, 1);
-        }
-        headerOpacity = Math.min(window.scrollY / 200, 1) * 0.8;
-    });
-    let headerBorderOpacity = $derived(Math.min(headerOpacity * 3, 1));
+// Fade the center text in when scrolling down
+let centerOpacity = $state(alwaysShowCenter ? 1 : 0);
+let headerOpacity = $state(0);
+window.addEventListener("scroll", () => {
+    if (!alwaysShowCenter) {
+        centerOpacity = Math.min(window.scrollY / 200, 1);
+    }
+    headerOpacity = Math.min(window.scrollY / 200, 1) * 0.8;
+});
+let headerBorderOpacity = $derived(Math.min(headerOpacity * 3, 1));
 </script>
 
 <div

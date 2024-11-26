@@ -1,7 +1,7 @@
 <script lang="ts">
-    import type { CloseModal } from "$lib/types/modal";
+import type { CloseModal } from "$lib/types/modal";
 
-    let { closeModal }: { closeModal: CloseModal } = $props();
+let { closeModal }: { closeModal: CloseModal } = $props();
 </script>
 
 <div class="flex flex-col gap-10 mt-10 items-center w-full md:w-2/3 lg:w-1/2 mx-auto">

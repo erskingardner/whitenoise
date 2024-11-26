@@ -1,58 +1,58 @@
 <script lang="ts">
-    import { fly, fade } from "svelte/transition";
-    import { X, CaretLeft } from "phosphor-svelte";
-    import { onDestroy } from "svelte";
-    import type { Component } from "svelte";
-    import HeaderToolbar from "../HeaderToolbar.svelte";
-    import type { ModalView } from "$lib/types/modal";
+import { fly, fade } from "svelte/transition";
+import { X, CaretLeft } from "phosphor-svelte";
+import { onDestroy } from "svelte";
+import type { Component } from "svelte";
+import HeaderToolbar from "../HeaderToolbar.svelte";
+import type { ModalView } from "$lib/types/modal";
 
-    let {
-        initialComponent,
-        props = {},
-        showModal = $bindable(),
-    }: {
-        initialComponent: any;
-        props: Record<string, unknown>;
-        showModal: boolean;
-    } = $props();
+let {
+    initialComponent,
+    props = {},
+    showModal = $bindable(),
+}: {
+    initialComponent: any;
+    props: Record<string, unknown>;
+    showModal: boolean;
+} = $props();
 
-    // Stack to keep track of views/pages
-    let viewStack: ModalView[] = $state([
-        {
-            component: initialComponent,
-            props: props,
-        },
-    ]);
-    let currentView: ModalView = $derived(viewStack[viewStack.length - 1]);
+// Stack to keep track of views/pages
+let viewStack: ModalView[] = $state([
+    {
+        component: initialComponent,
+        props: props,
+    },
+]);
+let currentView: ModalView = $derived(viewStack[viewStack.length - 1]);
 
-    // Navigation methods
-    export function pushView(component: Component, props: Record<string, unknown> = {}): void {
-        viewStack = [...viewStack, { component, props }];
+// Navigation methods
+export function pushView(component: Component, props: Record<string, unknown> = {}): void {
+    viewStack = [...viewStack, { component, props }];
+}
+
+export function popView(): void {
+    if (viewStack.length > 1) {
+        viewStack = viewStack.slice(0, -1);
     }
+}
 
-    export function popView(): void {
-        if (viewStack.length > 1) {
-            viewStack = viewStack.slice(0, -1);
-        }
-    }
+export function closeModal(): void {
+    showModal = false;
+}
 
-    export function closeModal(): void {
-        showModal = false;
-    }
-
-    // Lock/unlock scroll when modal opens/closes
-    $effect(() => {
-        if (showModal) {
-            document.body.style.overflow = "hidden";
-        } else {
-            document.body.style.overflow = "auto";
-        }
-    });
-
-    // Cleanup on component destroy
-    onDestroy(() => {
+// Lock/unlock scroll when modal opens/closes
+$effect(() => {
+    if (showModal) {
+        document.body.style.overflow = "hidden";
+    } else {
         document.body.style.overflow = "auto";
-    });
+    }
+});
+
+// Cleanup on component destroy
+onDestroy(() => {
+    document.body.style.overflow = "auto";
+});
 </script>
 
 <div

@@ -1,176 +1,184 @@
 <script lang="ts">
-    import Alert from "$lib/components/Alert.svelte";
-    import Header from "$lib/components/Header.svelte";
-    import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
-    import {
-        accounts,
-        setActiveAccount,
-        fetchRelays,
-        updateAccountsStore,
-        createAccount,
-        logout,
-        LogoutError,
-        login,
-    } from "$lib/stores/accounts";
-    import Avatar from "$lib/components/Avatar.svelte";
-    import { npubFromPubkey, nameFromMetadata } from "$lib/utils/nostr";
-    import { isValidNsec, isValidHexPubkey } from "$lib/types/nostr";
-    import { goto } from "$app/navigation";
-    import { onMount, onDestroy } from "svelte";
-    import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-    import { invoke } from "@tauri-apps/api/core";
-    import { getToastState } from "$lib/stores/toast-state.svelte";
-    import {
-        SignIn,
-        PlusCircle,
-        Skull,
-        Lock,
-        CaretRight,
-        CaretDown,
-        Key,
-        Binoculars,
-        UserPlus,
-        HardDrives,
-        UserFocus,
-        Envelope,
-        Users,
-    } from "phosphor-svelte";
+import Alert from "$lib/components/Alert.svelte";
+import Header from "$lib/components/Header.svelte";
+import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
+import {
+    accounts,
+    setActiveAccount,
+    fetchRelays,
+    updateAccountsStore,
+    createAccount,
+    logout,
+    LogoutError,
+    login,
+} from "$lib/stores/accounts";
+import Avatar from "$lib/components/Avatar.svelte";
+import { npubFromPubkey, nameFromMetadata } from "$lib/utils/nostr";
+import { isValidNsec, isValidHexPubkey } from "$lib/types/nostr";
+import { goto } from "$app/navigation";
+import { onMount, onDestroy } from "svelte";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
+import { getToastState } from "$lib/stores/toast-state.svelte";
+import {
+    SignIn,
+    PlusCircle,
+    Skull,
+    Lock,
+    CaretRight,
+    CaretDown,
+    Key,
+    Binoculars,
+    UserPlus,
+    HardDrives,
+    UserFocus,
+    Envelope,
+    Users,
+} from "phosphor-svelte";
 
-    let showDeleteAlert = $state(false);
-    let showKeyPackageAlert = $state(false);
-    let showLogin = $state(false);
-    let nsecOrHex = $state("");
-    let showLoginError = $state(false);
-    let loginError = $state("");
+let showDeleteAlert = $state(false);
+let showKeyPackageAlert = $state(false);
+let showLogin = $state(false);
+let nsecOrHex = $state("");
+let showLoginError = $state(false);
+let loginError = $state("");
 
-    let unlisten: UnlistenFn;
+let unlisten: UnlistenFn;
 
-    let toastState = getToastState();
+let toastState = getToastState();
 
-    onMount(async () => {
-        if (!unlisten) {
-            unlisten = await listen<string>("account_changed", (_event) => {
-                updateAccountsStore().then(() => {
-                    console.log("account_changed & updateAccountStore from settings page.");
-                    fetchRelays();
-                });
+onMount(async () => {
+    if (!unlisten) {
+        unlisten = await listen<string>("account_changed", (_event) => {
+            updateAccountsStore().then(() => {
+                console.log("account_changed & updateAccountStore from settings page.");
+                fetchRelays();
             });
-        }
-
-        fetchRelays();
-    });
-
-    onDestroy(() => {
-        unlisten?.();
-        toastState.cleanup();
-    });
-
-    async function handleLogin() {
-        if (isValidNsec(nsecOrHex) || isValidHexPubkey(nsecOrHex)) {
-            showLoginError = false;
-            login(nsecOrHex)
-                .then(() => {
-                    toastState.add("Logged in", "Successfully logged in", "success");
-                    nsecOrHex = "";
-                })
-                .catch((e) => {
-                    console.error(e);
-                    showLoginError = true;
-                    loginError = "Failed to log in";
-                });
-        } else {
-            showLoginError = true;
-            loginError = "Invalid nsec or private key";
-        }
+        });
     }
 
-    async function handleCreateAccount() {
+    fetchRelays();
+});
+
+onDestroy(() => {
+    unlisten?.();
+    toastState.cleanup();
+});
+
+async function handleLogin() {
+    if (isValidNsec(nsecOrHex) || isValidHexPubkey(nsecOrHex)) {
         showLoginError = false;
-        createAccount()
+        login(nsecOrHex)
             .then(() => {
-                toastState.add("Created new account", "Successfully created new account", "success");
+                toastState.add("Logged in", "Successfully logged in", "success");
+                nsecOrHex = "";
             })
             .catch((e) => {
-                toastState.add("Error creating account", `Failed to create a new account: ${e.message}`, "error");
                 console.error(e);
+                showLoginError = true;
+                loginError = "Failed to log in";
             });
+    } else {
+        showLoginError = true;
+        loginError = "Invalid nsec or private key";
     }
+}
 
-    async function handleLogout(pubkey: string): Promise<void> {
-        showLoginError = false;
-        logout(pubkey)
-            .then(() => {
-                toastState.add("Logged out", "Successfully logged out", "success");
-            })
-            .catch((e) => {
-                if (e instanceof LogoutError) {
-                    goto("/");
-                } else {
-                    toastState.add("Logout Error", `Failed to log out: ${e.message}`, "error");
-                    console.error(e);
-                }
-            });
-    }
+async function handleCreateAccount() {
+    showLoginError = false;
+    createAccount()
+        .then(() => {
+            toastState.add("Created new account", "Successfully created new account", "success");
+        })
+        .catch((e) => {
+            toastState.add(
+                "Error creating account",
+                `Failed to create a new account: ${e.message}`,
+                "error"
+            );
+            console.error(e);
+        });
+}
 
-    async function deleteAll() {
-        showDeleteAlert = true;
-    }
-
-    function launchKeyPackage() {
-        showKeyPackageAlert = true;
-    }
-
-    function publishKeyPackage() {
-        invoke("publish_key_package", {})
-            .then(() => {
-                toastState.add("Key Package Published", "Key Package published successfully", "success");
-                showKeyPackageAlert = false;
-            })
-            .catch((e) => {
-                toastState.add(
-                    "Error Publishing Key Package",
-                    `Failed to publish key package: ${e.toString()}`,
-                    "error"
-                );
+async function handleLogout(pubkey: string): Promise<void> {
+    showLoginError = false;
+    logout(pubkey)
+        .then(() => {
+            toastState.add("Logged out", "Successfully logged out", "success");
+        })
+        .catch((e) => {
+            if (e instanceof LogoutError) {
+                goto("/");
+            } else {
+                toastState.add("Logout Error", `Failed to log out: ${e.message}`, "error");
                 console.error(e);
-            });
-    }
+            }
+        });
+}
 
-    let showAccountsState = $state(false);
-    let accountsState = $state("");
-    async function toggleInspectAccounts() {
-        showAccountsState = !showAccountsState;
-        if (showAccountsState) {
-            invoke("get_accounts_state").then((accounts) => {
-                accountsState = JSON.stringify(accounts, null, 2);
-                console.log(accountsState);
-            });
-        }
-    }
+async function deleteAll() {
+    showDeleteAlert = true;
+}
 
-    let showGroupsState = $state(false);
-    let groupsState = $state("");
-    async function toggleInspectGroups() {
-        showGroupsState = !showGroupsState;
-        if (showGroupsState) {
-            invoke("get_groups").then((groups) => {
-                groupsState = JSON.stringify(groups, null, 2);
-                console.log(groupsState);
-            });
-        }
-    }
+function launchKeyPackage() {
+    showKeyPackageAlert = true;
+}
 
-    let showInvitesState = $state(false);
-    let invitesState = $state("");
-    async function toggleInspectInvites() {
-        showInvitesState = !showInvitesState;
-        if (showInvitesState) {
-            invoke("get_invites").then((invites) => {
-                invitesState = JSON.stringify(invites, null, 2);
-                console.log(invitesState);
-            });
-        }
+function publishKeyPackage() {
+    invoke("publish_key_package", {})
+        .then(() => {
+            toastState.add(
+                "Key Package Published",
+                "Key Package published successfully",
+                "success"
+            );
+            showKeyPackageAlert = false;
+        })
+        .catch((e) => {
+            toastState.add(
+                "Error Publishing Key Package",
+                `Failed to publish key package: ${e.toString()}`,
+                "error"
+            );
+            console.error(e);
+        });
+}
+
+let showAccountsState = $state(false);
+let accountsState = $state("");
+async function toggleInspectAccounts() {
+    showAccountsState = !showAccountsState;
+    if (showAccountsState) {
+        invoke("get_accounts_state").then((accounts) => {
+            accountsState = JSON.stringify(accounts, null, 2);
+            console.log(accountsState);
+        });
     }
+}
+
+let showGroupsState = $state(false);
+let groupsState = $state("");
+async function toggleInspectGroups() {
+    showGroupsState = !showGroupsState;
+    if (showGroupsState) {
+        invoke("get_groups").then((groups) => {
+            groupsState = JSON.stringify(groups, null, 2);
+            console.log(groupsState);
+        });
+    }
+}
+
+let showInvitesState = $state(false);
+let invitesState = $state("");
+async function toggleInspectInvites() {
+    showInvitesState = !showInvitesState;
+    if (showInvitesState) {
+        invoke("get_invites").then((invites) => {
+            invitesState = JSON.stringify(invites, null, 2);
+            console.log(invitesState);
+        });
+    }
+}
 </script>
 
 {#if showDeleteAlert}

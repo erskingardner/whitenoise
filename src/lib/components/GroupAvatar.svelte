@@ -1,30 +1,30 @@
 <script lang="ts">
-    import Avatar from "./Avatar.svelte";
-    import { NostrMlsGroupType } from "$lib/types/nostr";
-    import type { EnrichedContact } from "$lib/types/nostr";
+import Avatar from "./Avatar.svelte";
+import { NostrMlsGroupType } from "$lib/types/nostr";
+import type { EnrichedContact } from "$lib/types/nostr";
 
-    let {
-        groupType = $bindable(),
-        groupName = $bindable(),
-        counterpartyPubkey = $bindable(),
-        enrichedCounterparty = $bindable(),
-        pxSize,
-    }: {
-        groupType: NostrMlsGroupType;
-        groupName: string;
-        counterpartyPubkey: string | undefined;
-        enrichedCounterparty: EnrichedContact | undefined;
-        pxSize: number;
-    } = $props();
+let {
+    groupType = $bindable(),
+    groupName = $bindable(),
+    counterpartyPubkey = $bindable(),
+    enrichedCounterparty = $bindable(),
+    pxSize,
+}: {
+    groupType: NostrMlsGroupType;
+    groupName: string;
+    counterpartyPubkey: string | undefined;
+    enrichedCounterparty: EnrichedContact | undefined;
+    pxSize: number;
+} = $props();
 
-    let groupAvatarColor: string = $derived(
-        groupName
-            .split("")
-            .reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0)
-            .toString(16)
-            .padStart(6, "5")
-            .slice(0, 6)
-    );
+let groupAvatarColor: string = $derived(
+    groupName
+        .split("")
+        .reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0)
+        .toString(16)
+        .padStart(6, "5")
+        .slice(0, 6)
+);
 </script>
 
 {#if groupType === NostrMlsGroupType.DirectMessage && counterpartyPubkey && enrichedCounterparty}

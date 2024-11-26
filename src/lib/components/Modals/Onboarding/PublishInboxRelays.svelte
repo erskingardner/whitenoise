@@ -1,57 +1,57 @@
 <script lang="ts">
-    import { Trash, Plus } from "phosphor-svelte";
-    import OnboardingNumbers from "./OnboardingNumbers.svelte";
-    import { invoke } from "@tauri-apps/api/core";
-    import { getToastState } from "$lib/stores/toast-state.svelte";
-    import type { PushView } from "$lib/types/modal";
-    import PublishKeyPackageRelays from "./PublishKeyPackageRelays.svelte";
-    import { accounts } from "$lib/stores/accounts";
+import { Trash, Plus } from "phosphor-svelte";
+import OnboardingNumbers from "./OnboardingNumbers.svelte";
+import { invoke } from "@tauri-apps/api/core";
+import { getToastState } from "$lib/stores/toast-state.svelte";
+import type { PushView } from "$lib/types/modal";
+import PublishKeyPackageRelays from "./PublishKeyPackageRelays.svelte";
+import { accounts } from "$lib/stores/accounts";
 
-    let toastState = getToastState();
+let toastState = getToastState();
 
-    let inboxRelays: string[] = $state(["wss://auth.nostr1.com"]);
-    let newInboxRelay: string = $state("");
+let inboxRelays: string[] = $state(["wss://auth.nostr1.com"]);
+let newInboxRelay: string = $state("");
 
-    let {
-        pushView,
-        inboxRelaysPublished = $bindable(),
-        keyPackageRelaysPublished = $bindable(),
-        keyPackagePublished = $bindable(),
-    } = $props<{
-        pushView: PushView;
-        inboxRelaysPublished: boolean;
-        keyPackageRelaysPublished: boolean;
-        keyPackagePublished: boolean;
-    }>();
+let {
+    pushView,
+    inboxRelaysPublished = $bindable(),
+    keyPackageRelaysPublished = $bindable(),
+    keyPackagePublished = $bindable(),
+} = $props<{
+    pushView: PushView;
+    inboxRelaysPublished: boolean;
+    keyPackageRelaysPublished: boolean;
+    keyPackagePublished: boolean;
+}>();
 
-    function goToKeyPackageRelays(): void {
-        pushView(PublishKeyPackageRelays, {
-            inboxRelaysPublished,
-            keyPackageRelaysPublished,
-            keyPackagePublished,
-        });
-    }
+function goToKeyPackageRelays(): void {
+    pushView(PublishKeyPackageRelays, {
+        inboxRelaysPublished,
+        keyPackageRelaysPublished,
+        keyPackagePublished,
+    });
+}
 
-    async function publishInboxRelays() {
-        await invoke("publish_relay_list", {
-            relays: inboxRelays,
-            kind: 10050,
-        })
-            .then(async () => {
-                inboxRelaysPublished = true;
-                await invoke("update_account_onboarding", {
-                    pubkey: $accounts.activeAccount,
-                    inboxRelays: true,
-                    keyPackageRelays: !!keyPackageRelaysPublished,
-                    publishKeyPackage: !!keyPackagePublished,
-                });
-                goToKeyPackageRelays();
-            })
-            .catch((e) => {
-                toastState.add("Couldn't publish inbox relays", e, "error");
-                console.error(e);
+async function publishInboxRelays() {
+    await invoke("publish_relay_list", {
+        relays: inboxRelays,
+        kind: 10050,
+    })
+        .then(async () => {
+            inboxRelaysPublished = true;
+            await invoke("update_account_onboarding", {
+                pubkey: $accounts.activeAccount,
+                inboxRelays: true,
+                keyPackageRelays: !!keyPackageRelaysPublished,
+                publishKeyPackage: !!keyPackagePublished,
             });
-    }
+            goToKeyPackageRelays();
+        })
+        .catch((e) => {
+            toastState.add("Couldn't publish inbox relays", e, "error");
+            console.error(e);
+        });
+}
 </script>
 
 <div class="flex flex-col gap-10 mt-10 items-center w-full md:w-2/3 lg:w-1/2 mx-auto">

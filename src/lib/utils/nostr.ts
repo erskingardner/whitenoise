@@ -1,5 +1,5 @@
 import { npubEncode } from "nostr-tools/nip19";
-import type { NMetadata, NEvent } from "../types/nostr";
+import type { NEvent, NMetadata } from "../types/nostr";
 
 /**
  * Retrieves the display name from the given NMetadata object.
@@ -10,7 +10,7 @@ import type { NMetadata, NEvent } from "../types/nostr";
  *          2. name
  *          3. truncated npub of the pubkey (if available)
  */
-export function nameFromMetadata(metadata: NMetadata, pubkey?: string, truncate: boolean = true): string {
+export function nameFromMetadata(metadata: NMetadata, pubkey?: string, truncate = true): string {
     return (
         metadata.display_name ||
         metadata.name ||
@@ -33,7 +33,7 @@ export function npubFromPubkey(pubkey: string): string {
  * @param length - The desired length of the truncated npub. Defaults to 20.
  * @returns A truncated npub representation of the public key.
  */
-export function truncatedNpub(pubkey: string, length: number = 20): string {
+export function truncatedNpub(pubkey: string, length = 20): string {
     return `${npubFromPubkey(pubkey).slice(0, length)}...`;
 }
 

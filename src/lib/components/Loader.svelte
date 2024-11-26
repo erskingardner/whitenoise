@@ -1,6 +1,6 @@
 <script lang="ts">
-    export let size = 80;
-    export let fullscreen = true;
+export let size = 80;
+export let fullscreen = true;
 </script>
 
 <div class={fullscreen ? "w-screen h-screen" : "flex flex-col items-center justify-center"}>

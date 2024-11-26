@@ -1,6 +1,6 @@
 <script lang="ts">
-    import Header from "$lib/components/Header.svelte";
-    import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
+import Header from "$lib/components/Header.svelte";
+import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
 </script>
 
 <HeaderToolbar>

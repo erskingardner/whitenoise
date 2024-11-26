@@ -1,4 +1,4 @@
-import { onDestroy, setContext, getContext } from "svelte";
+import { getContext, setContext } from "svelte";
 
 export type Toast = {
     id: string;
@@ -11,9 +11,7 @@ export class ToastState {
     toasts = $state<Toast[]>([]);
     toastTimeoutMap = new Map<string, number>();
 
-    constructor() {}
-
-    add(title: string, message: string, type: "error" | "success" | "info", durationMs: number = 5000) {
+    add(title: string, message: string, type: "error" | "success" | "info", durationMs = 5000) {
         const id = crypto.randomUUID();
         this.toasts.push({ id, title, message, type });
 

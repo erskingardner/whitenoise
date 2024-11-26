@@ -1,26 +1,26 @@
 <script lang="ts">
-    import type { PushView } from "$lib/types/modal";
-    import PublishInboxRelays from "./PublishInboxRelays.svelte";
+import type { PushView } from "$lib/types/modal";
+import PublishInboxRelays from "./PublishInboxRelays.svelte";
 
-    let {
-        pushView,
-        inboxRelaysPublished = $bindable(),
-        keyPackageRelaysPublished = $bindable(),
-        keyPackagePublished = $bindable(),
-    } = $props<{
-        pushView: PushView;
-        inboxRelaysPublished: boolean;
-        keyPackageRelaysPublished: boolean;
-        keyPackagePublished: boolean;
-    }>();
+let {
+    pushView,
+    inboxRelaysPublished = $bindable(),
+    keyPackageRelaysPublished = $bindable(),
+    keyPackagePublished = $bindable(),
+} = $props<{
+    pushView: PushView;
+    inboxRelaysPublished: boolean;
+    keyPackageRelaysPublished: boolean;
+    keyPackagePublished: boolean;
+}>();
 
-    function startOnboarding(): void {
-        pushView(PublishInboxRelays, {
-            inboxRelaysPublished,
-            keyPackageRelaysPublished,
-            keyPackagePublished,
-        });
-    }
+function startOnboarding(): void {
+    pushView(PublishInboxRelays, {
+        inboxRelaysPublished,
+        keyPackageRelaysPublished,
+        keyPackagePublished,
+    });
+}
 </script>
 
 <div class="flex flex-col gap-4 justify-start items-center w-full md:w-2/3 lg:w-1/2 mx-auto h-full">

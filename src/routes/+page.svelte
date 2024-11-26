@@ -1,23 +1,23 @@
 <script lang="ts">
-    import { accounts, updateAccountsStore } from "$lib/stores/accounts";
-    import { goto } from "$app/navigation";
-    import { onMount } from "svelte";
-    import { isValidHexPubkey } from "$lib/types/nostr";
-    import { invoke } from "@tauri-apps/api/core";
-    import Loader from "$lib/components/Loader.svelte";
+import { accounts, updateAccountsStore } from "$lib/stores/accounts";
+import { goto } from "$app/navigation";
+import { onMount } from "svelte";
+import { isValidHexPubkey } from "$lib/types/nostr";
+import { invoke } from "@tauri-apps/api/core";
+import Loader from "$lib/components/Loader.svelte";
 
-    onMount(async () => {
-        updateAccountsStore().then(() => {
-            if ($accounts.activeAccount && isValidHexPubkey($accounts.activeAccount)) {
-                invoke("init_nostr_for_current_user");
-                setTimeout(() => {
-                    goto("/chats");
-                }, 3000);
-            } else {
-                goto("/login");
-            }
-        });
+onMount(async () => {
+    updateAccountsStore().then(() => {
+        if ($accounts.activeAccount && isValidHexPubkey($accounts.activeAccount)) {
+            invoke("init_nostr_for_current_user");
+            setTimeout(() => {
+                goto("/chats");
+            }, 3000);
+        } else {
+            goto("/login");
+        }
     });
+});
 </script>
 
 <div class="flex flex-col items-center justify-center w-screen h-screen bg-gray-800">

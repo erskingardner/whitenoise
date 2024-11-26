@@ -1,17 +1,17 @@
 <script lang="ts">
-    import Header from "$lib/components/Header.svelte";
-    import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
-    import { PlusCircle } from "phosphor-svelte";
+import Header from "$lib/components/Header.svelte";
+import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
+import { PlusCircle } from "phosphor-svelte";
 
-    let isLoading = $state(false);
-    let loadingError = $state<string | null>(null);
+let isLoading = $state(false);
+let loadingError = $state<string | null>(null);
 
-    // Load nip04 chats
-    // Load nip17 chats
-    // decrypt content
-    // load in stages? infinite scroll style?
-    // show loading state
-    // show error state
+// Load nip04 chats
+// Load nip17 chats
+// decrypt content
+// load in stages? infinite scroll style?
+// show loading state
+// show error state
 </script>
 
 <HeaderToolbar>

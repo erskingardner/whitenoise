@@ -1,17 +1,17 @@
 <script lang="ts">
-    import { ChatsCircle, Eyes, Phone, Gear, Warning } from "phosphor-svelte";
-    import Avatar from "./Avatar.svelte";
-    import { accounts, setActiveAccount } from "$lib/stores/accounts";
-    import { goto } from "$app/navigation";
+import { goto } from "$app/navigation";
+import { accounts, setActiveAccount } from "$lib/stores/accounts";
+import { ChatsCircle, Eyes, Gear, Phone, Warning } from "phosphor-svelte";
+import Avatar from "./Avatar.svelte";
 
-    let { activeTab } = $props();
+let { activeTab } = $props();
 
-    function handleAccountChange(pubkey: string) {
-        goto(`/chats`);
-        setTimeout(() => {
-            setActiveAccount(pubkey);
-        }, 50);
-    }
+function handleAccountChange(pubkey: string) {
+    goto("/chats");
+    setTimeout(() => {
+        setActiveAccount(pubkey);
+    }, 50);
+}
 </script>
 
 <div class="hidden md:flex">

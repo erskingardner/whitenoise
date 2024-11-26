@@ -1,55 +1,55 @@
 <script lang="ts">
-    import Avatar from "../../Avatar.svelte";
-    import Name from "../../Name.svelte";
-    import type { EnrichedContact } from "$lib/types/nostr";
-    import { nameFromMetadata } from "$lib/utils/nostr";
-    import { accounts } from "$lib/stores/accounts";
-    import { invoke } from "@tauri-apps/api/core";
-    import { getToastState } from "$lib/stores/toast-state.svelte";
-    import Loader from "$lib/components/Loader.svelte";
-    import type { CloseModal } from "$lib/types/modal";
-    import { Warning } from "phosphor-svelte";
+import Avatar from "../../Avatar.svelte";
+import Name from "../../Name.svelte";
+import type { EnrichedContact } from "$lib/types/nostr";
+import { nameFromMetadata } from "$lib/utils/nostr";
+import { accounts } from "$lib/stores/accounts";
+import { invoke } from "@tauri-apps/api/core";
+import { getToastState } from "$lib/stores/toast-state.svelte";
+import Loader from "$lib/components/Loader.svelte";
+import type { CloseModal } from "$lib/types/modal";
+import { Warning } from "phosphor-svelte";
 
-    let toastState = getToastState();
+let toastState = getToastState();
 
-    let { pubkey, contact, closeModal } = $props<{
-        pubkey: string;
-        contact: EnrichedContact;
-        closeModal: CloseModal;
-    }>();
+let { pubkey, contact, closeModal } = $props<{
+    pubkey: string;
+    contact: EnrichedContact;
+    closeModal: CloseModal;
+}>();
 
-    let isLoading = $state(false);
+let isLoading = $state(false);
 
-    async function startSecureChat() {
-        isLoading = true;
-        await invoke("create_group", {
-            creatorPubkey: $accounts.activeAccount,
-            memberPubkeys: [pubkey],
-            adminPubkeys: [$accounts.activeAccount, pubkey],
-            groupName: "Secure DM",
-            description: "",
+async function startSecureChat() {
+    isLoading = true;
+    await invoke("create_group", {
+        creatorPubkey: $accounts.activeAccount,
+        memberPubkeys: [pubkey],
+        adminPubkeys: [$accounts.activeAccount, pubkey],
+        groupName: "Secure DM",
+        description: "",
+    })
+        .then((group) => {
+            console.log("Group created", group);
+            toastState.add("Group created", "Group created successfully", "success");
+            setTimeout(() => {
+                closeModal();
+            }, 1000);
         })
-            .then((group) => {
-                console.log("Group created", group);
-                toastState.add("Group created", "Group created successfully", "success");
-                setTimeout(() => {
-                    closeModal();
-                }, 1000);
-            })
-            .catch((e) => {
-                toastState.add("Error creating group", e.toString(), "error");
-                console.error("Error creating group", e);
-            })
-            .finally(() => {
-                isLoading = false;
-            });
-    }
+        .catch((e) => {
+            toastState.add("Error creating group", e.toString(), "error");
+            console.error("Error creating group", e);
+        })
+        .finally(() => {
+            isLoading = false;
+        });
+}
 
-    $inspect("Contact", contact);
+$inspect("Contact", contact);
 
-    async function inviteToWhiteNoise() {
-        // TODO: await invoke("invite_to_white_noise", { pubkey });
-    }
+async function inviteToWhiteNoise() {
+    // TODO: await invoke("invite_to_white_noise", { pubkey });
+}
 </script>
 
 <div>

@@ -1,40 +1,43 @@
 <script lang="ts">
-    import { PaperPlaneTilt } from "phosphor-svelte";
-    import { invoke } from "@tauri-apps/api/core";
-    import type { NEvent, NostrMlsGroup } from "$lib/types/nostr";
+import type { NEvent, NostrMlsGroup } from "$lib/types/nostr";
+import { invoke } from "@tauri-apps/api/core";
+import { PaperPlaneTilt } from "phosphor-svelte";
 
-    let { group, handleNewMessage }: { group: NostrMlsGroup; handleNewMessage: (message: NEvent) => void } = $props();
+let {
+    group,
+    handleNewMessage,
+}: { group: NostrMlsGroup; handleNewMessage: (message: NEvent) => void } = $props();
 
-    let message = $state("");
-    let textarea: HTMLTextAreaElement;
+let message = $state("");
+let textarea: HTMLTextAreaElement;
 
-    function adjustTextareaHeight() {
-        textarea.style.height = "auto";
-        textarea.style.height = textarea.scrollHeight + "px";
+function adjustTextareaHeight() {
+    textarea.style.height = "auto";
+    textarea.style.height = `${textarea.scrollHeight}px`;
+}
+
+function handleInput() {
+    adjustTextareaHeight();
+}
+
+async function sendMessage() {
+    if (message.length === 0) return;
+    await invoke("send_mls_message", {
+        group,
+        message: message,
+    }).then((messageEvent) => {
+        handleNewMessage(messageEvent as NEvent);
+        // Clear the message input and adjust the height of the textarea
+        message = "";
+        setTimeout(adjustTextareaHeight, 0);
+    });
+}
+
+function handleKeydown(event: KeyboardEvent) {
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        sendMessage();
     }
-
-    function handleInput() {
-        adjustTextareaHeight();
-    }
-
-    async function sendMessage() {
-        if (message.length === 0) return;
-        await invoke("send_mls_message", {
-            group,
-            message: message,
-        }).then((messageEvent) => {
-            handleNewMessage(messageEvent as NEvent);
-            // Clear the message input and adjust the height of the textarea
-            message = "";
-            setTimeout(adjustTextareaHeight, 0);
-        });
-    }
-
-    function handleKeydown(event: KeyboardEvent) {
-        if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-            sendMessage();
-        }
-    }
+}
 </script>
 
 <div

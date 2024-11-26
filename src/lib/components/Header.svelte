@@ -1,8 +1,8 @@
 <script lang="ts">
-    interface Props {
-        title: string;
-    }
-    let { title }: Props = $props();
+interface Props {
+    title: string;
+}
+let { title }: Props = $props();
 </script>
 
 <div class="flex flex-row justify-between items-center px-4">

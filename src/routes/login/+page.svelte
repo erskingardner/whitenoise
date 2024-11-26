@@ -1,69 +1,75 @@
 <script lang="ts">
-    import { accounts, createAccount, login, LoginError, updateAccountsStore } from "$lib/stores/accounts";
-    import { goto } from "$app/navigation";
-    import { fly, type FlyParams } from "svelte/transition";
-    import { expoInOut } from "svelte/easing";
-    import { onMount, onDestroy } from "svelte";
-    import { isValidHexPubkey } from "$lib/types/nostr";
-    import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-    import Loader from "$lib/components/Loader.svelte";
-    import { invoke } from "@tauri-apps/api/core";
+import {
+    accounts,
+    createAccount,
+    login,
+    LoginError,
+    updateAccountsStore,
+} from "$lib/stores/accounts";
+import { goto } from "$app/navigation";
+import { fly, type FlyParams } from "svelte/transition";
+import { expoInOut } from "svelte/easing";
+import { onMount, onDestroy } from "svelte";
+import { isValidHexPubkey } from "$lib/types/nostr";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import Loader from "$lib/components/Loader.svelte";
+import { invoke } from "@tauri-apps/api/core";
 
-    let nsecOrHex = $state("");
-    let loading = $state(true);
-    let loginError = $state<LoginError | null>(null);
-    let flyParams: FlyParams = { duration: 150, easing: expoInOut, y: window.innerHeight };
+let nsecOrHex = $state("");
+let loading = $state(true);
+let loginError = $state<LoginError | null>(null);
+let flyParams: FlyParams = { duration: 150, easing: expoInOut, y: window.innerHeight };
 
-    let unlistenAccountChanged: UnlistenFn;
-    let unlistenNostrReady: UnlistenFn;
+let unlistenAccountChanged: UnlistenFn;
+let unlistenNostrReady: UnlistenFn;
 
-    onMount(async () => {
-        if (!unlistenAccountChanged) {
-            unlistenAccountChanged = await listen<string>("account_changed", (_event) => {
-                updateAccountsStore().then(async () => {
-                    console.log("Event received on root page: account_changed");
-                    loading = false;
-                    goto("/chats");
-                });
+onMount(async () => {
+    if (!unlistenAccountChanged) {
+        unlistenAccountChanged = await listen<string>("account_changed", (_event) => {
+            updateAccountsStore().then(async () => {
+                console.log("Event received on root page: account_changed");
+                loading = false;
+                goto("/chats");
             });
-        }
-
-        if (!unlistenNostrReady) {
-            unlistenNostrReady = await listen<string>("nostr_ready", async (_event) => {
-                console.log("Event received on root page: nostr_ready");
-            });
-        }
-
-        updateAccountsStore().then(() => {
-            loading = false;
-            if ($accounts.activeAccount && isValidHexPubkey($accounts.activeAccount)) {
-                invoke("init_nostr_for_current_user");
-            }
-        });
-    });
-
-    onDestroy(() => {
-        unlistenAccountChanged?.();
-        unlistenNostrReady?.();
-    });
-
-    async function handleLogin(e: Event) {
-        e.preventDefault();
-        console.log("handleLogin");
-        if (loading) return;
-        loading = true;
-        login(nsecOrHex).catch((error) => {
-            loginError = error;
         });
     }
 
-    async function handleCreateAccount() {
-        if (loading) return;
-        loading = true;
-        createAccount().catch((error) => {
-            loginError = error;
+    if (!unlistenNostrReady) {
+        unlistenNostrReady = await listen<string>("nostr_ready", async (_event) => {
+            console.log("Event received on root page: nostr_ready");
         });
     }
+
+    updateAccountsStore().then(() => {
+        loading = false;
+        if ($accounts.activeAccount && isValidHexPubkey($accounts.activeAccount)) {
+            invoke("init_nostr_for_current_user");
+        }
+    });
+});
+
+onDestroy(() => {
+    unlistenAccountChanged?.();
+    unlistenNostrReady?.();
+});
+
+async function handleLogin(e: Event) {
+    e.preventDefault();
+    console.log("handleLogin");
+    if (loading) return;
+    loading = true;
+    login(nsecOrHex).catch((error) => {
+        loginError = error;
+    });
+}
+
+async function handleCreateAccount() {
+    if (loading) return;
+    loading = true;
+    createAccount().catch((error) => {
+        loginError = error;
+    });
+}
 </script>
 
 <div class="flex flex-col items-center justify-center w-screen h-screen bg-gray-800" transition:fly={flyParams}>

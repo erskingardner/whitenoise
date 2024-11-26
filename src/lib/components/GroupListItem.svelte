@@ -1,44 +1,51 @@
 <script lang="ts">
-    import { type NostrMlsGroup, NostrMlsGroupType } from "$lib/types/nostr";
-    import GroupAvatar from "./GroupAvatar.svelte";
-    import { Checks, LockKey } from "phosphor-svelte";
-    import { invoke } from "@tauri-apps/api/core";
-    import { nameFromMetadata } from "../utils/nostr";
-    import type { EnrichedContact } from "$lib/types/nostr";
-    import { accounts } from "$lib/stores/accounts";
-    import { hexMlsGroupId } from "$lib/utils/group";
+import { type NostrMlsGroup, NostrMlsGroupType } from "$lib/types/nostr";
+import GroupAvatar from "./GroupAvatar.svelte";
+import { Checks, LockKey } from "phosphor-svelte";
+import { invoke } from "@tauri-apps/api/core";
+import { nameFromMetadata } from "../utils/nostr";
+import type { EnrichedContact } from "$lib/types/nostr";
+import { accounts } from "$lib/stores/accounts";
+import { hexMlsGroupId } from "$lib/utils/group";
 
-    let { group } = $props<{
-        group: NostrMlsGroup;
-    }>();
+let { group } = $props<{
+    group: NostrMlsGroup;
+}>();
 
-    let counterpartyPubkey: string | undefined = $derived(
-        group.group_type === NostrMlsGroupType.DirectMessage
-            ? group.admin_pubkeys.filter((pubkey: string) => pubkey !== $accounts.activeAccount)[0]
-            : undefined
-    );
+let counterpartyPubkey: string | undefined = $derived(
+    group.group_type === NostrMlsGroupType.DirectMessage
+        ? group.admin_pubkeys.filter((pubkey: string) => pubkey !== $accounts.activeAccount)[0]
+        : undefined
+);
 
-    let enrichedCounterparty: EnrichedContact | undefined = $state(undefined);
-    let groupName = $state("");
+let enrichedCounterparty: EnrichedContact | undefined = $state(undefined);
+let groupName = $state("");
 
-    $effect(() => {
-        if (counterpartyPubkey) {
-            invoke("query_enriched_contact", {
-                pubkey: counterpartyPubkey,
-                updateAccount: false,
-            }).then((value) => {
-                enrichedCounterparty = value as EnrichedContact;
-            });
-        }
-    });
+$effect(() => {
+    if (counterpartyPubkey) {
+        invoke("query_enriched_contact", {
+            pubkey: counterpartyPubkey,
+            updateAccount: false,
+        }).then((value) => {
+            enrichedCounterparty = value as EnrichedContact;
+        });
+    }
+});
 
-    $effect(() => {
-        if (group.group_type === NostrMlsGroupType.DirectMessage && counterpartyPubkey && enrichedCounterparty) {
-            groupName = nameFromMetadata((enrichedCounterparty as EnrichedContact).metadata, counterpartyPubkey);
-        } else {
-            groupName = group.name;
-        }
-    });
+$effect(() => {
+    if (
+        group.group_type === NostrMlsGroupType.DirectMessage &&
+        counterpartyPubkey &&
+        enrichedCounterparty
+    ) {
+        groupName = nameFromMetadata(
+            (enrichedCounterparty as EnrichedContact).metadata,
+            counterpartyPubkey
+        );
+    } else {
+        groupName = group.name;
+    }
+});
 </script>
 
 <a

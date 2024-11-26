@@ -1,14 +1,14 @@
 <script lang="ts">
-    import { goto } from "$app/navigation";
-    import Header from "$lib/components/Header.svelte";
-    import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
-    import { CaretLeft } from "phosphor-svelte";
-    import { relays, colorForRelayStatus } from "$lib/stores/accounts";
-    import { HardDrives } from "phosphor-svelte";
+import { goto } from "$app/navigation";
+import Header from "$lib/components/Header.svelte";
+import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
+import { CaretLeft } from "phosphor-svelte";
+import { relays, colorForRelayStatus } from "$lib/stores/accounts";
+import { HardDrives } from "phosphor-svelte";
 
-    function goBack() {
-        goto("/settings");
-    }
+function goBack() {
+    goto("/settings");
+}
 </script>
 
 <HeaderToolbar>

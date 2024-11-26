@@ -1,17 +1,17 @@
 <script lang="ts">
-    import type { Toast } from "$lib/stores/toast-state.svelte";
-    import { X } from "phosphor-svelte";
-    import { getToastState } from "$lib/stores/toast-state.svelte";
-    import { fly } from "svelte/transition";
+import type { Toast } from "$lib/stores/toast-state.svelte";
+import { X } from "phosphor-svelte";
+import { getToastState } from "$lib/stores/toast-state.svelte";
+import { fly } from "svelte/transition";
 
-    let toastState = getToastState();
-    let { toast }: { toast: Toast } = $props();
+let toastState = getToastState();
+let { toast }: { toast: Toast } = $props();
 
-    let accentColor: string = $derived.by(() => {
-        if (toast.type === "error") return "ring-red-700";
-        if (toast.type === "success") return "ring-green-700";
-        return "ring-gray-700";
-    });
+let accentColor: string = $derived.by(() => {
+    if (toast.type === "error") return "ring-red-700";
+    if (toast.type === "success") return "ring-green-700";
+    return "ring-gray-700";
+});
 </script>
 
 <div

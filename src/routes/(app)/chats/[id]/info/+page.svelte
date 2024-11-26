@@ -1,56 +1,56 @@
 <script lang="ts">
-    import { page } from "$app/stores";
-    import { type NostrMlsGroup, NostrMlsGroupType } from "$lib/types/nostr";
-    import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
-    import { CaretLeft, LockKey } from "phosphor-svelte";
-    import { invoke } from "@tauri-apps/api/core";
-    import { nameFromMetadata } from "$lib/utils/nostr";
-    import type { EnrichedContact, NEvent } from "$lib/types/nostr";
-    import { accounts } from "$lib/stores/accounts";
-    import GroupAvatar from "$lib/components/GroupAvatar.svelte";
-    import { onMount } from "svelte";
+import { page } from "$app/stores";
+import { type NostrMlsGroup, NostrMlsGroupType } from "$lib/types/nostr";
+import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
+import { CaretLeft, LockKey } from "phosphor-svelte";
+import { invoke } from "@tauri-apps/api/core";
+import { nameFromMetadata } from "$lib/utils/nostr";
+import type { EnrichedContact, NEvent } from "$lib/types/nostr";
+import { accounts } from "$lib/stores/accounts";
+import GroupAvatar from "$lib/components/GroupAvatar.svelte";
+import { onMount } from "svelte";
 
-    let group: NostrMlsGroup | undefined = $state(undefined);
-    let counterpartyPubkey: string | undefined = $state(undefined);
-    let enrichedCounterparty: EnrichedContact | undefined = $state(undefined);
-    let groupName = $state("");
-    let transcript: NEvent[] = $state([]);
+let group: NostrMlsGroup | undefined = $state(undefined);
+let counterpartyPubkey: string | undefined = $state(undefined);
+let enrichedCounterparty: EnrichedContact | undefined = $state(undefined);
+let groupName = $state("");
+let transcript: NEvent[] = $state([]);
 
-    $effect(() => {
-        if (
-            group &&
-            group.group_type === NostrMlsGroupType.DirectMessage &&
-            counterpartyPubkey &&
-            enrichedCounterparty
-        ) {
-            groupName = nameFromMetadata(enrichedCounterparty.metadata, counterpartyPubkey);
-        } else if (group) {
-            groupName = group.name;
+$effect(() => {
+    if (
+        group &&
+        group.group_type === NostrMlsGroupType.DirectMessage &&
+        counterpartyPubkey &&
+        enrichedCounterparty
+    ) {
+        groupName = nameFromMetadata(enrichedCounterparty.metadata, counterpartyPubkey);
+    } else if (group) {
+        groupName = group.name;
+    }
+});
+
+async function loadGroup() {
+    invoke("get_group", { groupId: $page.params.id }).then((groupResponse) => {
+        group = groupResponse as NostrMlsGroup;
+        transcript = group.transcript;
+        counterpartyPubkey =
+            group.group_type === NostrMlsGroupType.DirectMessage
+                ? group.admin_pubkeys.filter((pubkey) => pubkey !== $accounts.activeAccount)[0]
+                : undefined;
+        if (counterpartyPubkey) {
+            invoke("query_enriched_contact", {
+                pubkey: counterpartyPubkey,
+                updateAccount: false,
+            }).then((value) => {
+                enrichedCounterparty = value as EnrichedContact;
+            });
         }
     });
+}
 
-    async function loadGroup() {
-        invoke("get_group", { groupId: $page.params.id }).then((groupResponse) => {
-            group = groupResponse as NostrMlsGroup;
-            transcript = group.transcript;
-            counterpartyPubkey =
-                group.group_type === NostrMlsGroupType.DirectMessage
-                    ? group.admin_pubkeys.filter((pubkey) => pubkey !== $accounts.activeAccount)[0]
-                    : undefined;
-            if (counterpartyPubkey) {
-                invoke("query_enriched_contact", {
-                    pubkey: counterpartyPubkey,
-                    updateAccount: false,
-                }).then((value) => {
-                    enrichedCounterparty = value as EnrichedContact;
-                });
-            }
-        });
-    }
-
-    onMount(async () => {
-        await loadGroup();
-    });
+onMount(async () => {
+    await loadGroup();
+});
 </script>
 
 {#if group}

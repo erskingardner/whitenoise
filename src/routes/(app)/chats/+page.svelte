@@ -1,112 +1,115 @@
 <script lang="ts">
-    import Header from "$lib/components/Header.svelte";
-    import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
-    import { PlusCircle } from "phosphor-svelte";
-    import { invoke } from "@tauri-apps/api/core";
-    import type { NostrMlsGroup, Invite, InvitesWithFailures } from "$lib/types/nostr";
-    import { onMount, onDestroy } from "svelte";
-    import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-    import Loader from "$lib/components/Loader.svelte";
-    import { getToastState } from "$lib/stores/toast-state.svelte";
-    import ContactsList from "$lib/components/Modals/Contacts/ContactsList.svelte";
-    import Modal from "$lib/components/Modals/Modal.svelte";
-    import GroupListItem from "$lib/components/GroupListItem.svelte";
-    import InviteListItem from "$lib/components/InviteListItem.svelte";
+import Header from "$lib/components/Header.svelte";
+import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
+import { PlusCircle } from "phosphor-svelte";
+import { invoke } from "@tauri-apps/api/core";
+import type { NostrMlsGroup, Invite, InvitesWithFailures } from "$lib/types/nostr";
+import { onMount, onDestroy } from "svelte";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import Loader from "$lib/components/Loader.svelte";
+import { getToastState } from "$lib/stores/toast-state.svelte";
+import ContactsList from "$lib/components/Modals/Contacts/ContactsList.svelte";
+import Modal from "$lib/components/Modals/Modal.svelte";
+import GroupListItem from "$lib/components/GroupListItem.svelte";
+import InviteListItem from "$lib/components/InviteListItem.svelte";
 
-    let unlistenAccountChanging: UnlistenFn;
-    let unlistenAccountChanged: UnlistenFn;
-    let unlistenNostrReady: UnlistenFn;
-    let unlistenGroupAdded: UnlistenFn;
-    let unlistenInviteAccepted: UnlistenFn;
-    let unlistenInviteDeclined: UnlistenFn;
+let unlistenAccountChanging: UnlistenFn;
+let unlistenAccountChanged: UnlistenFn;
+let unlistenNostrReady: UnlistenFn;
+let unlistenGroupAdded: UnlistenFn;
+let unlistenInviteAccepted: UnlistenFn;
+let unlistenInviteDeclined: UnlistenFn;
 
-    let toastState = getToastState();
+let toastState = getToastState();
 
-    let showModal = $state(false);
+let showModal = $state(false);
 
-    let isLoading = $state(true);
-    let loadingError = $state<string | null>(null);
+let isLoading = $state(true);
+let loadingError = $state<string | null>(null);
 
-    let groups = $state<NostrMlsGroup[]>([]);
-    let invites = $state<Invite[]>([]);
-    let failures = $state<[string, string][]>([]);
+let groups = $state<NostrMlsGroup[]>([]);
+let invites = $state<Invite[]>([]);
+let failures = $state<[string, string][]>([]);
 
-    async function loadEvents() {
-        isLoading = true;
-        try {
-            const [groupsResponse, invitesResponse] = await Promise.all([invoke("get_groups"), invoke("get_invites")]);
+async function loadEvents() {
+    isLoading = true;
+    try {
+        const [groupsResponse, invitesResponse] = await Promise.all([
+            invoke("get_groups"),
+            invoke("get_invites"),
+        ]);
 
-            groups = groupsResponse as NostrMlsGroup[];
-            invites = (invitesResponse as InvitesWithFailures).invites;
-            failures = (invitesResponse as InvitesWithFailures).failures;
-        } catch (error) {
-            loadingError = error as string;
-            console.log(error);
-        } finally {
-            isLoading = false;
-        }
+        groups = groupsResponse as NostrMlsGroup[];
+        invites = (invitesResponse as InvitesWithFailures).invites;
+        failures = (invitesResponse as InvitesWithFailures).failures;
+    } catch (error) {
+        loadingError = error as string;
+        console.log(error);
+    } finally {
+        isLoading = false;
+    }
+}
+
+$inspect("Groups", groups);
+$inspect("Invites", invites);
+$inspect("Failures", failures); // TODO: Store failures in the database so we don't check them in the future
+
+onMount(async () => {
+    await loadEvents();
+
+    if (!unlistenAccountChanging) {
+        unlistenAccountChanging = await listen<string>("account_changing", async (_event) => {
+            console.log("Event received on chats page: account_changing");
+            isLoading = true;
+            groups = [];
+            invites = [];
+        });
     }
 
-    $inspect("Groups", groups);
-    $inspect("Invites", invites);
-    $inspect("Failures", failures); // TODO: Store failures in the database so we don't check them in the future
+    if (!unlistenAccountChanged) {
+        unlistenAccountChanged = await listen<string>("account_changed", async (_event) => {
+            console.log("Event received on chats page: account_changed");
+        });
+    }
 
-    onMount(async () => {
-        await loadEvents();
+    if (!unlistenNostrReady) {
+        unlistenNostrReady = await listen<string>("nostr_ready", async (_event) => {
+            console.log("Event received on chats page: nostr_ready");
+            await loadEvents();
+        });
+    }
 
-        if (!unlistenAccountChanging) {
-            unlistenAccountChanging = await listen<string>("account_changing", async (_event) => {
-                console.log("Event received on chats page: account_changing");
-                isLoading = true;
-                groups = [];
-                invites = [];
-            });
-        }
+    if (!unlistenGroupAdded) {
+        unlistenGroupAdded = await listen<NostrMlsGroup>("group_added", (event) => {
+            const addedGroup = event.payload as NostrMlsGroup;
+            console.log("Event received on chats page: group_added", addedGroup);
+            groups = [...groups, addedGroup];
+        });
+    }
 
-        if (!unlistenAccountChanged) {
-            unlistenAccountChanged = await listen<string>("account_changed", async (_event) => {
-                console.log("Event received on chats page: account_changed");
-            });
-        }
+    if (!unlistenInviteAccepted) {
+        unlistenInviteAccepted = await listen<Invite>("invite_accepted", (event) => {
+            const acceptedInvite = event.payload as Invite;
+            console.log("Event received on chats page: invite_accepted", acceptedInvite);
+            invites = invites.filter((invite) => invite.event.id !== acceptedInvite.event.id);
+        });
+    }
 
-        if (!unlistenNostrReady) {
-            unlistenNostrReady = await listen<string>("nostr_ready", async (_event) => {
-                console.log("Event received on chats page: nostr_ready");
-                await loadEvents();
-            });
-        }
+    if (!unlistenInviteDeclined) {
+        unlistenInviteDeclined = await listen<Invite>("invite_declined", (event) => {
+            const declinedInvite = event.payload as Invite;
+            console.log("Event received on chats page: invite_declined", declinedInvite);
+            invites = invites.filter((invite) => invite.event.id !== declinedInvite.event.id);
+        });
+    }
+});
 
-        if (!unlistenGroupAdded) {
-            unlistenGroupAdded = await listen<NostrMlsGroup>("group_added", (event) => {
-                const addedGroup = event.payload as NostrMlsGroup;
-                console.log("Event received on chats page: group_added", addedGroup);
-                groups = [...groups, addedGroup];
-            });
-        }
-
-        if (!unlistenInviteAccepted) {
-            unlistenInviteAccepted = await listen<Invite>("invite_accepted", (event) => {
-                const acceptedInvite = event.payload as Invite;
-                console.log("Event received on chats page: invite_accepted", acceptedInvite);
-                invites = invites.filter((invite) => invite.event.id !== acceptedInvite.event.id);
-            });
-        }
-
-        if (!unlistenInviteDeclined) {
-            unlistenInviteDeclined = await listen<Invite>("invite_declined", (event) => {
-                const declinedInvite = event.payload as Invite;
-                console.log("Event received on chats page: invite_declined", declinedInvite);
-                invites = invites.filter((invite) => invite.event.id !== declinedInvite.event.id);
-            });
-        }
-    });
-
-    onDestroy(() => {
-        unlistenAccountChanging?.();
-        unlistenAccountChanged?.();
-        unlistenNostrReady?.();
-        toastState.cleanup();
-    });
+onDestroy(() => {
+    unlistenAccountChanging?.();
+    unlistenAccountChanged?.();
+    unlistenNostrReady?.();
+    toastState.cleanup();
+});
 </script>
 
 <HeaderToolbar>

@@ -1,13 +1,13 @@
 <script lang="ts">
-    import { accounts } from "$lib/stores/accounts";
+import { accounts } from "$lib/stores/accounts";
 
-    interface Props {
-        picture?: string;
-        pubkey: string;
-        pxSize?: number;
-        showRing?: boolean;
-    }
-    let { pubkey, picture, pxSize = 32, showRing = false }: Props = $props();
+interface Props {
+    picture?: string;
+    pubkey: string;
+    pxSize?: number;
+    showRing?: boolean;
+}
+let { pubkey, picture, pxSize = 32, showRing = false }: Props = $props();
 </script>
 
 <div

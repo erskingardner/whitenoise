@@ -1,28 +1,28 @@
 <script lang="ts">
-    import { fly, fade } from "svelte/transition";
+import { fly, fade } from "svelte/transition";
 
-    let {
-        title,
-        body,
-        acceptText,
-        acceptStyle,
-        cancelText,
-        acceptFn,
-        showAlert = $bindable(),
-    } = $props<{
-        title: string;
-        body: string;
-        acceptText: string;
-        acceptStyle: "primary" | "outline" | "warning";
-        cancelText: string;
-        acceptFn: () => void;
-        showAlert: boolean;
-    }>();
+let {
+    title,
+    body,
+    acceptText,
+    acceptStyle,
+    cancelText,
+    acceptFn,
+    showAlert = $bindable(),
+} = $props<{
+    title: string;
+    body: string;
+    acceptText: string;
+    acceptStyle: "primary" | "outline" | "warning";
+    cancelText: string;
+    acceptFn: () => void;
+    showAlert: boolean;
+}>();
 
-    function toggleAlert(e: MouseEvent) {
-        e.stopPropagation();
-        showAlert = !showAlert;
-    }
+function toggleAlert(e: MouseEvent) {
+    e.stopPropagation();
+    showAlert = !showAlert;
+}
 </script>
 
 <div

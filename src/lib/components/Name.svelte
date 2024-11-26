@@ -1,18 +1,18 @@
 <script lang="ts">
-    import type { NMetadata } from "$lib/types/nostr";
-    import { npubFromPubkey } from "$lib/utils/nostr";
+import type { NMetadata } from "$lib/types/nostr";
+import { npubFromPubkey } from "$lib/utils/nostr";
 
-    interface Props {
-        pubkey: string;
-        metadata?: NMetadata;
-        extraClasses?: string;
-        unstyled?: boolean;
-    }
+interface Props {
+    pubkey: string;
+    metadata?: NMetadata;
+    extraClasses?: string;
+    unstyled?: boolean;
+}
 
-    let { pubkey, metadata, extraClasses, unstyled = false }: Props = $props();
+let { pubkey, metadata, extraClasses, unstyled = false }: Props = $props();
 
-    let name = $derived(metadata?.display_name || metadata?.name || npubFromPubkey(pubkey));
-    let isNpub = $derived(!metadata?.display_name && !metadata?.name);
+let name = $derived(metadata?.display_name || metadata?.name || npubFromPubkey(pubkey));
+let isNpub = $derived(!metadata?.display_name && !metadata?.name);
 </script>
 
 {#if unstyled}

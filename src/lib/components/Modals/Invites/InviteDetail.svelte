@@ -1,31 +1,31 @@
 <script lang="ts">
-    import Avatar from "$lib/components/Avatar.svelte";
-    import Name from "$lib/components/Name.svelte";
-    import type { Invite, EnrichedContact } from "$lib/types/nostr";
-    import { invoke } from "@tauri-apps/api/core";
+import Avatar from "$lib/components/Avatar.svelte";
+import Name from "$lib/components/Name.svelte";
+import type { Invite, EnrichedContact } from "$lib/types/nostr";
+import { invoke } from "@tauri-apps/api/core";
 
-    let { invite, enrichedInviter, closeModal } = $props<{
-        invite: Invite;
-        enrichedInviter: EnrichedContact;
-        closeModal: () => void;
-    }>();
+let { invite, enrichedInviter, closeModal } = $props<{
+    invite: Invite;
+    enrichedInviter: EnrichedContact;
+    closeModal: () => void;
+}>();
 
-    let subhead = $derived(
-        invite.member_count === 2
-            ? "has invited you to join a secure private chat."
-            : `has invited you to join ${invite.group_name}, a group with ${invite.member_count} members.`
-    );
+let subhead = $derived(
+    invite.member_count === 2
+        ? "has invited you to join a secure private chat."
+        : `has invited you to join ${invite.group_name}, a group with ${invite.member_count} members.`
+);
 
-    function acceptInvite() {
-        invoke("accept_invite", { invite });
-        closeModal();
-        const event = new CustomEvent("inviteAccepted", { detail: invite.mls_group_id });
-        window.dispatchEvent(event);
-    }
+function acceptInvite() {
+    invoke("accept_invite", { invite });
+    closeModal();
+    const event = new CustomEvent("inviteAccepted", { detail: invite.mls_group_id });
+    window.dispatchEvent(event);
+}
 
-    function declineInvite() {
-        invoke("decline_invite", { invite });
-    }
+function declineInvite() {
+    invoke("decline_invite", { invite });
+}
 </script>
 
 <div class="flex flex-col justify-start items-center gap-4">

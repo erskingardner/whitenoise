@@ -1,21 +1,21 @@
 <script lang="ts">
-    import { goto } from "$app/navigation";
-    import Header from "$lib/components/Header.svelte";
-    import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
-    import { CaretLeft } from "phosphor-svelte";
-    import { invoke } from "@tauri-apps/api/core";
-    import { accounts } from "$lib/stores/accounts";
+import { goto } from "$app/navigation";
+import Header from "$lib/components/Header.svelte";
+import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
+import { CaretLeft } from "phosphor-svelte";
+import { invoke } from "@tauri-apps/api/core";
+import { accounts } from "$lib/stores/accounts";
 
-    function goBack() {
-        goto("/settings");
-    }
+function goBack() {
+    goto("/settings");
+}
 
-    async function refetchAccount() {
-        await invoke("query_enriched_contact", {
-            pubkey: $accounts.activeAccount,
-            updateAccount: true,
-        });
-    }
+async function refetchAccount() {
+    await invoke("query_enriched_contact", {
+        pubkey: $accounts.activeAccount,
+        updateAccount: true,
+    });
+}
 </script>
 
 <HeaderToolbar>
