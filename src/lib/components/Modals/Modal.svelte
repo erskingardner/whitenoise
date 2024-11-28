@@ -11,7 +11,7 @@ let {
     props = {},
     showModal = $bindable(),
 }: {
-    initialComponent: any;
+    initialComponent: Component;
     props: Record<string, unknown>;
     showModal: boolean;
 } = $props();
@@ -84,7 +84,7 @@ onDestroy(() => {
             {/snippet}
         </HeaderToolbar>
         <div class="p-4">
-            <svelte:component this={currentView.component} {...currentView.props} {pushView} {popView} {closeModal} />
+            <currentView.component {...currentView.props} {pushView} {popView} {closeModal} />
         </div>
     </div>
 </div>
