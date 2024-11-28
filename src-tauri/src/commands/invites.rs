@@ -143,27 +143,38 @@ pub async fn get_invites(wn: tauri::State<'_, Whitenoise>) -> Result<InvitesWith
         }
     }
 
+    let key_package_relays: Vec<String> = if cfg!(dev) {
+        vec!["ws://localhost:8080".to_string()]
+    } else {
+        active_account.key_package_relays.clone()
+    };
+
     // Remove used key package ids from relays and from MLS storage
     // We do this in bulk after we've processed all welcome events to avoid deleting
     // the key package material while we're still processing events that might need it.
     used_key_package_ids.sort();
     used_key_package_ids.dedup();
-    for key_package_id in &used_key_package_ids {
-        tracing::debug!(target: "nostr_mls::invites::fetch_invites_for_user", "Deleting used key package {:?}", key_package_id);
-        delete_key_package_from_relays(
-            &EventId::parse(key_package_id).unwrap(),
-            &active_account.key_package_relays,
-            true,
-            &wn,
-        )
-        .await
-        .map_err(|e| format!("Couldn't delete key package {:?}: {}", key_package_id, e))?;
-    }
+    
+    // TODO: Creating a new key package will overwrite the key package in MLS storage.
+    // TODO: This means that if we create a new key package at this point, we'll not be able to join the groups that these invites represent.
+    // TODO: We need to find a way to handle this scenario.
 
+    // for key_package_id in &used_key_package_ids {
+        //     tracing::debug!(target: "nostr_mls::invites::fetch_invites_for_user", "Deleting used key package {:?}", key_package_id);
+        //     delete_key_package_from_relays(
+            //         &EventId::parse(key_package_id).unwrap(),
+            //         &key_package_relays,
+            //         true,
+            //         &wn,
+            //     )
+            //     .await
+            //     .map_err(|e| format!("Couldn't delete key package {:?}: {}", key_package_id, e))?;
+            // }
+            
     // Generate and publish new key packages to replace the used key packages
-    for _ in used_key_package_ids.iter() {
-        publish_key_package(wn.clone()).await?;
-    }
+    // for _ in used_key_package_ids.iter() {
+    //     publish_key_package(wn.clone()).await?;
+    // }
 
     // TODO: We need to filter and only show the latest welcome message for a given group if there are duplicates
     Ok(InvitesWithFailures {
