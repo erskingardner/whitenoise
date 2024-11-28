@@ -2,6 +2,23 @@ use crate::nostr_manager::{NostrManager, NostrManagerError, Result};
 use nostr_sdk::prelude::*;
 
 impl NostrManager {
+    pub async fn fetch_for_user(
+        &self,
+        pubkey: PublicKey,
+        last_synced: Timestamp,
+        group_ids: Vec<String>,
+    ) -> Result<()> {
+        self.fetch_user_metadata(pubkey).await?;
+        self.fetch_contacts().await?;
+        self.fetch_user_relays(pubkey).await?;
+        self.fetch_user_inbox_relays(pubkey).await?;
+        self.fetch_user_key_package_relays(pubkey).await?;
+        self.fetch_user_key_packages(pubkey).await?;
+        self.fetch_user_giftwrapped_events(pubkey).await?;
+        self.fetch_group_messages(last_synced, group_ids).await?;
+        Ok(())
+    }
+
     pub async fn fetch_user_metadata(&self, pubkey: PublicKey) -> Result<Option<Metadata>> {
         match self
             .client
@@ -101,7 +118,6 @@ impl NostrManager {
         Ok(invites)
     }
 
-    #[allow(dead_code)]
     async fn fetch_user_giftwrapped_events(&self, pubkey: PublicKey) -> Result<Vec<Event>> {
         let filter = Filter::new().kind(Kind::GiftWrap).pubkeys(vec![pubkey]);
 
@@ -112,6 +128,27 @@ impl NostrManager {
                 vec![Filter::new().kind(Kind::GiftWrap).pubkeys(vec![pubkey])],
                 Some(self.timeout()?),
             )
+            .await?;
+
+        let events = stored_events.merge(fetched_events);
+        Ok(events.into_iter().collect())
+    }
+
+    async fn fetch_group_messages(
+        &self,
+        last_synced: Timestamp,
+        group_ids: Vec<String>,
+    ) -> Result<Vec<Event>> {
+        let filter = Filter::new()
+            .kind(Kind::MlsGroupMessage)
+            .custom_tag(SingleLetterTag::lowercase(Alphabet::H), group_ids)
+            .since(last_synced)
+            .until(Timestamp::now());
+
+        let stored_events = self.client.database().query(vec![filter.clone()]).await?;
+        let fetched_events = self
+            .client
+            .fetch_events(vec![filter], Some(self.timeout()?))
             .await?;
 
         let events = stored_events.merge(fetched_events);

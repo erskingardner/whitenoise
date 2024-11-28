@@ -149,7 +149,7 @@ pub async fn login(
                 "Starting negentropy sync"
             );
             match nostr_clone_sync
-                .sync_for_user(pubkey, last_synced, group_ids_clone_sync)
+                .fetch_for_user(pubkey, last_synced, group_ids_clone_sync)
                 .await
             {
                 Ok(_) => {
@@ -268,7 +268,7 @@ pub async fn set_active_account(
     tracing::debug!(
         target: "whitenoise::commands::accounts::set_active_account",
         "Nostr client relays: {:?}",
-        nostr_clone_subs.client.relays().await
+        nostr_clone_subs.client.relays().await.keys().collect::<Vec<_>>()
     );
 
     spawn(async move {
@@ -305,7 +305,7 @@ pub async fn set_active_account(
             "Starting negentropy sync"
         );
         match nostr_clone_sync
-            .sync_for_user(pubkey, last_synced, group_ids_clone_sync)
+            .fetch_for_user(pubkey, last_synced, group_ids_clone_sync)
             .await
         {
             Ok(_) => {
@@ -440,7 +440,7 @@ pub async fn logout(
                         "Starting negentropy sync"
                     );
                     match nostr
-                        .sync_for_user(pubkey, last_synced, group_ids.clone())
+                        .fetch_for_user(pubkey, last_synced, group_ids.clone())
                         .await
                     {
                         Ok(_) => {

@@ -67,7 +67,7 @@ pub async fn init_nostr_for_current_user(
             "Starting negentropy sync"
         );
         match nostr_clone_sync
-            .sync_for_user(pubkey, last_synced, group_ids_clone_sync)
+            .fetch_for_user(pubkey, last_synced, group_ids_clone_sync)
             .await
         {
             Ok(_) => {
@@ -78,6 +78,10 @@ pub async fn init_nostr_for_current_user(
                 let _ = account_manager_clone_sync
                     .update_account_last_synced(pubkey.to_hex())
                     .map_err(|e| format!("Error updating account last synced: {}", e));
+
+                let _ = app_handle
+                    .emit("nostr_ready", ())
+                    .map_err(|e| e.to_string());
             }
             Err(e) => {
                 tracing::error!(
@@ -88,10 +92,6 @@ pub async fn init_nostr_for_current_user(
             }
         }
     });
-
-    app_handle
-        .emit("nostr_ready", ())
-        .map_err(|e| e.to_string())?;
 
     tracing::debug!(
         target: "whitenoise::commands::nostr::init_nostr_for_current_user",
