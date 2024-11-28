@@ -143,6 +143,7 @@ pub async fn get_invites(wn: tauri::State<'_, Whitenoise>) -> Result<InvitesWith
         }
     }
 
+    #[allow(unused)]
     let key_package_relays: Vec<String> = if cfg!(dev) {
         vec!["ws://localhost:8080".to_string()]
     } else {

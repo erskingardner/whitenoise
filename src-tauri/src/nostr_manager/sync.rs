@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use crate::nostr_manager::{NostrManager, NostrManagerError, Result};
 use nostr_sdk::prelude::*;
 

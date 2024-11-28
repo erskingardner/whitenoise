@@ -151,6 +151,7 @@ pub async fn fetch_key_package_for_pubkey(
 /// - The specified event is not a key package event (Kind::KeyPackage).
 /// - The specified event is not authored by the current user.
 /// - There's an error creating or sending the delete event.
+#[allow(unused)]
 pub async fn delete_key_package_from_relays(
     event_id: &EventId,
     key_package_relays: &[String],
