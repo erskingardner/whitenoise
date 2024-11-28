@@ -6,11 +6,12 @@ import InviteListItem from "$lib/components/InviteListItem.svelte";
 import Loader from "$lib/components/Loader.svelte";
 import ContactsList from "$lib/components/Modals/Contacts/ContactsList.svelte";
 import Modal from "$lib/components/Modals/Modal.svelte";
+import { accounts } from "$lib/stores/accounts";
 import { getToastState } from "$lib/stores/toast-state.svelte";
 import type { Invite, InvitesWithFailures, NostrMlsGroup } from "$lib/types/nostr";
 import { invoke } from "@tauri-apps/api/core";
 import { type UnlistenFn, listen } from "@tauri-apps/api/event";
-import { PlusCircle } from "phosphor-svelte";
+import { PlusCircle, Warning } from "phosphor-svelte";
 import { onDestroy, onMount } from "svelte";
 
 let unlistenAccountChanging: UnlistenFn;
@@ -30,6 +31,7 @@ let loadingError = $state<string | null>(null);
 let groups = $state<NostrMlsGroup[]>([]);
 let invites = $state<Invite[]>([]);
 let failures = $state<[string, string][]>([]);
+let failuresExpanded = $state(false);
 
 async function loadEvents() {
     isLoading = true;
@@ -51,7 +53,9 @@ async function loadEvents() {
 }
 
 onMount(async () => {
-    await loadEvents();
+    if ($accounts.activeAccount) {
+        await loadEvents();
+    }
 
     if (!unlistenAccountChanging) {
         unlistenAccountChanging = await listen<string>("account_changing", async (_event) => {
@@ -65,13 +69,18 @@ onMount(async () => {
     if (!unlistenAccountChanged) {
         unlistenAccountChanged = await listen<string>("account_changed", async (_event) => {
             console.log("Event received on chats page: account_changed");
+            if ($accounts.activeAccount) {
+                await loadEvents();
+            }
         });
     }
 
     if (!unlistenNostrReady) {
         unlistenNostrReady = await listen<string>("nostr_ready", async (_event) => {
             console.log("Event received on chats page: nostr_ready");
-            await loadEvents();
+            if ($accounts.activeAccount) {
+                await loadEvents();
+            }
         });
     }
 
@@ -133,17 +142,33 @@ onDestroy(() => {
             <pre class="font-mono p-2 rounded-md ring-1 ring-red-500/30">{loadingError}</pre>
         </div>
     {:else}
-        <div class="px-4 py-2 bg-gray-800 text-lg font-bold border-t border-b border-gray-700">Invites</div>
         <div class="flex flex-col gap-2">
             {#each invites as invite}
                 <InviteListItem {invite} />
             {/each}
-        </div>
-        <div class="px-4 py-2 bg-gray-800 text-lg font-bold border-t border-b border-gray-700">Groups</div>
-        <div class="flex flex-col">
             {#each groups as group}
                 <GroupListItem {group} />
             {/each}
+            {#if failures.length > 0}
+                <div class="flex flex-col">
+                    <button 
+                        class="flex flex-row gap-2 items-center px-4 py-3 border-b border-gray-700 hover:bg-gray-700"
+                        onclick={() => failuresExpanded = !failuresExpanded}
+                    >
+                        <Warning size={20} class="text-yellow-500" />
+                        <span>{failures.length} unprocessable {failures.length === 1 ? 'invite' : 'invites'}</span>
+                        <span class="ml-auto text-sm text-gray-400">{failuresExpanded ? 'Hide' : 'Show'}</span>
+                    </button>
+                    
+                    {#if failuresExpanded}
+                        {#each failures as failure}
+                            <div class="flex flex-row gap-2 items-center px-4 py-3 border-b border-gray-700 hover:bg-gray-700 pl-8 bg-gray-800/50">
+                                <span>{failure[0]}: {failure[1].split(": ")[1]}</span>
+                            </div>
+                        {/each}
+                    {/if}
+                </div>
+            {/if}
         </div>
     {/if}
 </main>
