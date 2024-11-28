@@ -17,6 +17,9 @@ let groupName = $state("");
 let groupType = $derived(
     invite.member_count === 2 ? NostrMlsGroupType.DirectMessage : NostrMlsGroupType.Group
 );
+let inviteDescription = $derived(
+    invite.member_count === 2 ? "private chat" : `group with ${invite.member_count} members`
+);
 
 $effect(() => {
     if (invite.inviter && !enrichedInviter) {
@@ -45,8 +48,9 @@ $effect(() => {
         enrichedCounterparty={enrichedInviter}
         pxSize={40}
     />
-    <div class="flex flex-col gap-1">
+    <div class="flex flex-col gap-1 items-start">
         <span class="text-lg font-semibold">{groupName}</span>
+        <span class="text-sm text-gray-400">Invite to join a {inviteDescription}</span>
     </div>
 </button>
 
