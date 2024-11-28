@@ -227,6 +227,12 @@ pub async fn create_group(
             {
                 Ok(_) => {
                     // Successfully sent, break the loop
+                    tracing::debug!(
+                        target: "whitenoise::groups::create_group",
+                        "Successfully sent welcome message to {:?} on {:?}",
+                        &member_pubkey,
+                        &relay_urls
+                    );
                     break;
                 }
                 Err(e) => {
