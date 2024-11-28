@@ -39,13 +39,21 @@ pub struct NostrManager {
 
 impl Default for NostrManagerSettings {
     fn default() -> Self {
+        
+        let mut relays = vec![];
+        if cfg!(dev) {
+            relays.push("ws://localhost:8080".to_string());
+            // relays.push("wss://purplepag.es".to_string());
+            // relays.push("wss://relay.nostr.net".to_string());
+        } else {
+            relays.push("wss://relay.damus.io".to_string());
+            relays.push("wss://relay.primal.net".to_string());
+            relays.push("wss://nostr.oxtr.dev".to_string());
+        }
+
         Self {
             timeout: Duration::from_secs(3),
-            relays: vec![
-                "wss://relay.damus.io".to_string(),
-                "wss://relay.primal.net".to_string(),
-                "wss://nostr.oxtr.dev".to_string(),
-            ],
+            relays,
         }
     }
 }
@@ -139,45 +147,49 @@ impl NostrManager {
         // Connect to the default relays
         self.client.connect().await;
 
-        // Add the new user's relays
-        // TODO: We should query first and only fetch if we don't have them
-        let relays = self.fetch_user_relays(keys.public_key()).await?;
-        for relay in relays.iter() {
-            self.client.add_relay(relay).await?;
-            self.client.connect_relay(relay).await?;
-            tracing::debug!(
-                target: "whitenoise::nostr_client::update_nostr_identity",
-                "Connected to user relay: {}",
-                relay
-            );
-        }
+        // We only want to connect to user relays in release mode
+        if !cfg!(dev) {
+            // Add the new user's relays
+            // TODO: We should query first and only fetch if we don't have them
+            let relays = self.fetch_user_relays(keys.public_key()).await?;
+            for relay in relays.iter() {
+                self.client.add_relay(relay).await?;
+                self.client.connect_relay(relay).await?;
+                tracing::debug!(
+                    target: "whitenoise::nostr_client::update_nostr_identity",
+                    "Connected to user relay: {}",
+                    relay
+                );
+            }
 
-        // Add the new user's inbox relays
-        // TODO: We should query first and only fetch if we don't have them
-        let inbox_relays = self.fetch_user_inbox_relays(keys.public_key()).await?;
-        for relay in inbox_relays.iter() {
-            self.client.add_read_relay(relay).await?;
-            self.client.connect_relay(relay).await?;
-            tracing::debug!(
-                target: "whitenoise::nostr_client::update_nostr_identity",
-                "Connected to user inbox relay: {}",
-                relay
-            );
-        }
+            // Add the new user's inbox relays
+            // TODO: We should query first and only fetch if we don't have them
+            let inbox_relays = self.fetch_user_inbox_relays(keys.public_key()).await?;
+            for relay in inbox_relays.iter() {
+                self.client.add_read_relay(relay).await?;
+                self.client.connect_relay(relay).await?;
+                tracing::debug!(
+                    target: "whitenoise::nostr_client::update_nostr_identity",
+                    "Connected to user inbox relay: {}",
+                    relay
+                );
+            }
 
-        // Add the new user's key package relays
-        // TODO: We should query first and only fetch if we don't have them
-        let key_package_relays = self
-            .fetch_user_key_package_relays(keys.public_key())
-            .await?;
-        for relay in key_package_relays.iter() {
-            self.client.add_relay(relay).await?;
-            self.client.connect_relay(relay).await?;
-            tracing::debug!(
-                target: "whitenoise::nostr_client::update_nostr_identity",
-                "Connected to user key package relay: {}",
-                relay
-            );
+            // Add the new user's key package relays
+            // TODO: We should query first and only fetch if we don't have them
+            let key_package_relays = self
+                .fetch_user_key_package_relays(keys.public_key())
+                .await?;
+            for relay in key_package_relays.iter() {
+                self.client.add_relay(relay).await?;
+                self.client.connect_relay(relay).await?;
+                tracing::debug!(
+                    target: "whitenoise::nostr_client::update_nostr_identity",
+                    "Connected to user key package relay: {}",
+                    relay
+                );
+            }
+
         }
 
         tracing::debug!(

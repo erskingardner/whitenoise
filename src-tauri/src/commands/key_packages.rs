@@ -75,8 +75,11 @@ pub async fn publish_key_package(wn: tauri::State<'_, Whitenoise>) -> Result<(),
         let serialized_key_package =
             create_key_package_for_event(pubkey.to_hex(), &nostr_mls).map_err(|e| e.to_string())?;
 
-        key_package_relays = match wn
-            .account_manager
+        if cfg!(dev) {
+            key_package_relays = vec!["ws://localhost:8080".to_string()];
+        } else {
+            key_package_relays = match wn
+                .account_manager
             .get_active_account()
             .map_err(|e| e.to_string())?
             .key_package_relays
@@ -89,8 +92,8 @@ pub async fn publish_key_package(wn: tauri::State<'_, Whitenoise>) -> Result<(),
                 .map_err(|e| e.to_string())?
                 .key_package_relays
                 .clone(),
-        };
-
+            };
+        }
         event = EventBuilder::new(
             Kind::MlsKeyPackage,
             serialized_key_package).tags(
@@ -126,10 +129,20 @@ pub async fn delete_all_key_packages(wn: tauri::State<'_, Whitenoise>) -> Result
 
     let active_account = wn.account_manager.get_active_account().map_err(|e| e.to_string())?;
 
+    let key_package_relays: Vec<String> = if cfg!(dev) {
+        vec!["ws://localhost:8080".to_string()]
+    } else {
+        active_account.key_package_relays.clone()
+    };
+
     let key_package_events = wn.nostr.query_user_key_packages(pubkey).await.map_err(|e| e.to_string())?;
 
-    let delete_event = EventBuilder::delete_with_reason(key_package_events.iter().map(|e| e.id), "Delete own key package");
-    tracing::debug!(target: "whitenoise::commands::key_packages::delete_all_key_packages", "Deleting key packages: {:?}", delete_event);
-    wn.nostr.client.send_event_builder_to(active_account.key_package_relays, delete_event).await.map_err(|e| e.to_string())?;
+    if !key_package_events.is_empty() {
+        let delete_event = EventBuilder::delete_with_reason(key_package_events.iter().map(|e| e.id), "Delete own key package");
+        tracing::debug!(target: "whitenoise::commands::key_packages::delete_all_key_packages", "Deleting key packages: {:?}", delete_event);
+        wn.nostr.client.send_event_builder_to(key_package_relays, delete_event).await.map_err(|e| e.to_string())?;
+    } else {
+        tracing::debug!(target: "whitenoise::commands::key_packages::delete_all_key_packages", "No key packages to delete");
+    }
     Ok(())
 }

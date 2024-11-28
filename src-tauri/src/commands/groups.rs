@@ -154,7 +154,10 @@ pub async fn create_group(
             .await
             .map_err(|e| e.to_string())?;
 
-        let relay_urls = if !contact.inbox_relays.is_empty() {
+        // We only want to connect to user relays in release mode
+        let relay_urls: Vec<String> = if cfg!(dev) {
+            vec!["ws://localhost:8080".to_string()]
+        } else if !contact.inbox_relays.is_empty() {
             contact.inbox_relays
         } else if !contact.nostr_relays.is_empty() {
             contact.nostr_relays
