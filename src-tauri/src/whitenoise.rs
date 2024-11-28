@@ -17,14 +17,26 @@ pub struct Whitenoise {
 
 impl Whitenoise {
     pub async fn new(data_dir: PathBuf, logs_dir: PathBuf, app_handle: &AppHandle) -> Self {
+        let formatted_data_dir = if cfg!(dev) {
+            PathBuf::from(format!("{}/dev", data_dir.to_string_lossy()))
+        } else {
+            PathBuf::from(format!("{}/release", data_dir.to_string_lossy()))
+        };
+
+        let formatted_logs_dir = if cfg!(dev) {
+            PathBuf::from(format!("{}/dev", logs_dir.to_string_lossy()))
+        } else {
+            PathBuf::from(format!("{}/release", logs_dir.to_string_lossy()))
+        };
+
         tracing::debug!(
             target: "whitenoise::whitenoise::new",
             "Creating Whitenoise instance with data_dir: {:?}",
-            data_dir
+            &formatted_data_dir
         );
 
         let database = Arc::new(
-            sled::open(data_dir.join("whitenoise.sled")).expect("Failed to open database"),
+            sled::open(formatted_data_dir.join("whitenoise.sled")).expect("Failed to open database"),
         );
 
         let account_manager = AccountManager::new(database.clone(), app_handle)
@@ -43,15 +55,15 @@ impl Whitenoise {
         Self {
             account_manager,
             group_manager,
-            nostr: NostrManager::new(data_dir.clone())
+            nostr: NostrManager::new(formatted_data_dir.clone())
                 .await
                 .expect("Failed to create Nostr manager"),
             nostr_mls: Arc::new(Mutex::new(NostrMls::new(
-                data_dir.clone(),
+                formatted_data_dir.clone(),
                 active_account.map(|a| a.pubkey),
             ))),
-            data_dir,
-            logs_dir,
+            data_dir: formatted_data_dir,
+            logs_dir: formatted_logs_dir,
         }
     }
 
