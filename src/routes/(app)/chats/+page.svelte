@@ -69,9 +69,6 @@ onMount(async () => {
     if (!unlistenAccountChanged) {
         unlistenAccountChanged = await listen<string>("account_changed", async (_event) => {
             console.log("Event received on chats page: account_changed");
-            if ($accounts.activeAccount) {
-                await loadEvents();
-            }
         });
     }
 
@@ -142,7 +139,13 @@ onDestroy(() => {
             <pre class="font-mono p-2 rounded-md ring-1 ring-red-500/30">{loadingError}</pre>
         </div>
     {:else}
-        <div class="flex flex-col gap-2">
+        <div class="flex flex-col gap-0">
+            {#if invites.length === 0 && groups.length === 0}
+                <div class="flex flex-col gap-2 items-center justify-center h-full">
+                    <span class="text-gray-400">No chats found</span>
+                    <span class="text-gray-400">Click the plus button to start a new chat</span>
+                </div>
+            {/if}
             {#each invites as invite}
                 <InviteListItem {invite} />
             {/each}
