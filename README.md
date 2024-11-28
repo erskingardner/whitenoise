@@ -12,15 +12,36 @@ White Noise is an implemenetation of the [NIP-104](https://github.com/nostr-prot
 
 ## Running White Noise
 
-White Noise is a Tauri app, so it can be run natively on Windows, MacOS, Linux, iOS, and Android. The app is still under heavily development so not all of these platforms are supported yet. Currently the easist (most reliable) way to run the app is on MacOS desktop via the `bun tauri dev`.
+To build the app in release mode for desktop, run `bun tauri build`. 
+
+### MacOS
+
+- On MacOS, running `bun tauri build` will create both a `.app` bundle and a `.dmg` installer. Install the `.dmg` in the same way you would install any other MacOS application.
+- To update the app, run `git pull` and `bun tauri build` again. The app very much alpha so expect that updates will break your groups and chats. If you end up in an unrecoverable state, you can try deleting the `~/Library/Application Support/chat.whitenoise.dev` directory and running the app again. When you delete that directory, you're deleting all the MLS group state so you'll need to re-create or re-join the groups you had before and your previous history will be lost.
+
+### Linux
+
+- I haven't tried the app on Linux yet. Let me know how it goes! 
+
+### Windows
+
+- I haven't tried the app on Windows yet. Let me know how it goes!
+
+### Android
+
+- To build the app on Android, it's easiest to run `bun tauri android build --apk --split-per-abi`. This will generate a number of APKs, one for each architecture. You can then install the one that matches your phone.
+
+### iOS
+
+- Right now, you can't build for iOS.
 
 ## Contributing
 
-White Noise is built with Tauri 2 and SvelteKit. To get started contributing you'll need to have the Rust toolchain installed and the Bun JavaScript package manager.
+White Noise is built with [Tauri](https://tauri.app/) & [SvelteKit](https://kit.svelte.dev/). To get started contributing you'll need to have the [Rust](https://www.rust-lang.org/tools/install) toolchain installed and the [Bun](https://bun.sh/docs/installation) JavaScript package manager.
 
-1. Clone the repo.
-2. Run `bun install` to install the dependencies.
-3. Wait for Rust to install dependencies. 
+1. First off, you'll need to install [`nostr-rs-relay`](https://github.com/scsibug/nostr-rs-relay?tab=readme-ov-file) and run it locally when developing. At the moment, to simplify development everything happens over a local relay on `ws://localhost:8080`.
+2. Clone the repo: `git clone https://github.com/erskingardner/whitenoise.git` and `cd whitenoise`.
+3. Run `bun install` to install the front-end dependencies.
 4. Run `bun tauri dev` to start the app. If you want to see more comprehensive logging, run `RUST_LOG=debug bun tauri dev`.
 
 ## License
