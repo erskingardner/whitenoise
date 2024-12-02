@@ -35,11 +35,24 @@ pub fn run() {
                 .expect("Failed to get data dir");
 
             let logs_dir = app.handle().path().app_log_dir().unwrap();
-            tracing::debug!(target: "whitenoise::lib::run", "Logs directory: {:?}", logs_dir);
-            setup_logging(logs_dir.clone())?;
+
+            let formatted_data_dir = if cfg!(dev) {
+                PathBuf::from(format!("{}/dev", data_dir.to_string_lossy()))
+            } else {
+                PathBuf::from(format!("{}/release", data_dir.to_string_lossy()))
+            };
+
+            let formatted_logs_dir = if cfg!(dev) {
+                PathBuf::from(format!("{}/dev", logs_dir.to_string_lossy()))
+            } else {
+                PathBuf::from(format!("{}/release", logs_dir.to_string_lossy()))
+            };
+
+            setup_logging(formatted_logs_dir.clone())?;
 
             tauri::async_runtime::block_on(async move {
-                let whitenoise = Whitenoise::new(data_dir, logs_dir, app.handle()).await;
+                let whitenoise =
+                    Whitenoise::new(formatted_data_dir, formatted_logs_dir, app.handle()).await;
                 app.manage(whitenoise);
             });
             Ok(())
