@@ -128,3 +128,10 @@
 - Need to check admin_pubkeys when processing proposals and commits. 
 - Need to regularly clean up old key packages from MLS storage.
 - Need to cache exporter secrets (use a config for how long to keep them around)
+
+## Infrastructure
+
+- Setup a few test relays for development
+  - Normal & Inbox (we'll need to override the user's defualt relays in dev)
+- Set up lint/test pipeline on Github Actions for each push
+- Set up a simple CI/CD pipeline for releases

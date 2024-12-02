@@ -152,8 +152,8 @@ onDestroy(() => {
                 <GroupListItem {group} />
             {/each}
             {#if failures.length > 0}
-                <div class="flex flex-col">
-                    <button 
+                <div class="flex flex-col fixed bottom-0 w-full bg-gray-900 border-t border-gray-700">
+                    <button
                         class="flex flex-row gap-2 items-center px-4 py-3 border-b border-gray-700 hover:bg-gray-700"
                         onclick={() => failuresExpanded = !failuresExpanded}
                     >
