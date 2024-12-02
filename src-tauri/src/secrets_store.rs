@@ -1,5 +1,5 @@
 use base64::{engine::general_purpose, Engine as _};
-use keyring::Entry;
+// use keyring::Entry;
 use nostr_sdk::{util::hex, Keys};
 use serde_json::{json, Value};
 use std::fs;
@@ -37,6 +37,7 @@ pub enum SecretsStoreError {
 
 pub type Result<T> = std::result::Result<T, SecretsStoreError>;
 
+#[allow(dead_code)]
 fn get_service_name() -> String {
     match is_dev() {
         true => "White Noise Dev".to_string(),
@@ -128,20 +129,24 @@ fn write_secrets_file(data_dir: &Path, secrets: &Value) -> Result<()> {
 /// * Setting the password in the keyring fails
 /// * The secret key cannot be retrieved from the keypair
 pub fn store_private_key(keys: &Keys, data_dir: &Path) -> Result<()> {
-    let service = get_service_name();
+    let mut secrets = read_secrets_file(data_dir).unwrap_or(json!({}));
+    let obfuscated_key = obfuscate(keys.secret_key().to_secret_hex().as_str(), data_dir);
+    secrets[keys.public_key().to_hex()] = json!(obfuscated_key);
+    write_secrets_file(data_dir, &secrets)?;
 
-    if cfg!(target_os = "android") {
-        let mut secrets = read_secrets_file(data_dir).unwrap_or(json!({}));
-        let obfuscated_key = obfuscate(keys.secret_key().to_secret_hex().as_str(), data_dir);
-        secrets[keys.public_key().to_hex()] = json!(obfuscated_key);
-        write_secrets_file(data_dir, &secrets)?;
-    } else {
-        let entry = Entry::new(service.as_str(), keys.public_key().to_hex().as_str())
-            .map_err(SecretsStoreError::KeyringError)?;
-        entry
-            .set_password(keys.secret_key().to_secret_hex().as_str())
-            .map_err(SecretsStoreError::KeyringError)?;
-    }
+    // if cfg!(target_os = "android") {
+    //     let mut secrets = read_secrets_file(data_dir).unwrap_or(json!({}));
+    //     let obfuscated_key = obfuscate(keys.secret_key().to_secret_hex().as_str(), data_dir);
+    //     secrets[keys.public_key().to_hex()] = json!(obfuscated_key);
+    //     write_secrets_file(data_dir, &secrets)?;
+    // } else {
+    //     let service = get_service_name();
+    //     let entry = Entry::new(service.as_str(), keys.public_key().to_hex().as_str())
+    //         .map_err(SecretsStoreError::KeyringError)?;
+    //     entry
+    //         .set_password(keys.secret_key().to_secret_hex().as_str())
+    //         .map_err(SecretsStoreError::KeyringError)?;
+    // }
 
     Ok(())
 }
@@ -167,23 +172,29 @@ pub fn store_private_key(keys: &Keys, data_dir: &Path) -> Result<()> {
 /// * Retrieving the password from the keyring fails
 /// * Parsing the private key into a `Keys` object fails
 pub fn get_nostr_keys_for_pubkey(pubkey: &str, data_dir: &Path) -> Result<Keys> {
-    let service = get_service_name();
+    let secrets = read_secrets_file(data_dir)?;
+    let obfuscated_key = secrets[pubkey]
+        .as_str()
+        .ok_or(SecretsStoreError::KeyNotFound)?;
+    let private_key = deobfuscate(obfuscated_key, data_dir)?;
+    Keys::parse(private_key).map_err(SecretsStoreError::KeyError)
 
-    if cfg!(target_os = "android") {
-        let secrets = read_secrets_file(data_dir)?;
-        let obfuscated_key = secrets[pubkey]
-            .as_str()
-            .ok_or(SecretsStoreError::KeyNotFound)?;
-        let private_key = deobfuscate(obfuscated_key, data_dir)?;
-        Keys::parse(private_key).map_err(SecretsStoreError::KeyError)
-    } else {
-        let entry =
-            Entry::new(service.as_str(), pubkey).map_err(SecretsStoreError::KeyringError)?;
-        let private_key = entry
-            .get_password()
-            .map_err(SecretsStoreError::KeyringError)?;
-        Keys::parse(private_key).map_err(SecretsStoreError::KeyError)
-    }
+    // if cfg!(target_os = "android") {
+    //     let secrets = read_secrets_file(data_dir)?;
+    //     let obfuscated_key = secrets[pubkey]
+    //         .as_str()
+    //         .ok_or(SecretsStoreError::KeyNotFound)?;
+    //     let private_key = deobfuscate(obfuscated_key, data_dir)?;
+    //     Keys::parse(private_key).map_err(SecretsStoreError::KeyError)
+    // } else {
+    //     let service = get_service_name();
+    //     let entry =
+    //         Entry::new(service.as_str(), pubkey).map_err(SecretsStoreError::KeyringError)?;
+    //     let private_key = entry
+    //         .get_password()
+    //         .map_err(SecretsStoreError::KeyringError)?;
+    //     Keys::parse(private_key).map_err(SecretsStoreError::KeyError)
+    // }
 }
 
 /// Removes the private key associated with a given public key from the system's keyring.
@@ -207,18 +218,21 @@ pub fn get_nostr_keys_for_pubkey(pubkey: &str, data_dir: &Path) -> Result<Keys> 
 /// This function will return an error if:
 /// * The Entry creation fails
 pub fn remove_private_key_for_pubkey(pubkey: &str, data_dir: &Path) -> Result<()> {
-    let service = get_service_name();
+    let mut secrets = read_secrets_file(data_dir)?;
+    secrets.as_object_mut().map(|obj| obj.remove(pubkey));
+    write_secrets_file(data_dir, &secrets)?;
 
-    if cfg!(target_os = "android") {
-        let mut secrets = read_secrets_file(data_dir)?;
-        secrets.as_object_mut().map(|obj| obj.remove(pubkey));
-        write_secrets_file(data_dir, &secrets)?;
-    } else {
-        let entry = Entry::new(service.as_str(), pubkey);
-        if let Ok(entry) = entry {
-            let _ = entry.delete_credential();
-        }
-    }
+    // if cfg!(target_os = "android") {
+    //     let mut secrets = read_secrets_file(data_dir)?;
+    //     secrets.as_object_mut().map(|obj| obj.remove(pubkey));
+    //     write_secrets_file(data_dir, &secrets)?;
+    // } else {
+    //     let service = get_service_name();
+    //     let entry = Entry::new(service.as_str(), pubkey);
+    //     if let Ok(entry) = entry {
+    //         let _ = entry.delete_credential();
+    //     }
+    // }
     Ok(())
 }
 
@@ -251,17 +265,22 @@ pub fn store_mls_export_secret(
 ) -> Result<()> {
     let mls_group_id_hex = hex::encode(mls_group_id);
     let key = format!("{mls_group_id_hex}:{epoch}");
-    let service = get_service_name();
 
-    if cfg!(target_os = "android") {
-        let mut secrets = read_secrets_file(data_dir).unwrap_or(json!({}));
-        let obfuscated_secret = obfuscate(&secret, data_dir);
-        secrets[key] = json!(obfuscated_secret);
-        write_secrets_file(data_dir, &secrets)?;
-    } else {
-        let entry = Entry::new(service.as_str(), key.as_str())?;
-        entry.set_password(&secret)?;
-    }
+    let mut secrets = read_secrets_file(data_dir).unwrap_or(json!({}));
+    let obfuscated_secret = obfuscate(&secret, data_dir);
+    secrets[key] = json!(obfuscated_secret);
+    write_secrets_file(data_dir, &secrets)?;
+
+    // if cfg!(target_os = "android") {
+    //     let mut secrets = read_secrets_file(data_dir).unwrap_or(json!({}));
+    //     let obfuscated_secret = obfuscate(&secret, data_dir);
+    //     secrets[key] = json!(obfuscated_secret);
+    //     write_secrets_file(data_dir, &secrets)?;
+    // } else {
+    // let service = get_service_name();
+    //     let entry = Entry::new(service.as_str(), key.as_str())?;
+    //     entry.set_password(&secret)?;
+    // }
     Ok(())
 }
 
@@ -293,24 +312,32 @@ pub fn get_export_secret_keys_for_group(
 ) -> Result<Keys> {
     let mls_group_id_hex = hex::encode(mls_group_id);
     let key = format!("{mls_group_id_hex}:{epoch}");
-    let service = get_service_name();
 
-    if cfg!(target_os = "android") {
-        let secrets = read_secrets_file(data_dir)?;
-        let obfuscated_secret = secrets[key]
-            .as_str()
-            .ok_or(SecretsStoreError::KeyNotFound)?;
-        let secret = deobfuscate(obfuscated_secret, data_dir)?;
-        let keys = Keys::parse(secret).map_err(SecretsStoreError::KeyError)?;
-        Ok(keys)
-    } else {
-        let entry = Entry::new(service.as_str(), key.as_str())?;
-        let secret = entry
-            .get_password()
-            .map_err(SecretsStoreError::KeyringError)?;
-        let keys = Keys::parse(secret).map_err(SecretsStoreError::KeyError)?;
-        Ok(keys)
-    }
+    let secrets = read_secrets_file(data_dir)?;
+    let obfuscated_secret = secrets[key]
+        .as_str()
+        .ok_or(SecretsStoreError::KeyNotFound)?;
+    let secret = deobfuscate(obfuscated_secret, data_dir)?;
+    let keys = Keys::parse(secret).map_err(SecretsStoreError::KeyError)?;
+    Ok(keys)
+
+    // if cfg!(target_os = "android") {
+    //     let secrets = read_secrets_file(data_dir)?;
+    //     let obfuscated_secret = secrets[key]
+    //         .as_str()
+    //         .ok_or(SecretsStoreError::KeyNotFound)?;
+    //     let secret = deobfuscate(obfuscated_secret, data_dir)?;
+    //     let keys = Keys::parse(secret).map_err(SecretsStoreError::KeyError)?;
+    //     Ok(keys)
+    // } else {
+    // let service = get_service_name();
+    //     let entry = Entry::new(service.as_str(), key.as_str())?;
+    //     let secret = entry
+    //         .get_password()
+    //         .map_err(SecretsStoreError::KeyringError)?;
+    //     let keys = Keys::parse(secret).map_err(SecretsStoreError::KeyError)?;
+    //     Ok(keys)
+    // }
 }
 
 #[cfg(test)]
