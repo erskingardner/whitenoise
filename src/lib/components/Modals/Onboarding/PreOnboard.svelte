@@ -8,10 +8,10 @@ let {
     keyPackageRelaysPublished = $bindable(),
     keyPackagePublished = $bindable(),
 } = $props<{
-    pushView: PushView;
-    inboxRelaysPublished: boolean;
-    keyPackageRelaysPublished: boolean;
-    keyPackagePublished: boolean;
+    pushView?: PushView;
+    inboxRelaysPublished?: boolean;
+    keyPackageRelaysPublished?: boolean;
+    keyPackagePublished?: boolean;
 }>();
 
 function startOnboarding(): void {

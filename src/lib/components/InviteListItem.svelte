@@ -55,5 +55,5 @@ $effect(() => {
 </button>
 
 {#if showModal}
-    <Modal initialComponent={InviteDetail} props={{ invite, enrichedInviter }} bind:showModal />
+    <Modal initialComponent={InviteDetail} modalProps={{ invite, enrichedInviter }} bind:showModal />
 {/if}

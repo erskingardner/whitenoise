@@ -19,7 +19,7 @@ let unlistenAccountChanged: UnlistenFn;
 let unlistenNostrReady: UnlistenFn;
 
 let { pushView } = $props<{
-    pushView: PushView;
+    pushView?: PushView;
 }>();
 
 let isLoading = $state(true);

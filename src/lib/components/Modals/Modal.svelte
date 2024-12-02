@@ -8,11 +8,11 @@ import HeaderToolbar from "../HeaderToolbar.svelte";
 
 let {
     initialComponent,
-    props = {},
+    modalProps = {},
     showModal = $bindable(),
 }: {
     initialComponent: Component;
-    props: Record<string, unknown>;
+    modalProps: Record<string, unknown>;
     showModal: boolean;
 } = $props();
 
@@ -20,14 +20,14 @@ let {
 let viewStack: ModalView[] = $state([
     {
         component: initialComponent,
-        props: props,
+        modalProps,
     },
 ]);
 let currentView: ModalView = $derived(viewStack[viewStack.length - 1]);
 
 // Navigation methods
-export function pushView(component: Component, props: Record<string, unknown> = {}): void {
-    viewStack = [...viewStack, { component, props }];
+export function pushView(component: Component, modalProps: Record<string, unknown> = {}): void {
+    viewStack = [...viewStack, { component, modalProps }];
 }
 
 export function popView(): void {
@@ -73,7 +73,7 @@ onDestroy(() => {
                 {/if}
             {/snippet}
 
-            {#snippet center()}<h1>{currentView.props?.title ?? ""}</h1>{/snippet}
+            {#snippet center()}<h1>{currentView.modalProps?.title ?? ""}</h1>{/snippet}
 
             {#snippet right()}
                 <div>
@@ -84,7 +84,7 @@ onDestroy(() => {
             {/snippet}
         </HeaderToolbar>
         <div class="p-4">
-            <currentView.component {...currentView.props} {pushView} {popView} {closeModal} />
+            <currentView.component {...currentView.modalProps} {pushView} {popView} {closeModal} />
         </div>
     </div>
 </div>

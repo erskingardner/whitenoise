@@ -83,7 +83,7 @@ onDestroy(() => {
 {#if showPreflightModal}
     <Modal
         initialComponent={PreOnboard}
-        props={{ inboxRelaysPublished, keyPackageRelaysPublished, keyPackagePublished }}
+        modalProps={{ inboxRelaysPublished, keyPackageRelaysPublished, keyPackagePublished }}
         bind:showModal={showPreflightModal}
     />
 {/if}

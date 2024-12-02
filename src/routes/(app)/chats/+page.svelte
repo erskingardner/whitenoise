@@ -40,7 +40,6 @@ async function loadEvents() {
             invoke("get_groups"),
             invoke("get_invites"),
         ]);
-
         groups = groupsResponse as NostrMlsGroup[];
         invites = (invitesResponse as InvitesWithFailures).invites;
         failures = (invitesResponse as InvitesWithFailures).failures;
@@ -162,7 +161,7 @@ onDestroy(() => {
                         <span>{failures.length} unprocessable {failures.length === 1 ? 'invite' : 'invites'}</span>
                         <span class="ml-auto text-sm text-gray-400">{failuresExpanded ? 'Hide' : 'Show'}</span>
                     </button>
-                    
+
                     {#if failuresExpanded}
                         {#each failures as failure}
                             <div class="flex flex-row gap-2 items-center px-4 py-3 border-b border-gray-700 hover:bg-gray-700 pl-8 bg-gray-800/50">
@@ -177,5 +176,5 @@ onDestroy(() => {
 </main>
 
 {#if showModal}
-    <Modal initialComponent={ContactsList} props={{}} bind:showModal />
+    <Modal initialComponent={ContactsList} modalProps={{}} bind:showModal />
 {/if}

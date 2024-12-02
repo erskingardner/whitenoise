@@ -7,9 +7,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { onDestroy } from "svelte";
 
 let { invite, enrichedInviter, closeModal } = $props<{
-    invite: Invite;
-    enrichedInviter: EnrichedContact;
-    closeModal: () => void;
+    invite?: Invite;
+    enrichedInviter?: EnrichedContact;
+    closeModal?: () => void;
 }>();
 
 let toastState = getToastState();

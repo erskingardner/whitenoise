@@ -84,7 +84,7 @@
 - ✅ Need to scope storage to each user better
   - ✅ Groups
   - ✅ Invites
-- Poisoned lock on nostr_openmls sometimes when logging out/in from the settings page
+- ✅ Poisoned lock on nostr_openmls sometimes when logging out/in from the settings page
 - 
 
 ## 🆘 Errors
@@ -126,4 +126,5 @@
 - Need to verify that incoming messages pubkey and identity key match.
 - Need to rotate signing keys on entrance into the group. 
 - Need to check admin_pubkeys when processing proposals and commits. 
-- 
+- Need to regularly clean up old key packages from MLS storage.
+- Need to cache exporter secrets (use a config for how long to keep them around)
