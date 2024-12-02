@@ -62,6 +62,13 @@ impl NostrManager {
     }
 
     async fn subscribe_giftwraps(&self, pubkey: PublicKey) -> Result<Output<SubscriptionId>> {
+        // This is a hack to get the client to do the initial authenticate on relays that require it.
+        // https://github.com/rust-nostr/nostr/issues/509
+        let null_filter = Filter::new().kind(Kind::GiftWrap).pubkey(pubkey).limit(0);
+        let opts = SubscribeAutoCloseOptions::default().filter(FilterOptions::ExitOnEOSE);
+        self.client.subscribe(vec![null_filter], Some(opts)).await?;
+
+
         let giftwrap_filter = Filter::new()
             .kind(Kind::GiftWrap)
             .pubkey(pubkey)
@@ -157,7 +164,7 @@ impl NostrManager {
                 Kind::MlsWelcome => self.handle_invite(unwrapped.rumor)?,
                 _ => {
                     // TODO: Handle other giftwrap kinds (NIP-17)
-                    tracing::debug!(
+                    tracing::info!(
                         target: "whitenoise::nostr_client::subscriptions::handle_giftwrap",
                         "Received giftwrap of kind {:?}",
                         unwrapped.rumor.kind
@@ -169,7 +176,8 @@ impl NostrManager {
     }
 
     fn handle_invite(&self, rumor: UnsignedEvent) -> Result<()> {
-        tracing::trace!(
+        // TODO: Remove the identifying info from the log
+        tracing::info!(
             target: "whitenoise::nostr_client::handle_notifications",
             "Received invite: {:?}",
             rumor
@@ -178,7 +186,8 @@ impl NostrManager {
     }
 
     fn handle_mls_message(&self, event: Event) -> Result<()> {
-        tracing::trace!(
+        // TODO: Remove the identifying info from the log
+        tracing::info!(
             target: "whitenoise::nostr_client::handle_notifications",
             "Received MLS message: {:?}",
             event
@@ -189,8 +198,8 @@ impl NostrManager {
 
     // Handle other types of notifications
 
-    fn handle_message(&self, relay_url: Url, message: RelayMessage) -> Result<()> {
-        tracing::trace!(
+    fn handle_message(&self, relay_url: RelayUrl, message: RelayMessage) -> Result<()> {
+        tracing::debug!(
             target: "whitenoise::nostr_client::handle_notifications",
             "Received message from {}: {:?}",
             relay_url,
@@ -199,8 +208,8 @@ impl NostrManager {
         Ok(())
     }
 
-    fn handle_relay_status(&self, relay_url: Url, status: RelayStatus) -> Result<()> {
-        tracing::trace!(
+    fn handle_relay_status(&self, relay_url: RelayUrl, status: RelayStatus) -> Result<()> {
+        tracing::debug!(
             target: "whitenoise::nostr_client::handle_notifications",
             "Relay {}: {:?}",
             relay_url,
@@ -217,8 +226,8 @@ impl NostrManager {
         Ok(())
     }
 
-    fn handle_authenticated(&self, relay_url: Url) -> Result<()> {
-        tracing::trace!(
+    fn handle_authenticated(&self, relay_url: RelayUrl) -> Result<()> {
+        tracing::debug!(
             target: "whitenoise::nostr_client::handle_notifications",
             "Relay pool authenticated on {}",
             relay_url

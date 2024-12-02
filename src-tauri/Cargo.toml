@@ -28,12 +28,12 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
 once_cell = "1"
 tokio = { version = "1.40.0", features = ["full"] }
-nostr-sdk = { version = "0.36", features = [
+nostr-sdk = { version = "0.37", features = [
     "lmdb",
     "nip04",
     "nip44",
     "nip59",
-], git = "https://github.com/erskingardner/rust-nostr", rev = "16693d2"}
+] }
 thiserror = "1"
 chrono = { version = "0.4", features = ["serde"] }
 sled = "0.34"

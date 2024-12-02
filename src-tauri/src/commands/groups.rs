@@ -227,9 +227,11 @@ pub async fn create_group(
             {
                 Ok(_) => {
                     // Successfully sent, break the loop
-                    tracing::debug!(
+                    // TODO: Remove the identifying info from the log
+                    tracing::info!(
                         target: "whitenoise::groups::create_group",
-                        "Successfully sent welcome message to {:?} on {:?}",
+                        "Successfully sent welcome message with ID {:?} to {:?} on {:?}",
+                        wrapped_event.id,
                         &member_pubkey,
                         &relay_urls
                     );
@@ -522,12 +524,14 @@ pub async fn fetch_mls_messages(
                     Ok(messages) => message_vec = messages,
                     Err(e) => {
                         match e {
-                            GroupError::ProcessMessageError(_) => {
-                                tracing::error!(
-                                    target: "whitenoise::commands::groups::fetch_mls_messages",
-                                    "Error processing message for group: {}",
-                                    e
-                                );
+                            GroupError::ProcessMessageError(e) => {
+                                if !e.to_string().contains("Cannot decrypt own messages") {
+                                    tracing::error!(
+                                        target: "whitenoise::commands::groups::fetch_mls_messages",
+                                        "Error processing message for group: {}",
+                                        e
+                                    );
+                                }
                             }
                             _ => {
                                 tracing::error!(
