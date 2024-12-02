@@ -39,7 +39,6 @@ pub struct NostrManager {
 
 impl Default for NostrManagerSettings {
     fn default() -> Self {
-        
         let mut relays = vec![];
         if cfg!(dev) {
             relays.push("ws://localhost:8080".to_string());
@@ -52,7 +51,7 @@ impl Default for NostrManagerSettings {
         }
 
         Self {
-            timeout: Duration::from_secs(3),
+            timeout: Duration::from_secs(10),
             relays,
         }
     }
@@ -67,14 +66,6 @@ impl NostrManager {
         let client = Client::builder().database(db).opts(opts).build();
 
         let settings = NostrManagerSettings::default();
-
-        // Add the default relays
-        for relay in settings.relays.iter() {
-            client.add_relay(relay).await?;
-        }
-
-        // Connect to the default relays
-        client.connect().await;
 
         Ok(Self {
             client,
@@ -189,7 +180,6 @@ impl NostrManager {
                     relay
                 );
             }
-
         }
 
         tracing::debug!(

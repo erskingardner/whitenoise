@@ -65,8 +65,7 @@ impl NostrManager {
         // This is a hack to get the client to do the initial authenticate on relays that require it.
         // https://github.com/rust-nostr/nostr/issues/509
         let null_filter = Filter::new().kind(Kind::GiftWrap).pubkey(pubkey).limit(0);
-        let opts = SubscribeAutoCloseOptions::default().filter(FilterOptions::ExitOnEOSE);
-        self.client.subscribe(vec![null_filter], Some(opts)).await?;
+        self.client.fetch_events(vec![null_filter], Some(self.timeout()?)).await?;
 
 
         let giftwrap_filter = Filter::new()

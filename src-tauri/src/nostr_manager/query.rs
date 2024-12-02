@@ -35,9 +35,7 @@ impl NostrManager {
 
     #[allow(dead_code)]
     pub async fn query_user_key_packages(&self, pubkey: PublicKey) -> Result<Events> {
-        let filter = Filter::new()
-            .author(pubkey)
-            .kind(Kind::MlsKeyPackage);
+        let filter = Filter::new().author(pubkey).kind(Kind::MlsKeyPackage);
         let events = self.client.database().query(vec![filter]).await?;
         Ok(events)
     }

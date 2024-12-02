@@ -156,18 +156,17 @@ pub async fn get_invites(wn: tauri::State<'_, Whitenoise>) -> Result<InvitesWith
     used_key_package_ids.sort();
     used_key_package_ids.dedup();
 
-
     // TODO: We need to handle cleaning up old key packages from MLS storage on a regular basis
     for key_package_id in &used_key_package_ids {
         tracing::debug!(target: "nostr_mls::invites::fetch_invites_for_user", "Deleting used key package {:?}", key_package_id);
         delete_key_package_from_relays(
-                &EventId::parse(key_package_id).unwrap(),
-                &key_package_relays,
-                false, // For now we don't want to delete the key packages from MLS storage
-                &wn,
-            )
-            .await
-            .map_err(|e| format!("Couldn't delete key package {:?}: {}", key_package_id, e))?;
+            &EventId::parse(key_package_id).unwrap(),
+            &key_package_relays,
+            false, // For now we don't want to delete the key packages from MLS storage
+            &wn,
+        )
+        .await
+        .map_err(|e| format!("Couldn't delete key package {:?}: {}", key_package_id, e))?;
     }
 
     // Generate and publish new key packages to replace the used key packages

@@ -218,6 +218,14 @@ pub async fn create_group(
             }
         }
 
+        let null_filter = Filter::new().kind(Kind::GiftWrap).pubkey(wn.nostr.client.signer().await.unwrap().get_public_key().await.unwrap()).limit(0);
+        let events = wn.nostr.client.fetch_events_from(relay_urls.clone(), vec![null_filter], Some(wn.nostr.timeout().unwrap())).await.map_err(|e| e.to_string())?;
+        tracing::info!(
+            target: "whitenoise::groups::create_group",
+            "NULL filter fetched events: {:?}",
+            events
+        );
+
         while retry_count < max_retries {
             match wn
                 .nostr
@@ -225,13 +233,18 @@ pub async fn create_group(
                 .send_event_to(relay_urls.clone(), wrapped_event.clone())
                 .await
             {
-                Ok(_) => {
+                Ok(result) => {
                     // Successfully sent, break the loop
                     // TODO: Remove the identifying info from the log
                     tracing::info!(
                         target: "whitenoise::groups::create_group",
-                        "Successfully sent welcome message with ID {:?} to {:?} on {:?}",
-                        wrapped_event.id,
+                        "Sent welcome message RESULT: {:?}",
+                        result
+                    );
+                    tracing::info!(
+                        target: "whitenoise::groups::create_group",
+                        "Successfully sent welcome message {:?} to {:?} on {:?}",
+                        wrapped_event,
                         &member_pubkey,
                         &relay_urls
                     );
@@ -396,7 +409,8 @@ pub async fn send_mls_message(
     );
 
     let relays = group.relay_urls.clone();
-
+    
+    // TODO: We might also need to use the null_filter here to get the client to authenticate on the relays
     wn.nostr
         .client
         .send_event_to(relays, published_message_event)

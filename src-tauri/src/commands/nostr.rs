@@ -26,7 +26,7 @@ pub async fn init_nostr_for_current_user(
         .map_err(|e| e.to_string())?;
 
     // Spawn two tasks in parallel:
-    // 1. Negentropy sync for past events
+    // 1. Fetch past events
     // 2. Setup subscriptions to catch future events
     let pubkey = keys.public_key();
     let last_synced = current_account.last_synced;
@@ -35,7 +35,7 @@ pub async fn init_nostr_for_current_user(
     let nostr_clone_subs = wn.nostr.clone();
     spawn(async move {
         tracing::debug!(
-            target: "whitenoise::commands::accounts::login",
+            target: "whitenoise::commands::nostr::init_nostr_for_current_user",
             "Starting subscriptions"
         );
         match nostr_clone_subs
@@ -44,13 +44,13 @@ pub async fn init_nostr_for_current_user(
         {
             Ok(_) => {
                 tracing::debug!(
-                    target: "whitenoise::commands::accounts::login",
+                    target: "whitenoise::commands::nostr::init_nostr_for_current_user",
                     "Subscriptions shutdown triggered"
                 );
             }
             Err(e) => {
                 tracing::error!(
-                target: "whitenoise::commands::accounts::login",
+                target: "whitenoise::commands::nostr::init_nostr_for_current_user",
                 "Error subscribing to events: {}",
                 e
                 );
@@ -63,8 +63,8 @@ pub async fn init_nostr_for_current_user(
     let account_manager_clone_sync = wn.account_manager.clone();
     spawn(async move {
         tracing::debug!(
-            target: "whitenoise::commands::accounts::login",
-            "Starting negentropy sync"
+            target: "whitenoise::commands::nostr::init_nostr_for_current_user",
+            "Starting fetch"
         );
         match nostr_clone_sync
             .fetch_for_user(pubkey, last_synced, group_ids_clone_sync)
@@ -72,8 +72,8 @@ pub async fn init_nostr_for_current_user(
         {
             Ok(_) => {
                 tracing::debug!(
-                    target: "whitenoise::commands::accounts::login",
-                    "Negentropy event sync completed"
+                    target: "whitenoise::commands::nostr::init_nostr_for_current_user",
+                    "Fetch completed"
                 );
                 let _ = account_manager_clone_sync
                     .update_account_last_synced(pubkey.to_hex())
@@ -85,8 +85,8 @@ pub async fn init_nostr_for_current_user(
             }
             Err(e) => {
                 tracing::error!(
-                    target: "whitenoise::commands::accounts::login",
-                    "Error in negentropy sync: {}",
+                    target: "whitenoise::commands::nostr::init_nostr_for_current_user",
+                    "Error in fetching events: {}",
                     e
                 );
             }

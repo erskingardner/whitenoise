@@ -71,6 +71,12 @@ pub async fn login(
         );
         set_active_account(keys.public_key().to_hex(), wn.clone(), app_handle).await?;
     } else {
+        // Update Nostr identity and connect relays
+        wn.nostr
+            .update_nostr_identity(keys.clone())
+            .await
+            .map_err(|e| e.to_string())?;
+
         // Add the account to the account manager
         let account = wn
             .account_manager
@@ -101,14 +107,8 @@ pub async fn login(
             .emit("account_changed", ())
             .map_err(|e| e.to_string())?;
 
-        // Update Nostr identity and connect relays
-        wn.nostr
-            .update_nostr_identity(keys.clone())
-            .await
-            .map_err(|e| e.to_string())?;
-
         // Spawn two tasks in parallel:
-        // 1. Negentropy sync for past events
+        // 1. Fetch past events
         // 2. Setup subscriptions to catch future events
         let pubkey = keys.public_key();
         let last_synced = account.last_synced;
@@ -146,7 +146,7 @@ pub async fn login(
         spawn(async move {
             tracing::debug!(
                 target: "whitenoise::commands::accounts::login",
-                "Starting negentropy sync"
+                "Starting fetch"
             );
             match nostr_clone_sync
                 .fetch_for_user(pubkey, last_synced, group_ids_clone_sync)
@@ -155,7 +155,7 @@ pub async fn login(
                 Ok(_) => {
                     tracing::debug!(
                         target: "whitenoise::commands::accounts::login",
-                        "Negentropy event sync completed"
+                        "Fetch completed"
                     );
                     let _ = account_manager_clone_sync
                         .update_account_last_synced(pubkey.to_hex())
@@ -164,7 +164,7 @@ pub async fn login(
                 Err(e) => {
                     tracing::error!(
                         target: "whitenoise::commands::accounts::login",
-                        "Error in negentropy sync: {}",
+                        "Error in fetch: {}",
                         e
                     );
                 }
@@ -251,29 +251,16 @@ pub async fn set_active_account(
         .map_err(|e| e.to_string())?;
 
     // Spawn two tasks in parallel:
-    // 1. Negentropy sync for past events
+    // 1. Fetch past events
     // 2. Setup subscriptions to catch future events
     let pubkey = keys.public_key();
     let last_synced = active_account.last_synced;
 
     let group_ids_clone_subs = active_account.nostr_group_ids.clone();
     let nostr_clone_subs = wn.nostr.clone();
-
-    tracing::debug!(
-        target: "whitenoise::commands::accounts::set_active_account",
-        "Nostr client signer pubkey: {:?}",
-        nostr_clone_subs.client.signer().await.unwrap().get_public_key().await.unwrap().to_hex()
-    );
-
-    tracing::debug!(
-        target: "whitenoise::commands::accounts::set_active_account",
-        "Nostr client relays: {:?}",
-        nostr_clone_subs.client.relays().await.keys().collect::<Vec<_>>()
-    );
-
     spawn(async move {
         tracing::debug!(
-            target: "whitenoise::commands::accounts::login",
+            target: "whitenoise::commands::accounts::set_active_account",
             "Starting subscriptions"
         );
         match nostr_clone_subs
@@ -282,13 +269,13 @@ pub async fn set_active_account(
         {
             Ok(_) => {
                 tracing::debug!(
-                    target: "whitenoise::commands::accounts::login",
+                    target: "whitenoise::commands::accounts::set_active_account",
                     "Subscriptions shutdown triggered"
                 );
             }
             Err(e) => {
                 tracing::error!(
-                target: "whitenoise::commands::accounts::login",
+                target: "whitenoise::commands::accounts::set_active_account",
                 "Error subscribing to events: {}",
                 e
                 );
@@ -301,8 +288,8 @@ pub async fn set_active_account(
     let account_manager_clone_sync = wn.account_manager.clone();
     spawn(async move {
         tracing::debug!(
-            target: "whitenoise::commands::accounts::login",
-            "Starting negentropy sync"
+            target: "whitenoise::commands::accounts::set_active_account",
+            "Starting fetch"
         );
         match nostr_clone_sync
             .fetch_for_user(pubkey, last_synced, group_ids_clone_sync)
@@ -310,8 +297,8 @@ pub async fn set_active_account(
         {
             Ok(_) => {
                 tracing::debug!(
-                    target: "whitenoise::commands::accounts::login",
-                    "Negentropy event sync completed"
+                    target: "whitenoise::commands::accounts::set_active_account",
+                    "Fetch completed"
                 );
                 let _ = account_manager_clone_sync
                     .update_account_last_synced(pubkey.to_hex())
@@ -319,8 +306,8 @@ pub async fn set_active_account(
             }
             Err(e) => {
                 tracing::error!(
-                    target: "whitenoise::commands::accounts::login",
-                    "Error in negentropy sync: {}",
+                    target: "whitenoise::commands::accounts::set_active_account",
+                    "Error in fetch: {}",
                     e
                 );
             }
