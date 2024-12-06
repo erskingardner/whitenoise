@@ -65,8 +65,9 @@ impl NostrManager {
         // This is a hack to get the client to do the initial authenticate on relays that require it.
         // https://github.com/rust-nostr/nostr/issues/509
         let null_filter = Filter::new().kind(Kind::GiftWrap).pubkey(pubkey).limit(0);
-        self.client.fetch_events(vec![null_filter], Some(self.timeout()?)).await?;
-
+        self.client
+            .fetch_events(vec![null_filter], Some(self.timeout()?))
+            .await?;
 
         let giftwrap_filter = Filter::new()
             .kind(Kind::GiftWrap)
@@ -123,14 +124,12 @@ impl NostrManager {
                         self.handle_shutdown()?;
                         Ok(true)
                     }
-                    RelayPoolNotification::Authenticated { relay_url } => {
-                        self.handle_authenticated(relay_url)?;
-                        Ok(false)
-                    }
-                    // TODO: Remove this once we update to 0.37
-                    #[allow(deprecated)]
-                    RelayPoolNotification::RelayStatus { relay_url, status } => {
-                        self.handle_relay_status(relay_url, status)?;
+                    _ => {
+                        tracing::debug!(
+                            target: "whitenoise::nostr_client::handle_notifications",
+                            "Received unknown notification: {:?}",
+                            notification
+                        );
                         Ok(false)
                     }
                 }
@@ -207,29 +206,10 @@ impl NostrManager {
         Ok(())
     }
 
-    fn handle_relay_status(&self, relay_url: RelayUrl, status: RelayStatus) -> Result<()> {
-        tracing::debug!(
-            target: "whitenoise::nostr_client::handle_notifications",
-            "Relay {}: {:?}",
-            relay_url,
-            status
-        );
-        Ok(())
-    }
-
     fn handle_shutdown(&self) -> Result<()> {
         tracing::debug!(
             target: "whitenoise::nostr_client::handle_notifications",
             "Relay pool shutdown"
-        );
-        Ok(())
-    }
-
-    fn handle_authenticated(&self, relay_url: RelayUrl) -> Result<()> {
-        tracing::debug!(
-            target: "whitenoise::nostr_client::handle_notifications",
-            "Relay pool authenticated on {}",
-            relay_url
         );
         Ok(())
     }

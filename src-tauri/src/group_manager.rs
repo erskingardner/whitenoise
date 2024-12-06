@@ -387,7 +387,7 @@ impl GroupManager {
             let group = state
                 .groups
                 .get_mut(&mls_group_id)
-                .ok_or(GroupManagerError::GroupNotFound(hex::encode(mls_group_id)))?;
+                .ok_or(GroupManagerError::GroupNotFound(hex::encode(&mls_group_id)))?;
 
             group.transcript.push(message.clone());
             group.last_message_id = Some(message.id.unwrap().to_string());

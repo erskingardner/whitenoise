@@ -57,7 +57,7 @@ pub async fn login(
     wn: tauri::State<'_, Whitenoise>,
     app_handle: tauri::AppHandle,
 ) -> Result<AccountManagerState, String> {
-    let keys = Keys::parse(nsec_or_hex_privkey).map_err(|e| e.to_string())?;
+    let keys = Keys::parse(&nsec_or_hex_privkey).map_err(|e| e.to_string())?;
 
     if wn
         .account_manager

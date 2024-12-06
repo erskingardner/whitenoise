@@ -78,7 +78,7 @@ pub async fn fetch_key_package_for_pubkey(
     wn: &tauri::State<'_, Whitenoise>,
 ) -> Result<Option<(EventId, KeyPackage)>> {
     tracing::debug!(target: "whitenoise::key_packages::fetch_key_package_for_pubkey", "Fetching key package for pubkey: {:?}", pubkey);
-    let public_key = PublicKey::from_hex(pubkey.clone()).expect("Invalid pubkey");
+    let public_key = PublicKey::from_hex(&pubkey).expect("Invalid pubkey");
     let key_package_filter = Filter::new().kind(Kind::MlsKeyPackage).author(public_key);
     let key_package_events = wn
         .nostr
@@ -93,14 +93,21 @@ pub async fn fetch_key_package_for_pubkey(
 
     let mut valid_key_packages: Vec<(EventId, KeyPackage)> = Vec::new();
     for event in key_package_events.iter() {
-        let key_package = nostr_openmls::key_packages::parse_key_package(event.content.to_string(), &nostr_mls)
-            .map_err(KeyPackageError::NostrMlsError)?;
+        let key_package =
+            nostr_openmls::key_packages::parse_key_package(event.content.to_string(), &nostr_mls)
+                .map_err(KeyPackageError::NostrMlsError)?;
         if key_package.ciphersuite() == ciphersuite
             && key_package.last_resort()
             && key_package.leaf_node().capabilities().extensions().len() == extensions.len()
             && extensions.iter().all(|&ext_type| {
-                key_package.leaf_node().capabilities().extensions().iter().any(|ext| ext == &ext_type)
-            }) {
+                key_package
+                    .leaf_node()
+                    .capabilities()
+                    .extensions()
+                    .iter()
+                    .any(|ext| ext == &ext_type)
+            })
+        {
             valid_key_packages.push((event.id, key_package));
         }
     }

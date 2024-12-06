@@ -135,7 +135,10 @@ pub async fn create_group(
             .create_group(
                 group_name,
                 description,
-                member_key_packages.iter().map(|kp| kp.key_package.clone()).collect(),
+                member_key_packages
+                    .iter()
+                    .map(|kp| kp.key_package.clone())
+                    .collect(),
                 admin_pubkeys,
                 creator_pubkey,
                 group_relays,
@@ -149,10 +152,11 @@ pub async fn create_group(
 
     // Fan out the welcome message to all members
     for member in member_key_packages {
-        let member_pubkey = PublicKey::from_hex(member.pubkey.clone()).map_err(|e| e.to_string())?;
-        let contact = fetch_enriched_contact(member.pubkey.clone(), false, wn.clone(), app_handle.clone())
-            .await
-            .map_err(|e| e.to_string())?;
+        let member_pubkey = PublicKey::from_hex(&member.pubkey).map_err(|e| e.to_string())?;
+        let contact =
+            fetch_enriched_contact(member.pubkey.clone(), false, wn.clone(), app_handle.clone())
+                .await
+                .map_err(|e| e.to_string())?;
 
         // We only want to connect to user relays in release mode
         let relay_urls: Vec<String> = if cfg!(dev) {
@@ -172,15 +176,18 @@ pub async fn create_group(
                 .collect()
         };
 
-        let welcome_rumor = EventBuilder::new(
-            Kind::MlsWelcome,
-            hex::encode(&serialized_welcome_message)).tags(
-            vec![Tag::from_standardized(TagStandard::Relays(
-                relay_urls
-                    .iter()
-                    .filter_map(|r| Url::parse(r).ok())
-                    .collect(),
-            )), Tag::event(member.event_id)]);
+        let welcome_rumor =
+            EventBuilder::new(Kind::MlsWelcome, hex::encode(&serialized_welcome_message)).tags(
+                vec![
+                    Tag::from_standardized(TagStandard::Relays(
+                        relay_urls
+                            .iter()
+                            .filter_map(|r| Url::parse(r).ok())
+                            .collect(),
+                    )),
+                    Tag::event(member.event_id),
+                ],
+            );
 
         tracing::debug!(
             target: "whitenoise::groups::create_group",
@@ -217,14 +224,6 @@ pub async fn create_group(
                 relays_to_remove.push(url);
             }
         }
-
-        let null_filter = Filter::new().kind(Kind::GiftWrap).pubkey(wn.nostr.client.signer().await.unwrap().get_public_key().await.unwrap()).limit(0);
-        let events = wn.nostr.client.fetch_events_from(relay_urls.clone(), vec![null_filter], Some(wn.nostr.timeout().unwrap())).await.map_err(|e| e.to_string())?;
-        tracing::info!(
-            target: "whitenoise::groups::create_group",
-            "NULL filter fetched events: {:?}",
-            events
-        );
 
         while retry_count < max_retries {
             match wn
@@ -396,9 +395,10 @@ pub async fn send_mls_message(
     let ephemeral_nostr_keys = Keys::generate();
 
     let published_message_event = EventBuilder::new(Kind::MlsGroupMessage, encrypted_content)
-        .tags(vec![
-            Tag::custom(TagKind::h(), vec![group.nostr_group_id.clone()]),
-        ])
+        .tags(vec![Tag::custom(
+            TagKind::h(),
+            vec![group.nostr_group_id.clone()],
+        )])
         .sign(&ephemeral_nostr_keys)
         .await
         .map_err(|e| e.to_string())?;
@@ -409,8 +409,6 @@ pub async fn send_mls_message(
     );
 
     let relays = group.relay_urls.clone();
-    
-    // TODO: We might also need to use the null_filter here to get the client to authenticate on the relays
     wn.nostr
         .client
         .send_event_to(relays, published_message_event)

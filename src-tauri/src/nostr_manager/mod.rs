@@ -42,7 +42,7 @@ impl Default for NostrManagerSettings {
         let mut relays = vec![];
         if cfg!(dev) {
             relays.push("ws://localhost:8080".to_string());
-            // relays.push("wss://purplepag.es".to_string());
+            relays.push("wss://purplepag.es".to_string());
             // relays.push("wss://relay.nostr.net".to_string());
         } else {
             relays.push("wss://relay.damus.io".to_string());
@@ -51,7 +51,7 @@ impl Default for NostrManagerSettings {
         }
 
         Self {
-            timeout: Duration::from_secs(10),
+            timeout: Duration::from_secs(5),
             relays,
         }
     }

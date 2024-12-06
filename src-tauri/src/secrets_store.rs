@@ -177,7 +177,7 @@ pub fn get_nostr_keys_for_pubkey(pubkey: &str, data_dir: &Path) -> Result<Keys> 
         .as_str()
         .ok_or(SecretsStoreError::KeyNotFound)?;
     let private_key = deobfuscate(obfuscated_key, data_dir)?;
-    Keys::parse(private_key).map_err(SecretsStoreError::KeyError)
+    Keys::parse(&private_key).map_err(SecretsStoreError::KeyError)
 
     // if cfg!(target_os = "android") {
     //     let secrets = read_secrets_file(data_dir)?;
@@ -263,7 +263,7 @@ pub fn store_mls_export_secret(
     secret: String,
     data_dir: &Path,
 ) -> Result<()> {
-    let mls_group_id_hex = hex::encode(mls_group_id);
+    let mls_group_id_hex = hex::encode(&mls_group_id);
     let key = format!("{mls_group_id_hex}:{epoch}");
 
     let mut secrets = read_secrets_file(data_dir).unwrap_or(json!({}));
@@ -310,7 +310,7 @@ pub fn get_export_secret_keys_for_group(
     epoch: u64,
     data_dir: &Path,
 ) -> Result<Keys> {
-    let mls_group_id_hex = hex::encode(mls_group_id);
+    let mls_group_id_hex = hex::encode(&mls_group_id);
     let key = format!("{mls_group_id_hex}:{epoch}");
 
     let secrets = read_secrets_file(data_dir)?;
@@ -318,7 +318,7 @@ pub fn get_export_secret_keys_for_group(
         .as_str()
         .ok_or(SecretsStoreError::KeyNotFound)?;
     let secret = deobfuscate(obfuscated_secret, data_dir)?;
-    let keys = Keys::parse(secret).map_err(SecretsStoreError::KeyError)?;
+    let keys = Keys::parse(&secret).map_err(SecretsStoreError::KeyError)?;
     Ok(keys)
 
     // if cfg!(target_os = "android") {

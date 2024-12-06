@@ -65,7 +65,7 @@ pub async fn get_invites(wn: tauri::State<'_, Whitenoise>) -> Result<InvitesWith
 
     let fetched_invite_events = wn
         .nostr
-        .query_user_welcomes(
+        .fetch_user_welcomes(
             wn.nostr
                 .client
                 .signer()
