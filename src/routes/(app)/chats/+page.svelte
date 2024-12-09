@@ -20,6 +20,7 @@ let unlistenNostrReady: UnlistenFn;
 let unlistenGroupAdded: UnlistenFn;
 let unlistenInviteAccepted: UnlistenFn;
 let unlistenInviteDeclined: UnlistenFn;
+let unlistenInviteProcessed: UnlistenFn;
 
 let toastState = getToastState();
 
@@ -101,6 +102,14 @@ onMount(async () => {
             const declinedInvite = event.payload as Invite;
             console.log("Event received on chats page: invite_declined", declinedInvite);
             invites = invites.filter((invite) => invite.event.id !== declinedInvite.event.id);
+        });
+    }
+
+    if (!unlistenInviteProcessed) {
+        unlistenInviteProcessed = await listen<Invite>("invite_processed", async (_event) => {
+            let invitesResponse = await invoke("get_invites");
+            invites = (invitesResponse as InvitesWithFailures).invites;
+            failures = (invitesResponse as InvitesWithFailures).failures;
         });
     }
 });

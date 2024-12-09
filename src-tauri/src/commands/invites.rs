@@ -42,7 +42,10 @@ pub struct InvitesWithFailures {
 /// # Events
 /// No events are emitted by this command.
 #[tauri::command]
-pub async fn get_invites(wn: tauri::State<'_, Whitenoise>) -> Result<InvitesWithFailures, String> {
+pub async fn get_invites(
+    wn: tauri::State<'_, Whitenoise>,
+    app_handle: tauri::AppHandle,
+) -> Result<InvitesWithFailures, String> {
     let active_account = wn
         .account_manager
         .get_active_account()
@@ -141,6 +144,10 @@ pub async fn get_invites(wn: tauri::State<'_, Whitenoise>) -> Result<InvitesWith
         if let Some(key_package_event_id) = key_package_event_id {
             used_key_package_ids.push(key_package_event_id.to_string());
         }
+
+        app_handle
+            .emit("invite_processed", ())
+            .map_err(|e| e.to_string())?;
     }
 
     #[allow(unused)]
