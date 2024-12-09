@@ -212,30 +212,30 @@ pub fn get_invite(invite_id: String, wn: tauri::State<'_, Whitenoise>) -> Result
 /// * `group_added` - Emitted with the newly joined group after successful join
 /// * `invite_accepted` - Emitted with the updated invite after it is accepted
 #[tauri::command]
-pub fn accept_invite(
+pub async fn accept_invite(
     invite: Invite,
     wn: tauri::State<'_, Whitenoise>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
     tracing::debug!(target: "whitenoise::invites::accept_invite", "Accepting invite {:?}", invite.event.id.unwrap());
 
-    let nostr_mls = wn.nostr_mls.lock().expect("Failed to lock nostr_mls");
-    let joined_group_result =
-    match nostr_mls.join_group_from_welcome(match hex::decode(&invite.event.content) {
-            Ok(content) => content,
-            Err(e) => {
-                tracing::error!(target: "whitenoise::invites::accept_invite", "Error decoding welcome event {:?}: {}", invite.event.id.unwrap(), e);
-                return Err(format!("Error decoding welcome event {:?}: {}", invite.event.id.unwrap(), e));
-            }
-        }) {
-        Ok(invite) => invite,
-        Err(e) => {
-            tracing::error!(target: "whitenoise::invites::accept_invite", "Error joining group from welcome event {:?}: {}", invite.event.id.unwrap(), e);
-            return Err(format!("Error joining group from welcome event {:?}: {}", invite.event.id.unwrap(), e));
-        }
+    // Scope the MutexGuard to drop it before the .await points
+    let (group, nostr_group_data) = {
+        let nostr_mls = wn.nostr_mls.lock().expect("Failed to lock nostr_mls");
+        let joined_group_result = nostr_mls
+            .join_group_from_welcome(
+                hex::decode(&invite.event.content)
+                    .map_err(|e| format!("Error decoding welcome event: {}", e))?,
+            )
+            .map_err(|e| format!("Error joining group from welcome: {}", e))?;
+
+        (
+            joined_group_result.mls_group,
+            joined_group_result.nostr_group_data,
+        )
     };
 
-    let group_type = match joined_group_result.mls_group.members().count() {
+    let group_type = match group.members().count() {
         2 => GroupType::DirectMessage,
         _ => GroupType::Group,
     };
@@ -243,12 +243,32 @@ pub fn accept_invite(
     let group = wn
         .group_manager
         .add_group(
-            joined_group_result.mls_group.group_id().to_vec(),
-            joined_group_result.mls_group.epoch().as_u64(),
+            group.group_id().to_vec(),
+            group.epoch().as_u64(),
             group_type,
-            joined_group_result.nostr_group_data,
+            nostr_group_data,
         )
         .map_err(|e| format!("Failed to add group: {}", e))?;
+
+    // Update the subscription for MLS group messages to include the new group
+    let group_ids = wn
+        .group_manager
+        .get_groups()
+        .map_err(|e| format!("Failed to get groups: {}", e))?
+        .into_iter()
+        .map(|group| group.nostr_group_id.clone())
+        .collect::<Vec<_>>();
+
+    wn.nostr
+        .subscribe_mls_group_messages(group_ids.clone())
+        .await
+        .map_err(|e| format!("Failed to update MLS group subscription: {}", e))?;
+
+    // Manually fetch for MLS messages for the new group
+    wn.nostr
+        .fetch_group_messages(Timestamp::zero(), group_ids.clone())
+        .await
+        .map_err(|e| format!("Failed to fetch group messages: {}", e))?;
 
     app_handle
         .emit("group_added", group.clone())

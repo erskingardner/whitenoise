@@ -128,7 +128,7 @@ impl NostrManager {
         Ok(events.into_iter().collect())
     }
 
-    async fn fetch_group_messages(
+    pub async fn fetch_group_messages(
         &self,
         last_synced: Timestamp,
         group_ids: Vec<String>,

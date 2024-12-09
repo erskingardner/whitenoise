@@ -1,6 +1,8 @@
 use crate::nostr_manager::{NostrManager, Result};
 use nostr_sdk::prelude::*;
 
+const MLS_MESSAGES_SUB: &str = "mls_messages";
+
 impl NostrManager {
     async fn subscribe_contact_list(&self, pubkey: PublicKey) -> Result<Output<SubscriptionId>> {
         let contacts_filter = Filter::new()
@@ -77,10 +79,8 @@ impl NostrManager {
         Ok(self.client.subscribe(vec![giftwrap_filter], None).await?)
     }
 
-    async fn subscribe_mls_group_messages(
-        &self,
-        group_ids: Vec<String>,
-    ) -> Result<Output<SubscriptionId>> {
+    pub async fn subscribe_mls_group_messages(&self, group_ids: Vec<String>) -> Result<Output<()>> {
+        let sub_id = SubscriptionId::new(MLS_MESSAGES_SUB);
         let mls_message_filter = Filter::new()
             .kind(Kind::MlsGroupMessage)
             .custom_tag(SingleLetterTag::lowercase(Alphabet::H), group_ids)
@@ -88,7 +88,7 @@ impl NostrManager {
 
         Ok(self
             .client
-            .subscribe(vec![mls_message_filter], None)
+            .subscribe_with_id(sub_id, vec![mls_message_filter], None)
             .await?)
     }
 
