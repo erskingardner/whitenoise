@@ -1,5 +1,6 @@
 use crate::nostr_manager::{NostrManager, Result};
 use nostr_sdk::prelude::*;
+use tauri::Emitter;
 
 const MLS_MESSAGES_SUB: &str = "mls_messages";
 
@@ -96,6 +97,7 @@ impl NostrManager {
         &self,
         pubkey: PublicKey,
         nostr_group_ids: Vec<String>,
+        app_handle: tauri::AppHandle,
     ) -> Result<()> {
         self.subscribe_contact_list(pubkey).await?;
         self.subscribe_contacts_metadata().await?;
@@ -113,7 +115,7 @@ impl NostrManager {
             .handle_notifications(|notification| async {
                 match notification {
                     RelayPoolNotification::Event { event, .. } => {
-                        self.handle_event(*event).await?;
+                        self.handle_event(*event, app_handle.clone()).await?;
                         Ok(false)
                     }
                     RelayPoolNotification::Message { relay_url, message } => {
@@ -147,10 +149,10 @@ impl NostrManager {
     }
 
     // Handle events
-    async fn handle_event(&self, event: Event) -> Result<()> {
+    async fn handle_event(&self, event: Event, app_handle: tauri::AppHandle) -> Result<()> {
         match event.kind {
             Kind::GiftWrap => self.handle_giftwrap(event).await?,
-            Kind::MlsGroupMessage => self.handle_mls_message(event)?,
+            Kind::MlsGroupMessage => self.handle_mls_message(event, app_handle)?,
             _ => {}
         }
         Ok(())
@@ -183,7 +185,7 @@ impl NostrManager {
         Ok(())
     }
 
-    fn handle_mls_message(&self, event: Event) -> Result<()> {
+    fn handle_mls_message(&self, event: Event, app_handle: tauri::AppHandle) -> Result<()> {
         // TODO: Remove the identifying info from the log
         tracing::info!(
             target: "whitenoise::nostr_client::handle_notifications",
@@ -191,6 +193,10 @@ impl NostrManager {
             event
         );
 
+        // TODO: Process the message into an unsigned event and add to the right group transcript
+        app_handle
+            .emit("mls_message_received", event.clone())
+            .expect("Couldn't emit mls_message_received event");
         Ok(())
     }
 

@@ -315,6 +315,20 @@ pub async fn create_group(
         nostr_group
     );
 
+    // Update the subscription for MLS group messages to include the new group
+    let group_ids = wn
+        .group_manager
+        .get_groups()
+        .map_err(|e| format!("Failed to get groups: {}", e))?
+        .into_iter()
+        .map(|group| group.nostr_group_id.clone())
+        .collect::<Vec<_>>();
+
+    wn.nostr
+        .subscribe_mls_group_messages(group_ids.clone())
+        .await
+        .map_err(|e| format!("Failed to update MLS group subscription: {}", e))?;
+
     app_handle
         .emit("group_added", nostr_group.clone())
         .map_err(|e| e.to_string())?;
@@ -581,7 +595,7 @@ pub async fn fetch_mls_messages(
                             .map_err(|e| e.to_string())?;
 
                         app_handle
-                            .emit("mls_message_received", (group.clone(), json_event.clone()))
+                            .emit("mls_message_processed", (group.clone(), json_event.clone()))
                             .expect("Couldn't emit event");
                     }
                 }

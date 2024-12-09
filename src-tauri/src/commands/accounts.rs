@@ -115,13 +115,14 @@ pub async fn login(
 
         let group_ids_clone_subs = account.nostr_group_ids.clone();
         let nostr_clone_subs = wn.nostr.clone();
+        let app_handle_clone_subs = app_handle.clone();
         spawn(async move {
             tracing::debug!(
                 target: "whitenoise::commands::accounts::login",
                 "Starting subscriptions"
             );
             match nostr_clone_subs
-                .setup_subscriptions(pubkey, group_ids_clone_subs)
+                .setup_subscriptions(pubkey, group_ids_clone_subs, app_handle_clone_subs)
                 .await
             {
                 Ok(_) => {
@@ -258,13 +259,14 @@ pub async fn set_active_account(
 
     let group_ids_clone_subs = active_account.nostr_group_ids.clone();
     let nostr_clone_subs = wn.nostr.clone();
+    let app_handle_clone_subs = app_handle.clone();
     spawn(async move {
         tracing::debug!(
             target: "whitenoise::commands::accounts::set_active_account",
             "Starting subscriptions"
         );
         match nostr_clone_subs
-            .setup_subscriptions(pubkey, group_ids_clone_subs)
+            .setup_subscriptions(pubkey, group_ids_clone_subs, app_handle_clone_subs)
             .await
         {
             Ok(_) => {
@@ -397,7 +399,7 @@ pub async fn logout(
                 let last_synced = current_account.last_synced;
                 let group_ids = current_account.nostr_group_ids.clone();
                 let nostr = wn.nostr.clone();
-
+                let app_handle_clone_subs = app_handle.clone();
                 // Spawn two tasks in parallel:
                 // 1. Negentropy sync for past events
                 // 2. Setup subscriptions to catch future events
@@ -406,7 +408,10 @@ pub async fn logout(
                         target: "whitenoise::commands::accounts::logout",
                         "Starting subscriptions"
                     );
-                    match nostr.setup_subscriptions(pubkey, group_ids.clone()).await {
+                    match nostr
+                        .setup_subscriptions(pubkey, group_ids.clone(), app_handle_clone_subs)
+                        .await
+                    {
                         Ok(_) => {
                             tracing::debug!(
                                 target: "whitenoise::commands::accounts::logout",

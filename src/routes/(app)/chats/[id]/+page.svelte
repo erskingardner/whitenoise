@@ -19,6 +19,7 @@ import { CaretLeft, CheckCircle, CircleDashed } from "phosphor-svelte";
 import { onMount } from "svelte";
 
 let unlistenMlsMessageReceived: UnlistenFn;
+let unlistenMlsMessageProcessed: UnlistenFn;
 
 let group: NostrMlsGroup | undefined = $state(undefined);
 let counterpartyPubkey: string | undefined = $state(undefined);
@@ -78,12 +79,11 @@ function scrollToBottom() {
 }
 
 onMount(async () => {
-    if (!unlistenMlsMessageReceived) {
-        unlistenMlsMessageReceived = await listen<[NostrMlsGroup, NEvent]>(
-            "mls_message_received",
+    if (!unlistenMlsMessageProcessed) {
+        unlistenMlsMessageProcessed = await listen<[NostrMlsGroup, NEvent]>(
+            "mls_message_processed",
             ({ payload: [updatedGroup, message] }) => {
-                // console.log("updatedGroups:", updatedGroup);
-                console.log("message received", message.content);
+                console.log("mls_message_processed event received", message.content);
                 if (!transcript.some((m) => m.id === message.id)) {
                     console.log("pushing message to transcript");
                     transcript = [...transcript, message].sort(
@@ -91,6 +91,16 @@ onMount(async () => {
                     );
                 }
                 scrollToBottom();
+            }
+        );
+    }
+
+    if (!unlistenMlsMessageReceived) {
+        unlistenMlsMessageReceived = await listen<NEvent>(
+            "mls_message_received",
+            ({ payload: _message }) => {
+                console.log("mls_message_received event received");
+                loadMessages();
             }
         );
     }

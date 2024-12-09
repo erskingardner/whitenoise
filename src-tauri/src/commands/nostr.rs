@@ -33,13 +33,14 @@ pub async fn init_nostr_for_current_user(
 
     let group_ids_clone_subs = current_account.nostr_group_ids.clone();
     let nostr_clone_subs = wn.nostr.clone();
+    let app_handle_clone_subs = app_handle.clone();
     spawn(async move {
         tracing::debug!(
             target: "whitenoise::commands::nostr::init_nostr_for_current_user",
             "Starting subscriptions"
         );
         match nostr_clone_subs
-            .setup_subscriptions(pubkey, group_ids_clone_subs)
+            .setup_subscriptions(pubkey, group_ids_clone_subs, app_handle_clone_subs)
             .await
         {
             Ok(_) => {
