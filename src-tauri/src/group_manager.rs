@@ -390,6 +390,7 @@ impl GroupManager {
                 .ok_or(GroupManagerError::GroupNotFound(hex::encode(&mls_group_id)))?;
 
             group.transcript.push(message.clone());
+            // TODO: As the transcript grows this will become a bottleneck. We should use a more efficient sorting algorithm.
             group
                 .transcript
                 .sort_by(|a, b| a.created_at.cmp(&b.created_at));
