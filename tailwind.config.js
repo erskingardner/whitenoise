@@ -39,6 +39,9 @@ export default {
             dropShadow: {
                 "message-bar": "0px -15px 20px rgba(3, 7, 18, 1)", // gray-950
             },
+            animation: {
+                "spin-slow": "spin 3s linear infinite",
+            },
         },
     },
     plugins: [require("@tailwindcss/forms")],

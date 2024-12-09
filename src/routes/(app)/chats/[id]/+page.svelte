@@ -86,7 +86,9 @@ onMount(async () => {
                 console.log("message received", message.content);
                 if (!transcript.some((m) => m.id === message.id)) {
                     console.log("pushing message to transcript");
-                    transcript = [...transcript, message];
+                    transcript = [...transcript, message].sort(
+                        (a, b) => a.created_at - b.created_at
+                    );
                 }
                 scrollToBottom();
             }
@@ -267,7 +269,7 @@ function handleNewMessage(message: NEvent, replaceTemp: boolean) {
                                 {#if message.id !== "temp"}
                                     <span><CheckCircle size={18} weight="light" /></span>
                                 {:else}
-                                    <span><CircleDashed size={18} weight="light" /></span>
+                                    <span><CircleDashed size={18} weight="light" class="animate-spin-slow"/></span>
                                 {/if}
                                 <span class="text-sm opacity-60 whitespace-nowrap">
                                     {formatMessageTime(message.created_at)}
