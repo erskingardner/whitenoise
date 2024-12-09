@@ -50,6 +50,14 @@ pub fn run() {
 
             setup_logging(formatted_logs_dir.clone())?;
 
+            // Open devtools on debug builds
+            #[cfg(debug_assertions)]
+            {
+                let window = app.get_webview_window("main").unwrap();
+                window.open_devtools();
+                window.close_devtools();
+            }
+
             tauri::async_runtime::block_on(async move {
                 let whitenoise =
                     Whitenoise::new(formatted_data_dir, formatted_logs_dir, app.handle()).await;

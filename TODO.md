@@ -67,6 +67,8 @@
   - ✅ Legacy chats
 - Mobile
   - ✅ Need to make sure the view collapses to mobile size properly
+- Allow for dismissing unprocessable invites and store what we've seen/dismissed and don't show them in the UI again.
+- 
 
 ## 📑 Marketing website (https://whitenoise.chat)
   - Simple, clean, no-nonsense design

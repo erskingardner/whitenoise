@@ -1,4 +1,5 @@
 <script lang="ts">
+import { accounts } from "$lib/stores/accounts";
 import type { NEvent, NostrMlsGroup } from "$lib/types/nostr";
 import { invoke } from "@tauri-apps/api/core";
 import { PaperPlaneTilt } from "phosphor-svelte";
@@ -7,7 +8,8 @@ import Loader from "./Loader.svelte";
 let {
     group,
     handleNewMessage,
-}: { group: NostrMlsGroup; handleNewMessage: (message: NEvent) => void } = $props();
+}: { group: NostrMlsGroup; handleNewMessage: (message: NEvent, replaceTemp: boolean) => void } =
+    $props();
 
 let message = $state("");
 let textarea: HTMLTextAreaElement;
@@ -24,13 +26,23 @@ function handleInput() {
 
 async function sendMessage() {
     if (message.length === 0) return;
+    // Create a temp message and put it in the transcript immediately while we attempt to publish the real event
+    let tmpMessage = {
+        id: "temp",
+        content: message,
+        created_at: Math.floor(Date.now() / 1000),
+        pubkey: $accounts.activeAccount as string,
+        kind: 9,
+        tags: [["h", group.nostr_group_id]],
+    };
+    handleNewMessage(tmpMessage as NEvent, false);
     sendingMessage = true;
     await invoke("send_mls_message", {
         group,
         message: message,
     })
         .then((messageEvent) => {
-            handleNewMessage(messageEvent as NEvent);
+            handleNewMessage(messageEvent as NEvent, true);
             // Clear the message input and adjust the height of the textarea
             message = "";
             setTimeout(adjustTextareaHeight, 0);
