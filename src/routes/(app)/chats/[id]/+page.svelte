@@ -45,7 +45,7 @@ $effect(() => {
 async function loadGroup() {
     invoke("get_group", { groupId: $page.params.id }).then((groupResponse) => {
         group = groupResponse as NostrMlsGroup;
-        transcript = group.transcript;
+        transcript = group.transcript.sort((a, b) => a.created_at - b.created_at);
         counterpartyPubkey =
             group.group_type === NostrMlsGroupType.DirectMessage
                 ? group.admin_pubkeys.filter((pubkey) => pubkey !== $accounts.activeAccount)[0]
