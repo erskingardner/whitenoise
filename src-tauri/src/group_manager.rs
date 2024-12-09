@@ -390,6 +390,9 @@ impl GroupManager {
                 .ok_or(GroupManagerError::GroupNotFound(hex::encode(&mls_group_id)))?;
 
             group.transcript.push(message.clone());
+            group
+                .transcript
+                .sort_by(|a, b| a.created_at.cmp(&b.created_at));
             group.last_message_id = Some(message.id.unwrap().to_string());
             group.last_message_at = Some(Timestamp::now());
             new_group = group.clone();
