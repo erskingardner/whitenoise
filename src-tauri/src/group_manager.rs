@@ -389,13 +389,14 @@ impl GroupManager {
                 .get_mut(&mls_group_id)
                 .ok_or(GroupManagerError::GroupNotFound(hex::encode(&mls_group_id)))?;
 
-            group.transcript.push(message.clone());
-            // TODO: As the transcript grows this will become a bottleneck. We should use a more efficient sorting algorithm.
-            group
-                .transcript
-                .sort_by(|a, b| a.created_at.cmp(&b.created_at));
+            if !group.transcript.iter().any(|m| m.id == message.id) {
+                group.transcript.push(message.clone());
+                group
+                    .transcript
+                    .sort_by(|a, b| a.created_at.cmp(&b.created_at));
+            }
             group.last_message_id = Some(message.id.unwrap().to_string());
-            group.last_message_at = Some(Timestamp::now());
+            group.last_message_at = Some(group.transcript.last().unwrap().created_at);
             new_group = group.clone();
         }
 
