@@ -34,7 +34,7 @@ nostr-sdk = { version = "0.37", features = [
     "nip44",
     "nip59",
 ], git="https://github.com/rust-nostr/nostr", rev="096e7b2e2e3f8fc8e36283f99a4d24d2cd34b1e1"}
-thiserror = "1"
+thiserror = "2"
 chrono = { version = "0.4", features = ["serde"] }
 sled = "0.34"
 keyring = { version = "3.2.0", features = [

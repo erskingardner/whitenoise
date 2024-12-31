@@ -50,6 +50,12 @@ jobs:
       - name: Run clippy
         run: cd src-tauri && cargo clippy -- -D warnings
 
+      - name: Import GPG key
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+
       - name: Setup Android signing
         run: |
           cd src-tauri/gen/android
@@ -62,5 +68,10 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SIGN: 1
+          SIGN_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          APPIMAGETOOL_SIGN_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          APPIMAGETOOL_FORCE_SIGN: 1
+
         with:
           args: ${{ matrix.args }}
