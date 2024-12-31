@@ -6,7 +6,6 @@ import { PlusCircle } from "phosphor-svelte";
 let isLoading = $state(false);
 let loadingError = $state<string | null>(null);
 
-// Load nip04 chats
 // Load nip17 chats
 // decrypt content
 // load in stages? infinite scroll style?

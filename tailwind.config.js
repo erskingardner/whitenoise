@@ -1,4 +1,4 @@
-import colors from "tailwindcss/colors";
+import { blue, gray } from "tailwindcss/colors";
 
 /** @type {import('tailwindcss').Config} */
 export default {
@@ -32,9 +32,9 @@ export default {
                 ],
             },
             colors: {
-                "primary-blue": colors.blue[700],
-                "chat-bg-me": colors.blue[700],
-                "chat-bg-other": colors.gray[800],
+                "primary-blue": blue[700],
+                "chat-bg-me": blue[700],
+                "chat-bg-other": gray[800],
             },
             dropShadow: {
                 "message-bar": "0px -15px 20px rgba(3, 7, 18, 1)", // gray-950
