@@ -508,6 +508,44 @@ pub async fn query_contacts_with_metadata(
 }
 
 #[tauri::command]
+pub async fn fecth_nip17_private_messages(
+    wn: tauri::State<'_, Whitenoise>,
+) -> Result<HashMap<String, Vec<UnsignedEvent>>, String> {
+    let pubkey = wn
+        .nostr
+        .client
+        .signer()
+        .await
+        .map_err(|e| e.to_string())?
+        .get_public_key()
+        .await
+        .map_err(|e| e.to_string())?;
+    let events = wn
+        .nostr
+        .fecth_user_private_messages(pubkey)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // Create a hashmap where keys are the set of unique pubkeys of each event
+    let pubkeys = events
+        .iter()
+        .map(|event| event.pubkey.to_hex())
+        .collect::<Vec<String>>();
+    // Group all events in chronological order according to their pubkey
+    let mut messages_map: HashMap<String, Vec<UnsignedEvent>> = HashMap::new();
+    for pubkey in pubkeys {
+        let mut messages = events
+            .iter()
+            .filter(|e| e.pubkey.to_hex() == pubkey)
+            .cloned()
+            .collect::<Vec<UnsignedEvent>>();
+        messages.sort();
+        messages_map.insert(pubkey, messages);
+    }
+    Ok(messages_map)
+}
+
+#[tauri::command]
 pub async fn encrypt_content(
     content: String,
     pubkey: String,

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { page } from "$app/stores";
+import { page } from "$app/state";
 import GroupAvatar from "$lib/components/GroupAvatar.svelte";
 import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
 import { accounts } from "$lib/stores/accounts";
@@ -30,7 +30,7 @@ $effect(() => {
 });
 
 async function loadGroup() {
-    invoke("get_group", { groupId: $page.params.id }).then((groupResponse) => {
+    invoke("get_group", { groupId: page.params.id }).then((groupResponse) => {
         group = groupResponse as NostrMlsGroup;
         transcript = group.transcript;
         counterpartyPubkey =

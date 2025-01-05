@@ -1,6 +1,6 @@
 <script lang="ts">
 import { goto } from "$app/navigation";
-import { page } from "$app/stores";
+import { page } from "$app/state";
 import Modal from "$lib/components/Modals/Modal.svelte";
 import PreOnboard from "$lib/components/Modals/Onboarding/PreOnboard.svelte";
 import Sidebar from "$lib/components/Sidebar.svelte";
@@ -12,7 +12,7 @@ import { onDestroy, onMount } from "svelte";
 
 let { children } = $props();
 
-let activeTab = $derived($page.url.pathname.split("/")[1] || "chats");
+let activeTab = $derived(page.url.pathname.split("/")[1] || "chats");
 let isLoadingAccounts = $state(true);
 
 let unlistenNostrReady: UnlistenFn;
@@ -72,7 +72,7 @@ onDestroy(() => {
 
 <main class="flex flex-col md:flex-row min-w-96">
     <Sidebar {activeTab} />
-    {#if !$page.url.pathname.match(/^\/chats\/*[a-zA-Z0-9]+\/*/)}
+    {#if !page.url.pathname.match(/^\/chats\/*[a-zA-Z0-9]+\/*/)}
         <Tabbar {activeTab} />
     {/if}
     <div class="flex flex-col grow">

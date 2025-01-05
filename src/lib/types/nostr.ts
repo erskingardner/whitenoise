@@ -48,6 +48,10 @@ export type NChats = {
     [key: string]: NChat;
 };
 
+export type NLegacies = {
+    [key: string]: NEvent[];
+};
+
 export type NChat = {
     latest: number;
     metadata: NMetadata;

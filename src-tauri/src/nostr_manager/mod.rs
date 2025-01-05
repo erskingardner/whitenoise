@@ -97,7 +97,6 @@ impl NostrManager {
     ///
     /// # Arguments
     ///
-    /// * `keys` - A reference to the Keys struct containing the necessary keys for decryption.
     /// * `gw_events` - A vector of giftwrapped Event objects to process.
     ///
     /// # Returns
@@ -116,6 +115,33 @@ impl NostrManager {
         }
 
         invite_events
+    }
+
+    /// Extracts private message events (NIP-17) from a list of giftwrapped events.
+    ///
+    /// This function processes a list of giftwrapped events and extracts the message events
+    /// (events with Kind::PrivateDirectMessage) from them.
+    ///
+    /// # Arguments
+    ///
+    /// * `gw_events` - A vector of giftwrapped Event objects to process.
+    ///
+    /// # Returns
+    ///
+    /// A vector of UnsignedEvent objects representing the extracted private message events.
+    async fn extract_private_message_events(&self, gw_events: Vec<Event>) -> Vec<UnsignedEvent> {
+        let mut private_message_events: Vec<UnsignedEvent> = Vec::new();
+
+        for event in gw_events {
+            if let Ok(unwrapped) = extract_rumor(&self.client.signer().await.unwrap(), &event).await
+            {
+                if unwrapped.rumor.kind == Kind::PrivateDirectMessage {
+                    private_message_events.push(unwrapped.rumor)
+                }
+            }
+        }
+
+        private_message_events
     }
 
     pub async fn update_nostr_identity(&self, keys: Keys) -> Result<()> {

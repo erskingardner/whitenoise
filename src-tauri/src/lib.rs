@@ -79,6 +79,7 @@ pub fn run() {
             query_enriched_contact,
             fetch_enriched_contacts,
             query_enriched_contacts,
+            fecth_nip17_private_messages,
             fetch_relays,
             encrypt_content,
             decrypt_content,

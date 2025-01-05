@@ -1,5 +1,7 @@
 //! Fetch functions for NostrManager
 //! This handles on-the-spot fetching of events from relays.
+//! In almost all cases, we query for events already stored in our databsae
+//! and combine the results from our database with those from relays in the response.
 
 use crate::nostr_manager::{NostrManager, NostrManagerError, Result};
 use nostr_sdk::prelude::*;
@@ -117,6 +119,15 @@ impl NostrManager {
         let gw_events = self.fetch_user_giftwrapped_events(pubkey).await?;
         let invites = self.extract_invite_events(gw_events).await;
         Ok(invites)
+    }
+
+    pub async fn fecth_user_private_messages(
+        &self,
+        pubkey: PublicKey,
+    ) -> Result<Vec<UnsignedEvent>> {
+        let gw_events = self.fetch_user_giftwrapped_events(pubkey).await?;
+        let private_messages = self.extract_private_message_events(gw_events).await;
+        Ok(private_messages)
     }
 
     async fn fetch_user_giftwrapped_events(&self, pubkey: PublicKey) -> Result<Vec<Event>> {
