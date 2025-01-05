@@ -1,3 +1,6 @@
+//! Query functions for NostrManager
+//! This handles fetching events from the database cache.
+
 use crate::nostr_manager::{NostrManager, Result};
 use nostr_sdk::prelude::*;
 

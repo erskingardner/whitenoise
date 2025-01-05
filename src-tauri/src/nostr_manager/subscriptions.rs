@@ -1,3 +1,6 @@
+//! Subscription functions for NostrManager
+//! This mostly handles subscribing and processing events as they come in while the user is active.
+
 use crate::nostr_manager::{NostrManager, Result};
 use nostr_sdk::prelude::*;
 use tauri::Emitter;
@@ -162,11 +165,13 @@ impl NostrManager {
         if let Ok(unwrapped) = extract_rumor(&self.client.signer().await?, &event).await {
             match unwrapped.rumor.kind {
                 Kind::MlsWelcome => self.handle_invite(unwrapped.rumor)?,
+                Kind::PrivateDirectMessage => {
+                    self.handle_private_direct_message(unwrapped.rumor)?
+                }
                 _ => {
-                    // TODO: Handle other giftwrap kinds (NIP-17)
                     tracing::info!(
                         target: "whitenoise::nostr_client::subscriptions::handle_giftwrap",
-                        "Received giftwrap of kind {:?}",
+                        "Received unhandled giftwrap of kind {:?}",
                         unwrapped.rumor.kind
                     );
                 }
@@ -176,10 +181,22 @@ impl NostrManager {
     }
 
     fn handle_invite(&self, rumor: UnsignedEvent) -> Result<()> {
+        // TODO: We would like to be able to store these invites in the cache but since they're not signed we can't do that yet.
         // TODO: Remove the identifying info from the log
         tracing::info!(
             target: "whitenoise::nostr_client::handle_notifications",
             "Received invite: {:?}",
+            rumor
+        );
+        Ok(())
+    }
+
+    fn handle_private_direct_message(&self, rumor: UnsignedEvent) -> Result<()> {
+        // TODO: We would like to be able to store these invites in the cache but since they're not signed we can't do that yet.
+        // TODO: Remove the identifying info from the log
+        tracing::info!(
+            target: "whitenoise::nostr_client::handle_notifications",
+            "Received private direct message: {:?}",
             rumor
         );
         Ok(())

@@ -71,7 +71,7 @@ jobs:
           SIGN: 1
           SIGN_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           APPIMAGETOOL_SIGN_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-          APPIMAGETOOL_FORCE_SIGN: 1
+          APPIMAGETOOL_FORCE_SIGN: 0
 
         with:
           args: ${{ matrix.args }}

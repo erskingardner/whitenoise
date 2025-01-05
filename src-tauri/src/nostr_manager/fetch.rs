@@ -1,3 +1,6 @@
+//! Fetch functions for NostrManager
+//! This handles on-the-spot fetching of events from relays.
+
 use crate::nostr_manager::{NostrManager, NostrManagerError, Result};
 use nostr_sdk::prelude::*;
 

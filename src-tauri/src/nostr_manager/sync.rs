@@ -1,3 +1,7 @@
+//! Negentropy syncing functions for NostrManager
+//! Negentropy is a fast/efficient way to fetch only the events that we don't have.
+//! It's currently only suppoted by strfry relays so this is not used as extensively as it will be in the future.
+
 #![allow(unused)]
 
 use crate::nostr_manager::{NostrManager, NostrManagerError, Result};
