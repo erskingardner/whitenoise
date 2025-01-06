@@ -50,7 +50,8 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04' && !matrix.android
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
+            libfuse2 fuse
 
       - name: Setup Android SDK
         if: matrix.android
