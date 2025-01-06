@@ -35,6 +35,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up JDK 17
+        if: matrix.android
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
       - name: Install dependencies (ubuntu only)
         if: matrix.platform == 'ubuntu-22.04' && !matrix.android
         run: |
