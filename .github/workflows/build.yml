@@ -11,12 +11,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: "macos-latest"
-            args: "--target aarch64-apple-darwin"
-          - platform: "macos-latest"
-            args: "--target x86_64-apple-darwin"
           - platform: "ubuntu-22.04"
             args: ""
+          # Commenting out other builds temporarily for testing
+          # - platform: "macos-latest"
+          #   args: "--target aarch64-apple-darwin"
+          # - platform: "macos-latest"
+          #   args: "--target x86_64-apple-darwin"
           # Android builds with correct target names
           - platform: "ubuntu-22.04"
             android: true
@@ -71,7 +72,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
-            libfuse2 fuse
+            libfuse2 fuse libglib2.0-dev libcairo2-dev libpango1.0-dev \
+            libasound2-dev libgtk-3-dev desktop-file-utils
 
       - name: Setup Android SDK
         if: matrix.android
@@ -123,15 +125,35 @@ jobs:
       # Split the build step into two different actions based on the target
       - name: Build Desktop App
         if: ${{ !matrix.android }}
-        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SIGN: ${{ matrix.platform == 'ubuntu-22.04' }}
           SIGN_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           APPIMAGETOOL_SIGN_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           APPIMAGETOOL_FORCE_SIGN: 0
-        with:
-          args: ${{ matrix.args }}
+          RUST_BACKTRACE: 1
+          TAURI_BUILD_DEBUG: true
+        run: |
+          # Print system information
+          echo "System dependencies:"
+          ldconfig -p | grep -E 'libfuse|libglib|libgtk|libwebkit'
+          
+          echo "Directory structure before build:"
+          ls -la
+          
+          # Run build with verbose output
+          bun tauri build --verbose
+          
+          echo "Build script output directory:"
+          ls -la src-tauri/target/release/bundle/appimage/
+          
+          echo "Build script contents:"
+          cat src-tauri/target/release/bundle/appimage/build_appimage.sh
+          
+          echo "AppImage tool version:"
+          if [ -f /usr/local/bin/appimagetool ]; then
+            /usr/local/bin/appimagetool --version
+          fi
 
       - name: Build Android universal binary
         if: matrix.android
