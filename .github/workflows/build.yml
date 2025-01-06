@@ -14,8 +14,10 @@ jobs:
           # macOS desktop builds
           - platform: "macos-latest"
             args: "--target aarch64-apple-darwin"
+            arch: "aarch64"
           - platform: "macos-latest"
             args: "--target x86_64-apple-darwin"
+            arch: "x86_64"
           # Linux desktop builds
           - platform: "ubuntu-22.04"
             args: ""
@@ -185,7 +187,7 @@ jobs:
               sha256sum "$1" > "${1}.sha256"
             ' sh {} \;
           elif [ "${{ matrix.platform }}" = "macos-latest" ]; then
-            cd src-tauri/target/aarch64-apple-darwin/release/bundle
+            cd src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle
             # Generate hash for macOS app bundle
             cd macos
             find . -type f -name "*.app" -exec sh -c '
