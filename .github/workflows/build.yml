@@ -39,6 +39,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Add Rust cache
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "${{ runner.os }}-rust-${{ matrix.android && 'android' || 'desktop' }}"
+
+      # Add Bun cache
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      # Add Android NDK cache (only for Android builds)
+      - name: Cache Android NDK
+        if: matrix.android
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/lib/android/sdk/ndk/25.2.9519653
+          key: ${{ runner.os }}-ndk-25.2.9519653
+
       - name: Set up JDK 17
         if: matrix.android
         uses: actions/setup-java@v4
