@@ -128,15 +128,10 @@ jobs:
         if: ${{ !matrix.android }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          LDAI_SIGN: false  # Disable signing temporarily to test build
-          # LDAI_SIGN: ${{ matrix.platform == 'ubuntu-22.04' }}
-          # LDAI_SIGN_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-          # LDAI_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-          # Remove old env vars
-          # SIGN: false
-          # SIGN_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-          # APPIMAGETOOL_SIGN_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-          APPIMAGETOOL_FORCE_SIGN: 0
+          LDAI_SIGN: ${{ matrix.platform == 'ubuntu-22.04' }}  # Enable signing for Linux
+          LDAI_SIGN_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          LDAI_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          # Keep debug output in case we need it
           RUST_BACKTRACE: 1
           TAURI_BUILD_DEBUG: true
         run: |
