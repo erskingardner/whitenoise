@@ -17,18 +17,18 @@ jobs:
             args: "--target x86_64-apple-darwin"
           - platform: "ubuntu-22.04"
             args: ""
-          # Android builds per architecture
+          # Android builds with correct target names
           - platform: "ubuntu-22.04"
             android: true
-            android_target: "aarch64-linux-android"
+            android_target: "aarch64"
             abi: "arm64-v8a"
           - platform: "ubuntu-22.04"
             android: true
-            android_target: "armv7-linux-androideabi"
+            android_target: "armv7"
             abi: "armeabi-v7a"
           - platform: "ubuntu-22.04"
             android: true
-            android_target: "x86_64-linux-android"
+            android_target: "x86_64"
             abi: "x86_64"
 
     runs-on: ${{ matrix.platform }}
@@ -78,14 +78,6 @@ jobs:
 
       - name: Install frontend dependencies
         run: bun install
-
-      - name: Run tests
-        if: ${{ !matrix.android }}
-        run: cd src-tauri && cargo test --all-features
-
-      - name: Run clippy
-        if: ${{ !matrix.android }}
-        run: cd src-tauri && cargo clippy -- -D warnings
 
       - name: Import GPG key
         if: matrix.platform == 'ubuntu-22.04' && !matrix.android

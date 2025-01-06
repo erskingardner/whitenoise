@@ -1,0 +1,29 @@
+name: "CI"
+
+on:
+  workflow_call: {}  # Allow this workflow to be called by other workflows
+  pull_request:
+  push:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 1.1.39
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        run: bun install
+
+      - name: Run tests
+        run: cd src-tauri && cargo test --all-features
+
+      - name: Run clippy
+        run: cd src-tauri && cargo clippy -- -D warnings 
