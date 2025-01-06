@@ -160,7 +160,7 @@ jobs:
         run: |
           find src-tauri/gen/android/app/build/outputs/apk/*/release/*.apk -type f
           find src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab -type f
-      
+
       # Add this before the artifact upload steps
       - name: Generate artifact hashes
         if: matrix.android
@@ -174,7 +174,7 @@ jobs:
           find . -type f -name "*.aab" -exec sh -c '
             sha256sum "$1" > "${1}.sha256"
           ' sh {} \;
-          
+
       - name: Generate desktop artifact hashes
         if: ${{ !matrix.android }}
         run: |
@@ -185,13 +185,15 @@ jobs:
               sha256sum "$1" > "${1}.sha256"
             ' sh {} \;
           elif [ "${{ matrix.platform }}" = "macos-latest" ]; then
-            cd src-tauri/target/release/bundle
+            cd src-tauri/target/aarch64-apple-darwin/release/bundle
             # Generate hash for macOS app bundle
             cd macos
             find . -type f -name "*.app" -exec sh -c '
               shasum -a 256 "$1" > "${1}.sha256"
             ' sh {} \;
-            
+            find . -type f -name "*.app.tar.gz" -exec sh -c '
+              shasum -a 256 "$1" > "${1}.sha256"
+            ' sh {} \;
             # Generate hash for DMG
             cd ../dmg
             find . -type f -name "*.dmg" -exec sh -c '
@@ -217,13 +219,5 @@ jobs:
         with:
           name: desktop-artifacts-${{ matrix.platform }}${{ matrix.args && '-' }}${{ matrix.args }}
           path: |
-            src-tauri/target/release/bundle/deb/*.deb
-            src-tauri/target/release/bundle/deb/*.deb.sha256
-            src-tauri/target/release/bundle/rpm/*.rpm
-            src-tauri/target/release/bundle/rpm/*.rpm.sha256
-            src-tauri/target/release/bundle/appimage/*.AppImage
-            src-tauri/target/release/bundle/appimage/*.AppImage.sha256
-            src-tauri/target/release/bundle/dmg/*.dmg
-            src-tauri/target/release/bundle/dmg/*.dmg.sha256
-            src-tauri/target/release/bundle/macos/*.app
-            src-tauri/target/release/bundle/macos/*.app.sha256
+            src-tauri/target/**/release/bundle/**/*.{deb,rpm,AppImage,dmg,app,app.tar.gz}
+            src-tauri/target/**/release/bundle/**/*.sha256

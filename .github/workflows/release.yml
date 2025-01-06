@@ -13,6 +13,14 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts
+
+      - name: Display structure of downloaded files
+        run: ls -R artifacts
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         env:
@@ -23,3 +31,5 @@ jobs:
           name: ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
           body: "See the assets to download this version and install."
+          files: |
+            artifacts/**/*
