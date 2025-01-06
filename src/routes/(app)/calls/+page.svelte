@@ -11,7 +11,7 @@ import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
 
 <Header title="Calls" />
 <main class="px-4">
-    <div class="calls-page-content flex flex-col justify-start items-center text-gray-500 mt-64">
+    <div class="calls-page-content flex flex-col justify-start items-center text-gray-500 mt-40">
         Two Weeks™
     </div>
 </main>

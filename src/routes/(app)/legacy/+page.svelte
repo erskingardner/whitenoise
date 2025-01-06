@@ -24,6 +24,7 @@ let privateMessages = $state<NLegacies>();
 
 async function loadEvents() {
     isLoading = true;
+    isLoading = false;
     // invoke("fecth_nip17_private_messages")
     //     .then((messages) => {
     //         privateMessages = messages as NLegacies;
@@ -100,9 +101,9 @@ onDestroy(() => {
         </div>
     {:else}
         <div class="flex flex-col gap-0">
-            {#if privateMessages && Object.keys(privateMessages).length === 0}
+            {#if !privateMessages || Object.keys(privateMessages).length === 0}
                 <div class="flex flex-col gap-2 items-center justify-center h-full">
-                    <span class="text-gray-400">No direct messages found</span>
+                    <span class="text-gray-500 mt-40">Two Weeks™</span>
                 </div>
             {:else if privateMessages && Object.keys(privateMessages).length > 0}
                 {#each Object.entries(privateMessages) as [pubkey, messages]}
