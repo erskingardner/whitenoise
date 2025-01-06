@@ -207,7 +207,7 @@ jobs:
         if: matrix.android
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.abi }}
+          name: android-${{ matrix.abi }}
           path: |
             src-tauri/gen/android/app/build/outputs/apk/${{ matrix.abi }}/release/*.apk
             src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
@@ -216,7 +216,7 @@ jobs:
         if: matrix.android
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.abi }}.sha256
+          name: android-${{ matrix.abi }}.sha256
           path: |
             src-tauri/gen/android/app/build/outputs/apk/${{ matrix.abi }}/release/*.apk.sha256
             src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab.sha256
@@ -225,7 +225,7 @@ jobs:
         if: ${{ !matrix.android }}
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.platform }}${{ matrix.arch && '-' }}${{ matrix.arch }}
+          name: desktop-${{ matrix.platform }}${{ matrix.arch && '-' }}${{ matrix.arch }}
           path: |
             src-tauri/target/**/release/bundle/deb/*.deb
             src-tauri/target/**/release/bundle/rpm/*.rpm
@@ -238,6 +238,6 @@ jobs:
         if: ${{ !matrix.android }}
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.platform }}${{ matrix.arch && '-' }}${{ matrix.arch }}.sha256
+          name: desktop-${{ matrix.platform }}${{ matrix.arch && '-' }}${{ matrix.arch }}.sha256
           path: |
             src-tauri/target/**/release/bundle/**/*.sha256
