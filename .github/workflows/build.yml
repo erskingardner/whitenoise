@@ -123,6 +123,7 @@ jobs:
         run: |
           find src-tauri/gen/android/app/build/outputs/apk/*/release/*.apk -type f
           find src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab -type f
+      
       - name: Upload Android artifacts
         if: matrix.android
         uses: actions/upload-artifact@v3
