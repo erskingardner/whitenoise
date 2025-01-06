@@ -203,23 +203,36 @@ jobs:
             ' sh {} \;
           fi
 
-      - name: Upload Android artifacts
+      - name: Upload Android binaries
         if: matrix.android
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: android-artifacts-${{ matrix.abi }}
+          name: ${{ matrix.abi }}
           path: |
             src-tauri/gen/android/app/build/outputs/apk/${{ matrix.abi }}/release/*.apk
-            src-tauri/gen/android/app/build/outputs/apk/${{ matrix.abi }}/release/*.apk.sha256
             src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
-            src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab.sha256
 
-      # Add after the Android upload step
-      - name: Upload Desktop artifacts
-        if: ${{ !matrix.android }}
-        uses: actions/upload-artifact@v3
+      - name: Upload Android sha256 hashes
+        if: matrix.android
+        uses: actions/upload-artifact@v4
         with:
-          name: desktop-artifacts-${{ matrix.platform }}${{ matrix.args && '-' }}${{ matrix.args }}
+          name: ${{ matrix.abi }}.sha256
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/${{ matrix.abi }}/release/*.apk.sha256
+            src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab.sha256
+                
+      - name: Upload Desktop binaries
+        if: ${{ !matrix.android }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}${{ matrix.arch && '-' }}${{ matrix.arch }}
           path: |
             src-tauri/target/**/release/bundle/**/*.{deb,rpm,AppImage,dmg,app,app.tar.gz}
+
+      - name: Upload Desktop sha256 hashes
+        if: ${{ !matrix.android }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}${{ matrix.arch && '-' }}${{ matrix.arch }}.sha256
+          path: |
             src-tauri/target/**/release/bundle/**/*.sha256
