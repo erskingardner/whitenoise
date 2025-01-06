@@ -109,10 +109,12 @@ jobs:
 
       - name: Import GPG key
         if: matrix.platform == 'ubuntu-22.04' && !matrix.android
+        id: import_gpg
         uses: crazy-max/ghaction-import-gpg@v6
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          trust_level: 5
 
       - name: Setup Android signing
         if: matrix.android
@@ -128,10 +130,9 @@ jobs:
         if: ${{ !matrix.android }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          LDAI_SIGN: ${{ matrix.platform == 'ubuntu-22.04' }}  # Enable signing for Linux
-          LDAI_SIGN_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          LDAI_SIGN: ${{ matrix.platform == 'ubuntu-22.04' && !matrix.android }}
+          LDAI_SIGN_KEY: ${{ matrix.platform == 'ubuntu-22.04' && !matrix.android && steps.import_gpg.outputs.keyid || '' }}
           LDAI_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-          # Keep debug output in case we need it
           RUST_BACKTRACE: 1
           TAURI_BUILD_DEBUG: true
         run: |
