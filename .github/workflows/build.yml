@@ -11,13 +11,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - platform: "macos-latest"
+            args: "--target aarch64-apple-darwin"
+          - platform: "macos-latest"
+            args: "--target x86_64-apple-darwin"
           - platform: "ubuntu-22.04"
             args: ""
-          # Commenting out other builds temporarily for testing
-          # - platform: "macos-latest"
-          #   args: "--target aarch64-apple-darwin"
-          # - platform: "macos-latest"
-          #   args: "--target x86_64-apple-darwin"
           # Android builds with correct target names
           - platform: "ubuntu-22.04"
             android: true
@@ -128,34 +127,21 @@ jobs:
       # Split the build step into two different actions based on the target
       - name: Build Desktop App
         if: ${{ !matrix.android }}
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # AppImage signing
           LDAI_SIGN: ${{ matrix.platform == 'ubuntu-22.04' && !matrix.android }}
           LDAI_SIGN_KEY: ${{ matrix.platform == 'ubuntu-22.04' && !matrix.android && steps.import_gpg.outputs.keyid || '' }}
           LDAI_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-          RUST_BACKTRACE: 1
-          TAURI_BUILD_DEBUG: true
-        run: |
-          # Print system information
-          echo "System dependencies:"
-          ldconfig -p | grep -E 'libfuse|libglib|libgtk|libwebkit'
-          
-          echo "Directory structure before build:"
-          ls -la
-          
-          # Run build with verbose output
-          bun tauri build --verbose
-          
-          echo "Build script output directory:"
-          ls -la src-tauri/target/release/bundle/appimage/
-          
-          echo "Build script contents:"
-          cat src-tauri/target/release/bundle/appimage/build_appimage.sh || echo "Build script not found"
-          
-          echo "AppImage tool version:"
-          if [ -f /usr/local/bin/appimagetool ]; then
-            /usr/local/bin/appimagetool --version
-          fi
+          # DEB signing
+          TAURI_SIGNING_KEY: ${{ matrix.platform == 'ubuntu-22.04' && !matrix.android && steps.import_gpg.outputs.keyid || '' }}
+          TAURI_SIGNING_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          # RPM signing
+          RPM_SIGNING_KEY: ${{ matrix.platform == 'ubuntu-22.04' && !matrix.android && steps.import_gpg.outputs.keyid || '' }}
+          RPM_SIGNING_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        with:
+          args: ${{ matrix.args }}
 
       - name: Build Android universal binary
         if: matrix.android
@@ -173,6 +159,36 @@ jobs:
           find src-tauri/gen/android/app/build/outputs/apk/*/release/*.apk -type f
           find src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab -type f
       
+      # Add this before the artifact upload steps
+      - name: Generate artifact hashes
+        if: matrix.android
+        run: |
+          cd src-tauri/gen/android/app/build/outputs
+          # Generate hash for each APK
+          find . -type f -name "*.apk" -exec sh -c '
+            sha256sum "$1" > "${1}.sha256"
+          ' sh {} \;
+          # Generate hash for AAB
+          find . -type f -name "*.aab" -exec sh -c '
+            sha256sum "$1" > "${1}.sha256"
+          ' sh {} \;
+          
+      - name: Generate desktop artifact hashes
+        if: ${{ !matrix.android }}
+        run: |
+          cd src-tauri/target/release/bundle
+          if [ "${{ matrix.platform }}" = "ubuntu-22.04" ]; then
+            # Generate hash for each Linux package
+            find . -type f \( -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" \) -exec sh -c '
+              sha256sum "$1" > "${1}.sha256"
+            ' sh {} \;
+          elif [ "${{ matrix.platform }}" = "macos-latest" ]; then
+            # Generate hash for DMG
+            find . -type f -name "*.dmg" -exec sh -c '
+              sha256sum "$1" > "${1}.sha256"
+            ' sh {} \;
+          fi
+
       - name: Upload Android artifacts
         if: matrix.android
         uses: actions/upload-artifact@v3
@@ -180,4 +196,22 @@ jobs:
           name: android-artifacts-${{ matrix.abi }}
           path: |
             src-tauri/gen/android/app/build/outputs/apk/${{ matrix.abi }}/release/*.apk
+            src-tauri/gen/android/app/build/outputs/apk/${{ matrix.abi }}/release/*.apk.sha256
             src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
+            src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab.sha256
+
+      # Add after the Android upload step
+      - name: Upload Desktop artifacts
+        if: ${{ !matrix.android }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: desktop-artifacts-${{ matrix.platform }}${{ matrix.args && '-' }}${{ matrix.args }}
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/deb/*.deb.sha256
+            src-tauri/target/release/bundle/rpm/*.rpm
+            src-tauri/target/release/bundle/rpm/*.rpm.sha256
+            src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/appimage/*.AppImage.sha256
+            src-tauri/target/release/bundle/dmg/*.dmg
+            src-tauri/target/release/bundle/dmg/*.dmg.sha256
