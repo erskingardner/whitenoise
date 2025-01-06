@@ -19,18 +19,18 @@ jobs:
             args: "--target x86_64-apple-darwin"
             arch: "x86_64"
           # Linux desktop builds
-          - platform: "ubuntu-22.04"
+          - platform: "ubuntu-24.04"
             args: ""
           # Android builds with correct target names
-          - platform: "ubuntu-22.04"
+          - platform: "ubuntu-24.04"
             android: true
             android_target: "aarch64"
             abi: "arm64-v8a"
-          - platform: "ubuntu-22.04"
+          - platform: "ubuntu-24.04"
             android: true
             android_target: "armv7"
             abi: "armeabi-v7a"
-          - platform: "ubuntu-22.04"
+          - platform: "ubuntu-24.04"
             android: true
             android_target: "x86_64"
             abi: "x86_64"
@@ -71,7 +71,7 @@ jobs:
           java-version: '17'
 
       - name: Install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04' && !matrix.android
+        if: matrix.platform == 'ubuntu-24.04' && !matrix.android
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
@@ -111,7 +111,7 @@ jobs:
         run: bun install
 
       - name: Import GPG key
-        if: matrix.platform == 'ubuntu-22.04' && !matrix.android
+        if: matrix.platform == 'ubuntu-24.04' && !matrix.android
         id: import_gpg
         uses: crazy-max/ghaction-import-gpg@v6
         with:
@@ -135,14 +135,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # AppImage signing
-          LDAI_SIGN: ${{ matrix.platform == 'ubuntu-22.04' && !matrix.android }}
-          LDAI_SIGN_KEY: ${{ matrix.platform == 'ubuntu-22.04' && !matrix.android && steps.import_gpg.outputs.keyid || '' }}
+          LDAI_SIGN: ${{ matrix.platform == 'ubuntu-24.04' && !matrix.android }}
+          LDAI_SIGN_KEY: ${{ matrix.platform == 'ubuntu-24.04' && !matrix.android && steps.import_gpg.outputs.keyid || '' }}
           LDAI_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           # DEB signing
-          TAURI_SIGNING_KEY: ${{ matrix.platform == 'ubuntu-22.04' && !matrix.android && steps.import_gpg.outputs.keyid || '' }}
+          TAURI_SIGNING_KEY: ${{ matrix.platform == 'ubuntu-24.04' && !matrix.android && steps.import_gpg.outputs.keyid || '' }}
           TAURI_SIGNING_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           # RPM signing
-          RPM_SIGNING_KEY: ${{ matrix.platform == 'ubuntu-22.04' && !matrix.android && steps.import_gpg.outputs.keyid || '' }}
+          RPM_SIGNING_KEY: ${{ matrix.platform == 'ubuntu-24.04' && !matrix.android && steps.import_gpg.outputs.keyid || '' }}
           RPM_SIGNING_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         with:
           args: ${{ matrix.args }}
@@ -180,7 +180,7 @@ jobs:
       - name: Generate desktop artifact hashes
         if: ${{ !matrix.android }}
         run: |
-          if [ "${{ matrix.platform }}" = "ubuntu-22.04" ]; then
+          if [ "${{ matrix.platform }}" = "ubuntu-24.04" ]; then
             cd src-tauri/target/release/bundle
             # Generate hash for each Linux package
             find . -type f \( -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" \) -exec sh -c '
