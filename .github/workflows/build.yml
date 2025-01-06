@@ -17,18 +17,39 @@ jobs:
             args: "--target x86_64-apple-darwin"
           - platform: "ubuntu-22.04"
             args: ""
-        #   - platform: "windows-latest"
-        #     args: ""
+          # Android builds per architecture
+          - platform: "ubuntu-22.04"
+            android: true
+            android_target: "aarch64-linux-android"
+            abi: "arm64-v8a"
+          - platform: "ubuntu-22.04"
+            android: true
+            android_target: "armv7-linux-androideabi"
+            abi: "armeabi-v7a"
+          - platform: "ubuntu-22.04"
+            android: true
+            android_target: "x86_64-linux-android"
+            abi: "x86_64"
 
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04' # This must match the platform value defined above.
+        if: matrix.platform == 'ubuntu-22.04' && !matrix.android
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Setup Android SDK
+        if: matrix.android
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK
+        if: matrix.android
+        run: |
+          sdkmanager --install "ndk;25.2.9519653"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
 
       - name: Setup bun
         uses: oven-sh/setup-bun@v1
@@ -36,27 +57,38 @@ jobs:
           bun-version: 1.1.39
 
       - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable # Maybe set this to dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@stable
         with:
-            # Those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
-            targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Add Rust Android targets
+        if: matrix.android
+        run: |
+          rustup target add aarch64-linux-android
+          rustup target add armv7-linux-androideabi
+          rustup target add x86_64-linux-android
+          rustup target add i686-linux-android
 
       - name: Install frontend dependencies
         run: bun install
 
       - name: Run tests
+        if: !matrix.android
         run: cd src-tauri && cargo test --all-features
 
       - name: Run clippy
+        if: !matrix.android
         run: cd src-tauri && cargo clippy -- -D warnings
 
       - name: Import GPG key
+        if: matrix.platform == 'ubuntu-22.04' && !matrix.android
         uses: crazy-max/ghaction-import-gpg@v6
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
       - name: Setup Android signing
+        if: matrix.android
         run: |
           cd src-tauri/gen/android
           echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" > keystore.properties
@@ -64,14 +96,29 @@ jobs:
           base64 -d <<< "${{ secrets.ANDROID_KEY_BASE64 }}" > $RUNNER_TEMP/keystore.jks
           echo "storeFile=$RUNNER_TEMP/keystore.jks" >> keystore.properties
 
-      # If tagName and releaseId are omitted tauri-action will only build the app and won't try to upload any assets.
-      - uses: tauri-apps/tauri-action@v0
+      # Split the build step into two different actions based on the target
+      - name: Build Desktop App
+        if: ${{ !matrix.android }}
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SIGN: 1
+          SIGN: ${{ matrix.platform == 'ubuntu-22.04' }}
           SIGN_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           APPIMAGETOOL_SIGN_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           APPIMAGETOOL_FORCE_SIGN: 0
-
         with:
           args: ${{ matrix.args }}
+
+      - name: Build Android App
+        if: matrix.android
+        run: |
+          bun tauri android build --target ${{ matrix.android_target }}
+
+      - name: Upload Android artifacts
+        if: matrix.android
+        uses: actions/upload-artifact@v3
+        with:
+          name: android-artifacts-${{ matrix.abi }}
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/release/*.apk
+            src-tauri/gen/android/app/build/outputs/bundle/release/*.aab
