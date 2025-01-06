@@ -11,6 +11,7 @@
   - ✅ Get npub and add to identities in the DB
   - ✅ Set as current identity
   - ✅ Store nsec in keyring
+- Remote signing 
 - ✅ Logout from current identity
   - ✅ Delete nsec and remove from identities in the DB
   - ✅ Set current identity to next identity (or null if none)
@@ -59,9 +60,9 @@
   - ✅ Fetch profile for user
   - ✅ Fetch contacts for user
   - ✅ Fetch NIP-04 DMs for user
-  - Fetch NIP-17 DMs for user
+  - ✅ Fetch NIP-17 DMs for user
   - ✅ Fetch Prekey events for user
-- Make sure that when current identity changes, we update the UI
+- ✅ Make sure that when current identity changes, we update the UI
   - ✅ Contacts
   - ✅ Chats
   - ✅ Legacy chats
@@ -133,7 +134,7 @@
 
 ## Infrastructure
 
-- Setup a few test relays for development
+- ✅ Setup a few test relays for development
   - Normal & Inbox (we'll need to override the user's defualt relays in dev)
-- Set up lint/test pipeline on Github Actions for each push
+- ✅ Set up lint/test pipeline on Github Actions for each push
 - Set up a simple CI/CD pipeline for releases

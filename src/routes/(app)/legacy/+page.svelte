@@ -24,17 +24,17 @@ let privateMessages = $state<NLegacies>();
 
 async function loadEvents() {
     isLoading = true;
-    invoke("fecth_nip17_private_messages")
-        .then((messages) => {
-            privateMessages = messages as NLegacies;
-        })
-        .catch((error) => {
-            loadingError = error as string;
-            console.log(error);
-        })
-        .finally(() => {
-            isLoading = false;
-        });
+    // invoke("fecth_nip17_private_messages")
+    //     .then((messages) => {
+    //         privateMessages = messages as NLegacies;
+    //     })
+    //     .catch((error) => {
+    //         loadingError = error as string;
+    //         console.log(error);
+    //     })
+    //     .finally(() => {
+    //         isLoading = false;
+    //     });
 }
 
 onMount(async () => {
@@ -72,9 +72,6 @@ onDestroy(() => {
     unlistenNostrReady?.();
     toastState.cleanup();
 });
-
-// show loading state
-// show error state
 </script>
 
 <HeaderToolbar>
@@ -86,11 +83,11 @@ onDestroy(() => {
         </div>
     {/snippet}
     {#snippet center()}
-        <h1>Legacy DMs</h1>
+        <h1>Direct Messages</h1>
     {/snippet}
 </HeaderToolbar>
 
-<Header title="Legacy DMs" />
+<Header title="Direct Messages" />
 <main class="">
     {#if isLoading}
         <div class="flex justify-center items-center mt-20 w-full">
@@ -98,7 +95,7 @@ onDestroy(() => {
         </div>
     {:else if loadingError}
         <div class="text-red-500 px-4 font-medium flex flex-col gap-2">
-            <span>Sorry, we couldn't load your chats because of an error.</span>
+            <span>Sorry, we couldn't load your direct messages because of an error.</span>
             <pre class="font-mono p-2 rounded-md ring-1 ring-red-500/30">{loadingError}</pre>
         </div>
     {:else}

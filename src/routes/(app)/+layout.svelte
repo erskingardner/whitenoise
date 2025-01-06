@@ -70,12 +70,12 @@ onDestroy(() => {
 });
 </script>
 
-<main class="flex flex-col md:flex-row min-w-96">
+<main class="flex flex-col md:flex-row">
     <Sidebar {activeTab} />
     {#if !page.url.pathname.match(/^\/chats\/*[a-zA-Z0-9]+\/*/)}
         <Tabbar {activeTab} />
     {/if}
-    <div class="flex flex-col grow">
+    <div class="flex flex-col grow md:w-4/5">
         {@render children()}
     </div>
 </main>

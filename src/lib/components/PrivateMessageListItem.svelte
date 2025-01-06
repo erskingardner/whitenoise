@@ -24,10 +24,12 @@ $effect(() => {
     class="flex flex-row gap-2 items-center px-4 py-3 border-b border-gray-700 hover:bg-gray-700"
 >
     <Avatar picture={enrichedCounterparty?.metadata.picture} {pubkey} pxSize={40} />
-    <div class="flex flex-col gap-1">
+    <div class="flex flex-col gap-0 truncate overflow-x-hidden">
         <span class="text-lg font-semibold">
             <Name {pubkey} metadata={enrichedCounterparty?.metadata} />
         </span>
-        <!-- TODO: Add message preview -->
+        <span class="truncate text-gray-400 font-light">
+            {messages[0].content}
+        </span>
     </div>
 </a>
