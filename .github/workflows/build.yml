@@ -30,10 +30,6 @@ jobs:
             android: true
             android_target: "x86_64"
             abi: "x86_64"
-          - platform: "ubuntu-22.04"
-            android: true
-            android_target: "universal"
-            abi: "universal"
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -104,7 +100,6 @@ jobs:
           rustup target add aarch64-linux-android
           rustup target add armv7-linux-androideabi
           rustup target add x86_64-linux-android
-          rustup target add i686-linux-android
 
       - name: Install frontend dependencies
         run: bun install
@@ -138,7 +133,12 @@ jobs:
         with:
           args: ${{ matrix.args }}
 
-      - name: Build Android App
+      - name: Build Android universal binary
+        if: matrix.android
+        run: |
+          bun tauri android build
+
+      - name: Build Android arch specific binaries
         if: matrix.android
         run: |
           bun tauri android build --target ${{ matrix.android_target }}
@@ -155,7 +155,5 @@ jobs:
         with:
           name: android-artifacts-${{ matrix.abi }}
           path: |
-            src-tauri/gen/android/app/build/outputs/apk/arm/release/*.apk
-            src-tauri/gen/android/app/build/outputs/apk/arm64/release/*.apk
-            src-tauri/gen/android/app/build/outputs/apk/x86_64/release/*.apk
+            src-tauri/gen/android/app/build/outputs/apk/${{ matrix.abi }}/release/*.apk
             src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
