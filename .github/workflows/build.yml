@@ -73,11 +73,11 @@ jobs:
         run: bun install
 
       - name: Run tests
-        if: !matrix.android
+        if: ${{ !matrix.android }}
         run: cd src-tauri && cargo test --all-features
 
       - name: Run clippy
-        if: !matrix.android
+        if: ${{ !matrix.android }}
         run: cd src-tauri && cargo clippy -- -D warnings
 
       - name: Import GPG key
