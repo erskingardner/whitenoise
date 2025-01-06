@@ -11,10 +11,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # macOS desktop builds
           - platform: "macos-latest"
             args: "--target aarch64-apple-darwin"
           - platform: "macos-latest"
             args: "--target x86_64-apple-darwin"
+          # Linux desktop builds
           - platform: "ubuntu-22.04"
             args: ""
           # Android builds with correct target names
@@ -176,16 +178,24 @@ jobs:
       - name: Generate desktop artifact hashes
         if: ${{ !matrix.android }}
         run: |
-          cd src-tauri/target/release/bundle
           if [ "${{ matrix.platform }}" = "ubuntu-22.04" ]; then
+            cd src-tauri/target/release/bundle
             # Generate hash for each Linux package
             find . -type f \( -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" \) -exec sh -c '
               sha256sum "$1" > "${1}.sha256"
             ' sh {} \;
           elif [ "${{ matrix.platform }}" = "macos-latest" ]; then
+            cd src-tauri/target/release/bundle
+            # Generate hash for macOS app bundle
+            cd macos
+            find . -type f -name "*.app" -exec sh -c '
+              shasum -a 256 "$1" > "${1}.sha256"
+            ' sh {} \;
+            
             # Generate hash for DMG
+            cd ../dmg
             find . -type f -name "*.dmg" -exec sh -c '
-              sha256sum "$1" > "${1}.sha256"
+              shasum -a 256 "$1" > "${1}.sha256"
             ' sh {} \;
           fi
 
@@ -215,3 +225,5 @@ jobs:
             src-tauri/target/release/bundle/appimage/*.AppImage.sha256
             src-tauri/target/release/bundle/dmg/*.dmg
             src-tauri/target/release/bundle/dmg/*.dmg.sha256
+            src-tauri/target/release/bundle/macos/*.app
+            src-tauri/target/release/bundle/macos/*.app.sha256
