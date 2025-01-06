@@ -30,6 +30,10 @@ jobs:
             android: true
             android_target: "x86_64"
             abi: "x86_64"
+          - platform: "ubuntu-22.04"
+            android: true
+            android_target: "universal"
+            abi: "universal"
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -114,11 +118,18 @@ jobs:
         run: |
           bun tauri android build --target ${{ matrix.android_target }}
 
+      - name: List Android build outputs
+        if: matrix.android
+        run: |
+          find src-tauri/gen/android/app/build/outputs/apk/*/release/*.apk -type f
+          find src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab -type f
       - name: Upload Android artifacts
         if: matrix.android
         uses: actions/upload-artifact@v3
         with:
           name: android-artifacts-${{ matrix.abi }}
           path: |
-            src-tauri/gen/android/app/build/outputs/apk/release/*.apk
-            src-tauri/gen/android/app/build/outputs/bundle/release/*.aab
+            src-tauri/gen/android/app/build/outputs/apk/arm/release/*.apk
+            src-tauri/gen/android/app/build/outputs/apk/arm64/release/*.apk
+            src-tauri/gen/android/app/build/outputs/apk/x86_64/release/*.apk
+            src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
