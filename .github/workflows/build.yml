@@ -43,12 +43,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Add Rust cache
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "${{ runner.os }}-rust-${{ matrix.android && 'android' || 'desktop' }}"
-
-      # Add Bun cache
+      # Add Bun cache first (no version dependencies)
       - name: Cache bun dependencies
         uses: actions/cache@v4
         with:
@@ -58,6 +53,33 @@ jobs:
           key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
           restore-keys: |
             ${{ runner.os }}-bun-
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 1.1.39
+
+      # Install Rust first
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Add Rust Android targets
+        if: matrix.android
+        run: |
+          rustup target add aarch64-linux-android
+          rustup target add armv7-linux-androideabi
+          rustup target add x86_64-linux-android
+          rustup target add i686-linux-android
+
+      # Then add Rust cache after toolchain is set up
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "${{ runner.os }}-rust-${{ matrix.android && 'android' || 'desktop' }}"
+
+      - name: Install frontend dependencies
+        run: bun install
 
       # Add Android NDK cache (only for Android builds)
       - name: Cache Android NDK
@@ -93,26 +115,6 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
           echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
 
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: 1.1.39
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
-
-      - name: Add Rust Android targets
-        if: matrix.android
-        run: |
-          rustup target add aarch64-linux-android
-          rustup target add armv7-linux-androideabi
-          rustup target add x86_64-linux-android
-          rustup target add i686-linux-android
-
-      - name: Install frontend dependencies
-        run: bun install
 
       - name: Import Apple Developer Certificate
         if: matrix.platform == 'macos-latest'
