@@ -21,19 +21,9 @@ jobs:
           # Linux desktop builds
           - platform: "ubuntu-24.04"
             args: ""
-          # Android builds with correct target names
+          # Single Android build that will output all ABIs
           - platform: "ubuntu-24.04"
             android: true
-            android_target: "aarch64"
-            abi: "arm64-v8a"
-          - platform: "ubuntu-24.04"
-            android: true
-            android_target: "armv7"
-            abi: "armeabi-v7a"
-          - platform: "ubuntu-24.04"
-            android: true
-            android_target: "x86_64"
-            abi: "x86_64"
 
     runs-on: ${{ matrix.platform }}
     env:
@@ -68,7 +58,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
           # Add a suffix to distinguish between different platforms and architectures
-          key: ${{ matrix.platform }}${{ matrix.arch && '-' }}${{ matrix.arch }}${{ matrix.android && '-android-' }}${{ matrix.android_target || '' }}
+          key: ${{ matrix.platform }}${{ matrix.arch && '-' }}${{ matrix.arch }}${{ matrix.android && '-android' }}
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -192,7 +182,7 @@ jobs:
       - name: Build Android arch specific binaries
         if: matrix.android
         run: |
-          bun tauri android build --target ${{ matrix.android_target }}
+          bun tauri android build --apk --split-per-abi
 
       - name: List Android build outputs
         if: matrix.android
@@ -244,25 +234,22 @@ jobs:
         if: matrix.android
         uses: actions/upload-artifact@v4
         with:
-          name: android-${{ matrix.abi }}
           path: |
-            src-tauri/gen/android/app/build/outputs/apk/${{ matrix.abi }}/release/*.apk
+            src-tauri/gen/android/app/build/outputs/apk/**/release/*.apk
             src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
 
       - name: Upload Android sha256 hashes
         if: matrix.android
         uses: actions/upload-artifact@v4
         with:
-          name: android-${{ matrix.abi }}.sha256
           path: |
-            src-tauri/gen/android/app/build/outputs/apk/${{ matrix.abi }}/release/*.apk.sha256
+            src-tauri/gen/android/app/build/outputs/apk/*/release/*.apk.sha256
             src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab.sha256
 
       - name: Upload Desktop binaries
         if: ${{ !matrix.android }}
         uses: actions/upload-artifact@v4
         with:
-          name: desktop-${{ matrix.platform }}${{ matrix.arch && '-' }}${{ matrix.arch }}
           path: |
             src-tauri/target/**/release/bundle/deb/*.deb
             src-tauri/target/**/release/bundle/rpm/*.rpm
@@ -275,6 +262,5 @@ jobs:
         if: ${{ !matrix.android }}
         uses: actions/upload-artifact@v4
         with:
-          name: desktop-${{ matrix.platform }}${{ matrix.arch && '-' }}${{ matrix.arch }}.sha256
           path: |
             src-tauri/target/**/release/bundle/**/*.sha256
