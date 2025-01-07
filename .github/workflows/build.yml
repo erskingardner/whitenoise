@@ -36,6 +36,10 @@ jobs:
             abi: "x86_64"
 
     runs-on: ${{ matrix.platform }}
+    env:
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -110,6 +114,30 @@ jobs:
       - name: Install frontend dependencies
         run: bun install
 
+      - name: Import Apple Developer Certificate
+        if: matrix.platform == 'macos-latest'
+        id: import_apple_certificate
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          echo $APPLE_CERTIFICATE | base64 --decode > certificate.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          security find-identity -v -p codesigning build.keychain
+      - name: Verify Certificate
+        if: matrix.platform == 'macos-latest'
+        id: verify_apple_certificate
+        run: |
+          CERT_INFO=$(security find-identity -v -p codesigning build.keychain | grep "Apple Development")
+          CERT_ID=$(echo "$CERT_INFO" | awk -F'"' '{print $2}')
+          echo "cert_id=$CERT_ID" >> "$GITHUB_OUTPUT"
+          echo "Apple Developer Certificate imported."
+
       - name: Import GPG key
         if: matrix.platform == 'ubuntu-24.04' && !matrix.android
         id: import_gpg
@@ -134,6 +162,10 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Apple signing
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ matrix.platform == 'macos-latest' && steps.verify_apple_certificate.outputs.cert_id || '' }}
           # AppImage signing
           LDAI_SIGN: ${{ matrix.platform == 'ubuntu-24.04' && !matrix.android }}
           LDAI_SIGN_KEY: ${{ matrix.platform == 'ubuntu-24.04' && !matrix.android && steps.import_gpg.outputs.keyid || '' }}
