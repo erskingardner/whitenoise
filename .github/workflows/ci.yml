@@ -10,8 +10,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      
-      # Cache Rust dependencies and build artifacts
+
       - name: Add Rust cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -21,7 +20,7 @@ jobs:
           cache-directories: |
             ~/.cargo/registry
             ~/.cargo/git
-      
+
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 

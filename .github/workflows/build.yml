@@ -58,17 +58,24 @@ jobs:
         with:
           bun-version: 1.1.39
 
+      - name: Add Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          # Specify the working directory for Rust cache
+          workspaces: "src-tauri -> target"
+          # Cache cargo registry
+          cache-directories: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          # Add a suffix to distinguish between different platforms and architectures
+          key: ${{ matrix.platform }}${{ matrix.arch && '-' }}${{ matrix.arch }}${{ matrix.android && '-android-' }}${{ matrix.android_target || '' }}
+
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: >-
             ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
             ${{ matrix.android && 'aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android' || '' }}
-
-      - name: Add Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "${{ runner.os }}-rust-${{ matrix.android && 'android' || 'desktop' }}"
 
       - name: Install frontend dependencies
         run: bun install
