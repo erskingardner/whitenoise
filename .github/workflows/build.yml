@@ -133,7 +133,8 @@ jobs:
         if: matrix.platform == 'macos-latest'
         id: verify_apple_certificate
         run: |
-          CERT_INFO=$(security find-identity -v -p codesigning build.keychain | grep "Apple Development")
+          security find-identity -v -p codesigning build.keychain
+          CERT_INFO=$(security find-identity -v -p codesigning build.keychain | grep -E "Apple (Development|Distribution)")
           CERT_ID=$(echo "$CERT_INFO" | awk -F'"' '{print $2}')
           echo "cert_id=$CERT_ID" >> "$GITHUB_OUTPUT"
           echo "Apple Developer Certificate imported."
