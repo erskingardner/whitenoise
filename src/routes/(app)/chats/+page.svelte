@@ -173,7 +173,7 @@ onDestroy(() => {
 
                     {#if failuresExpanded}
                         {#each failures as failure}
-                            <div class="flex flex-row gap-2 items-center px-4 py-3 border-b border-gray-700 hover:bg-gray-700 pl-8 bg-gray-800/50">
+                            <div class="flex flex-row gap-2 items-center px-4 py-3 border-b border-gray-700 hover:bg-gray-700 pl-8 bg-gray-800/50 truncate">
                                 <span>{failure[0]}: {failure[1].split(": ")[1]}</span>
                             </div>
                         {/each}

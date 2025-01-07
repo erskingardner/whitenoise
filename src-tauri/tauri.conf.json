@@ -2,7 +2,7 @@
     "$schema": "https://schema.tauri.app/config/2",
     "productName": "White Noise",
     "version": "0.1.0",
-    "identifier": "chat.whitenoise.dev",
+    "identifier": "com.paper-robin.whitenoise",
     "build": {
         "beforeDevCommand": "bun run dev",
         "devUrl": "http://localhost:1420",
@@ -30,6 +30,9 @@
         "license": "GNU AGPL v3.0",
         "copyright": "Copyright © 2024 White Noise",
         "publisher": "White Noise",
+        "iOS": {
+            "developmentTeam": "8Z6Q2LZ77W"
+        },
 
         "icon": [
             "icons/32x32.png",
