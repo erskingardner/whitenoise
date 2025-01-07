@@ -10,11 +10,13 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Add Rust cache
+        uses: Swatinem/rust-cache@v2
 
-      # Add Rust cache
-      - uses: Swatinem/rust-cache@v2
-
-      # Add Bun cache
       - name: Cache bun dependencies
         uses: actions/cache@v4
         with:
@@ -30,8 +32,6 @@ jobs:
         with:
           bun-version: 1.1.39
 
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
 
       - name: Install system dependencies
         run: |
