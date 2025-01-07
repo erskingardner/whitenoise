@@ -11,11 +11,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-      
+      # Cache Rust dependencies and build artifacts
       - name: Add Rust cache
         uses: Swatinem/rust-cache@v2
+        with:
+          # Specify the working directory for Rust cache
+          workspaces: "src-tauri -> target"
+          # Cache cargo registry
+          cache-directories: |
+            ~/.cargo/registry
+            ~/.cargo/git
+      
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Cache bun dependencies
         uses: actions/cache@v4
@@ -31,7 +39,6 @@ jobs:
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: 1.1.39
-
 
       - name: Install system dependencies
         run: |
