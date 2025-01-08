@@ -230,13 +230,45 @@ jobs:
             ' sh {} \;
           fi
 
-      - name: Upload Android binaries
+      - name: Prepare Android artifacts
+        if: matrix.android
+        run: |
+          # Get version from Cargo.toml
+          VERSION=$(grep '^version = ' src-tauri/Cargo.toml | cut -d '"' -f2)
+
+          # Create a directory for renamed files
+          mkdir -p android-artifacts
+
+          # Copy and rename AAB with version
+          find src-tauri/gen/android/app/build/outputs/bundle/universalRelease -name "*.aab" -exec sh -c '
+            cp "$1" android-artifacts/whitenoise-${VERSION}-universal-release.aab
+            cp "${1}.sha256" android-artifacts/whitenoise-${VERSION}-universal-release.aab.sha256
+          ' sh {} \;
+
+          # Copy and rename APKs with version and their ABI
+          find src-tauri/gen/android/app/build/outputs/apk/*/release -name "*.apk" -exec sh -c '
+            filename=$(basename "$1")
+            if [[ $filename =~ arm64-v8a ]]; then
+              cp "$1" android-artifacts/whitenoise-${VERSION}-arm64-v8a-release.apk
+              cp "${1}.sha256" android-artifacts/whitenoise-${VERSION}-arm64-v8a-release.apk.sha256
+            elif [[ $filename =~ armeabi-v7a ]]; then
+              cp "$1" android-artifacts/whitenoise-${VERSION}-armeabi-v7a-release.apk
+              cp "${1}.sha256" android-artifacts/whitenoise-${VERSION}-armeabi-v7a-release.apk.sha256
+            elif [[ $filename =~ x86_64 ]]; then
+              cp "$1" android-artifacts/whitenoise-${VERSION}-x86_64-release.apk
+              cp "${1}.sha256" android-artifacts/whitenoise-${VERSION}-x86_64-release.apk.sha256
+            elif [[ $filename =~ x86 ]]; then
+              cp "$1" android-artifacts/whitenoise-${VERSION}-x86-release.apk
+              cp "${1}.sha256" android-artifacts/whitenoise-${VERSION}-x86-release.apk.sha256
+            fi
+          ' sh {} \;
+
+      - name: Upload Android artifacts
         if: matrix.android
         uses: actions/upload-artifact@v4
         with:
-          path: |
-            src-tauri/gen/android/app/build/outputs/apk/**/release/*.apk
-            src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
+          name: android-releases
+          path: android-artifacts/*
 
       - name: Upload Android sha256 hashes
         if: matrix.android
@@ -246,21 +278,55 @@ jobs:
             src-tauri/gen/android/app/build/outputs/apk/*/release/*.apk.sha256
             src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab.sha256
 
+      - name: Prepare Desktop artifacts
+        if: ${{ !matrix.android }}
+        run: |
+          # Get version from Cargo.toml
+          VERSION=$(grep '^version = ' src-tauri/Cargo.toml | cut -d '"' -f2)
+
+          # Create directory for renamed files
+          mkdir -p desktop-artifacts
+
+          if [ "${{ matrix.platform }}" = "ubuntu-24.04" ]; then
+            # Linux packages
+            find src-tauri/target/release/bundle/deb -name "*.deb" -exec sh -c '
+              cp "$1" desktop-artifacts/whitenoise-${VERSION}-amd64.deb
+              cp "${1}.sha256" desktop-artifacts/whitenoise-${VERSION}-amd64.deb.sha256
+            ' sh {} \;
+
+            find src-tauri/target/release/bundle/rpm -name "*.rpm" -exec sh -c '
+              cp "$1" desktop-artifacts/whitenoise-${VERSION}-x86_64.rpm
+              cp "${1}.sha256" desktop-artifacts/whitenoise-${VERSION}-x86_64.rpm.sha256
+            ' sh {} \;
+
+            find src-tauri/target/release/bundle/appimage -name "*.AppImage" -exec sh -c '
+              cp "$1" desktop-artifacts/whitenoise-${VERSION}-x86_64.AppImage
+              cp "${1}.sha256" desktop-artifacts/whitenoise-${VERSION}-x86_64.AppImage.sha256
+            ' sh {} \;
+
+          elif [ "${{ matrix.platform }}" = "macos-latest" ]; then
+            # macOS packages
+            find src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/dmg -name "*.dmg" -exec sh -c '
+              cp "$1" desktop-artifacts/whitenoise-${VERSION}-${{ matrix.arch }}.dmg
+              cp "${1}.sha256" desktop-artifacts/whitenoise-${VERSION}-${{ matrix.arch }}.dmg.sha256
+            ' sh {} \;
+
+            find src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/macos -name "*.app.tar.gz" -exec sh -c '
+              cp "$1" desktop-artifacts/whitenoise-${VERSION}-${{ matrix.arch }}.app.tar.gz
+              cp "${1}.sha256" desktop-artifacts/whitenoise-${VERSION}-${{ matrix.arch }}.app.tar.gz.sha256
+            ' sh {} \;
+          fi
+
       - name: Upload Desktop binaries
         if: ${{ !matrix.android }}
         uses: actions/upload-artifact@v4
         with:
-          path: |
-            src-tauri/target/**/release/bundle/deb/*.deb
-            src-tauri/target/**/release/bundle/rpm/*.rpm
-            src-tauri/target/**/release/bundle/appimage/*.AppImage
-            src-tauri/target/**/release/bundle/dmg/*.dmg
-            src-tauri/target/**/release/bundle/macos/*.app
-            src-tauri/target/**/release/bundle/macos/*.app.tar.gz
+          name: desktop-releases
+          path: desktop-artifacts/*
 
       - name: Upload Desktop sha256 hashes
         if: ${{ !matrix.android }}
         uses: actions/upload-artifact@v4
         with:
-          path: |
-            src-tauri/target/**/release/bundle/**/*.sha256
+          name: desktop-hashes
+          path: desktop-artifacts/*.sha256
