@@ -267,6 +267,7 @@ jobs:
           ' sh {} \;
 
       - name: List Android artifacts
+        if: matrix.android
         run: |
           find android-artifacts/* -type f
 
@@ -324,6 +325,7 @@ jobs:
           fi
 
       - name: List desktop artifacts
+        if: ${{ !matrix.android }}
         run: |
           find desktop-artifacts/* -type f
 
