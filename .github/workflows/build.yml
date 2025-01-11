@@ -1,7 +1,32 @@
 name: "Build"
 
 on:
-  workflow_call: {}  # Allow this workflow to be called by other workflows
+  workflow_call:
+    secrets:
+      APPLE_ID:
+        required: true
+      APPLE_ID_PASSWORD:
+        required: true
+      APPLE_TEAM_ID:
+        required: true
+      APPLE_CERTIFICATE:
+        required: true
+      APPLE_CERTIFICATE_PASSWORD:
+        required: true
+      KEYCHAIN_PASSWORD:
+        required: true
+      GPG_PRIVATE_KEY:
+        required: true
+      GPG_PASSPHRASE:
+        required: true
+      ANDROID_KEY_ALIAS:
+        required: true
+      ANDROID_KEY_PASSWORD:
+        required: true
+      ANDROID_KEY_BASE64:
+        required: true
+      GITHUB_TOKEN:
+        required: true
   pull_request:
   push:
 
