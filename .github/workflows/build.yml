@@ -329,16 +329,9 @@ jobs:
         run: |
           find desktop-artifacts/* -type f
 
-      - name: Upload Desktop binaries
+      - name: Upload Desktop artifacts
         if: ${{ !matrix.android }}
         uses: actions/upload-artifact@v4
         with:
-          name: desktop-releases
+          name: ${{ matrix.platform }}${{ matrix.arch && '-' }}${{ matrix.arch }}
           path: desktop-artifacts/*
-
-      - name: Upload Desktop sha256 hashes
-        if: ${{ !matrix.android }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-hashes
-          path: desktop-artifacts/*.sha256
