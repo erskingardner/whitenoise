@@ -201,22 +201,6 @@ jobs:
         with:
           args: ${{ matrix.args }}
 
-      - name: Build Android universal binary
-        if: matrix.android
-        run: |
-          bun tauri android build
-
-      - name: Build Android arch specific binaries
-        if: matrix.android
-        run: |
-          bun tauri android build --apk --split-per-abi
-
-      - name: List Android build outputs
-        if: matrix.android
-        run: |
-          find src-tauri/gen/android/app/build/outputs/apk/*/release/*.apk -type f
-          find src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab -type f
-
       - name: Generate desktop artifact hashes
         if: ${{ !matrix.android }}
         run: |
@@ -243,6 +227,26 @@ jobs:
             ' sh {} \;
           fi
 
+      - name: Build Android universal binary
+        if: matrix.android
+        run: |
+          bun tauri android build
+
+      - name: Build Android arch specific binaries
+        if: matrix.android
+        run: |
+          bun tauri android build --apk --split-per-abi
+
+      - name: List Android build outputs
+        if: matrix.android
+        run: |
+          echo "Listing all APKs recursively:"
+          find src-tauri/gen/android -name "*.apk" -type f
+          echo "\nListing all AABs recursively:"
+          find src-tauri/gen/android -name "*.aab" -type f
+          echo "\nListing specific release directories:"
+          ls -la src-tauri/gen/android/app/build/outputs/apk/*/release/ || echo "Release dirs not found"
+
       - name: Prepare Android artifacts
         if: matrix.android
         run: |
@@ -251,23 +255,28 @@ jobs:
           echo "Version: $VERSION"
           mkdir -p android-artifacts
 
-          cp "src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab" \
-            "android-artifacts/whitenoise-${VERSION}-android-universal.aab"
+          echo "Checking source paths:"
+          for type in universal arm64 arm x86 x86_64; do
+            echo "Checking ${type}:"
+            ls -la "src-tauri/gen/android/app/build/outputs/apk/${type}/release/" || echo "${type} directory not found"
+          done
 
-          cp "src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk" \
-            "android-artifacts/whitenoise-${VERSION}-android-universal.apk"
-
-          cp "src-tauri/gen/android/app/build/outputs/apk/arm64/release/app-arm64-release.apk" \
-            "android-artifacts/whitenoise-${VERSION}-android-arm64.apk"
-
-          cp "src-tauri/gen/android/app/build/outputs/apk/arm/release/app-arm-release.apk" \
-            "android-artifacts/whitenoise-${VERSION}-android-arm.apk"
-
-          cp "src-tauri/gen/android/app/build/outputs/apk/x86/release/app-x86-release.apk" \
-            "android-artifacts/whitenoise-${VERSION}-android-x86.apk"
-
-          cp "src-tauri/gen/android/app/build/outputs/apk/x86_64/release/app-x86_64-release.apk" \
-            "android-artifacts/whitenoise-${VERSION}-android-x86_64.apk"
+          # Copy files with error checking
+          for pair in \
+            "universal/release/app-universal-release.apk:android-universal.apk" \
+            "arm64/release/app-arm64-release.apk:android-arm64.apk" \
+            "arm/release/app-arm-release.apk:android-arm.apk" \
+            "x86/release/app-x86-release.apk:android-x86.apk" \
+            "x86_64/release/app-x86_64-release.apk:android-x86_64.apk"; do
+            src=${pair%:*}
+            dst=${pair#*:}
+            if [ -f "src-tauri/gen/android/app/build/outputs/apk/$src" ]; then
+              cp "src-tauri/gen/android/app/build/outputs/apk/$src" "android-artifacts/whitenoise-${VERSION}-${dst}"
+              echo "Copied $src successfully"
+            else
+              echo "Source file not found: $src"
+            fi
+          done
 
       - name: Generate Android artifact hashes
         if: matrix.android
