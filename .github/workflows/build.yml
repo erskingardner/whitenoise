@@ -12,17 +12,21 @@ jobs:
       matrix:
         include:
           # macOS desktop builds
-          - platform: "macos-latest"
+          - name: "macOS (Apple Silicon)"
+            platform: "macos-latest"
             args: "--target aarch64-apple-darwin"
             arch: "aarch64"
-          - platform: "macos-latest"
+          - name: "macOS (Intel)"
+            platform: "macos-latest"
             args: "--target x86_64-apple-darwin"
             arch: "x86_64"
           # Linux desktop builds
-          - platform: "ubuntu-24.04"
+          - name: "Linux Desktop"
+            platform: "ubuntu-22.04"
             args: ""
           # Single Android build that will output all ABIs
-          - platform: "ubuntu-24.04"
+          - name: "Android"
+            platform: "ubuntu-22.04"
             android: true
 
     runs-on: ${{ matrix.platform }}
@@ -85,7 +89,7 @@ jobs:
           java-version: '17'
 
       - name: Install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-24.04' && !matrix.android
+        if: matrix.platform == 'ubuntu-22.04' && !matrix.android
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
@@ -134,7 +138,7 @@ jobs:
           echo "Apple Developer Certificate imported."
 
       - name: Import GPG key
-        if: matrix.platform == 'ubuntu-24.04' && !matrix.android
+        if: matrix.platform == 'ubuntu-22.04' && !matrix.android
         id: import_gpg
         uses: crazy-max/ghaction-import-gpg@v6
         with:
@@ -162,14 +166,14 @@ jobs:
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ matrix.platform == 'macos-latest' && steps.verify_apple_certificate.outputs.cert_id || '' }}
           # AppImage signing
-          LDAI_SIGN: ${{ matrix.platform == 'ubuntu-24.04' && !matrix.android }}
-          LDAI_SIGN_KEY: ${{ matrix.platform == 'ubuntu-24.04' && !matrix.android && steps.import_gpg.outputs.keyid || '' }}
+          LDAI_SIGN: ${{ matrix.platform == 'ubuntu-22.04' && !matrix.android }}
+          LDAI_SIGN_KEY: ${{ matrix.platform == 'ubuntu-22.04' && !matrix.android && steps.import_gpg.outputs.keyid || '' }}
           LDAI_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           # DEB signing
-          TAURI_SIGNING_KEY: ${{ matrix.platform == 'ubuntu-24.04' && !matrix.android && steps.import_gpg.outputs.keyid || '' }}
+          TAURI_SIGNING_KEY: ${{ matrix.platform == 'ubuntu-22.04' && !matrix.android && steps.import_gpg.outputs.keyid || '' }}
           TAURI_SIGNING_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           # RPM signing
-          RPM_SIGNING_KEY: ${{ matrix.platform == 'ubuntu-24.04' && !matrix.android && steps.import_gpg.outputs.keyid || '' }}
+          RPM_SIGNING_KEY: ${{ matrix.platform == 'ubuntu-22.04' && !matrix.android && steps.import_gpg.outputs.keyid || '' }}
           RPM_SIGNING_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         with:
           args: ${{ matrix.args }}
@@ -207,7 +211,7 @@ jobs:
       - name: Generate desktop artifact hashes
         if: ${{ !matrix.android }}
         run: |
-          if [ "${{ matrix.platform }}" = "ubuntu-24.04" ]; then
+          if [ "${{ matrix.platform }}" = "ubuntu-22.04" ]; then
             cd src-tauri/target/release/bundle
             # Generate hash for each Linux package
             find . -type f \( -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" \) -exec sh -c '
@@ -262,6 +266,10 @@ jobs:
             fi
           ' sh {} \;
 
+      - name: List Android artifacts
+        run: |
+          find android-artifacts/* -type f
+
       - name: Upload Android artifacts
         if: matrix.android
         uses: actions/upload-artifact@v4
@@ -285,38 +293,37 @@ jobs:
           echo "Version: $VERSION"
           mkdir -p desktop-artifacts
 
-          if [ "${{ matrix.platform }}" = "ubuntu-24.04" ]; then
+          if [ "${{ matrix.platform }}" = "ubuntu-22.04" ]; then
             # Linux packages
             find src-tauri/target/release/bundle/deb -name "*.deb" -exec sh -c '
-              cp "$1" desktop-artifacts/whitenoise-'"$VERSION"'-amd64.deb
-              cp "${1}.sha256" desktop-artifacts/whitenoise-'"$VERSION"'-amd64.deb.sha256
+              cp "$1" desktop-artifacts/whitenoise-'"$VERSION"'-linux-amd64.deb
+              cp "${1}.sha256" desktop-artifacts/whitenoise-'"$VERSION"'-linux-amd64.deb.sha256
             ' sh {} \;
 
             find src-tauri/target/release/bundle/rpm -name "*.rpm" -exec sh -c '
-              cp "$1" desktop-artifacts/whitenoise-'"$VERSION"'-x86_64.rpm
-              cp "${1}.sha256" desktop-artifacts/whitenoise-'"$VERSION"'-x86_64.rpm.sha256
+              cp "$1" desktop-artifacts/whitenoise-'"$VERSION"'-linux-x86_64.rpm
+              cp "${1}.sha256" desktop-artifacts/whitenoise-'"$VERSION"'-linux-x86_64.rpm.sha256
             ' sh {} \;
 
             find src-tauri/target/release/bundle/appimage -name "*.AppImage" -exec sh -c '
-              cp "$1" desktop-artifacts/whitenoise-'"$VERSION"'-x86_64.AppImage
-              cp "${1}.sha256" desktop-artifacts/whitenoise-'"$VERSION"'-x86_64.AppImage.sha256
+              cp "$1" desktop-artifacts/whitenoise-'"$VERSION"'-linux-x86_64.AppImage
+              cp "${1}.sha256" desktop-artifacts/whitenoise-'"$VERSION"'-linux-x86_64.AppImage.sha256
             ' sh {} \;
 
           elif [ "${{ matrix.platform }}" = "macos-latest" ]; then
             # macOS packages
             find src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/dmg -name "*.dmg" -exec sh -c '
-              cp "$1" desktop-artifacts/whitenoise-'"$VERSION"'-${{ matrix.arch }}.dmg
-              cp "${1}.sha256" desktop-artifacts/whitenoise-'"$VERSION"'-${{ matrix.arch }}.dmg.sha256
+              cp "$1" desktop-artifacts/whitenoise-'"$VERSION"'-macos-${{ matrix.arch }}.dmg
+              cp "${1}.sha256" desktop-artifacts/whitenoise-'"$VERSION"'-macos-${{ matrix.arch }}.dmg.sha256
             ' sh {} \;
 
             find src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/macos -name "*.app.tar.gz" -exec sh -c '
-              cp "$1" desktop-artifacts/whitenoise-'"$VERSION"'-${{ matrix.arch }}.app.tar.gz
-              cp "${1}.sha256" desktop-artifacts/whitenoise-'"$VERSION"'-${{ matrix.arch }}.app.tar.gz.sha256
+              cp "$1" desktop-artifacts/whitenoise-'"$VERSION"'-macos-${{ matrix.arch }}.app.tar.gz
+              cp "${1}.sha256" desktop-artifacts/whitenoise-'"$VERSION"'-macos-${{ matrix.arch }}.app.tar.gz.sha256
             ' sh {} \;
           fi
 
-      - name: List macos artifacts
-        if: matrix.platform == 'macos-latest'
+      - name: List desktop artifacts
         run: |
           find desktop-artifacts/* -type f
 
