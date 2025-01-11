@@ -19,7 +19,10 @@ jobs:
           path: artifacts
 
       - name: Display structure of downloaded files
-        run: ls -R artifacts
+        run: |
+          echo "Artifact contents:"
+          ls -R artifacts
+          find artifacts -type f
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
