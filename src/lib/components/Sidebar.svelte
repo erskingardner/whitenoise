@@ -1,7 +1,7 @@
 <script lang="ts">
 import { goto } from "$app/navigation";
 import { accounts, setActiveAccount } from "$lib/stores/accounts";
-import { ChatsCircle, Eyes, Gear, Phone, Warning } from "phosphor-svelte";
+import { ChatsCircle, Gear, Phone } from "phosphor-svelte";
 import Avatar from "./Avatar.svelte";
 
 let { activeTab } = $props();
@@ -22,12 +22,6 @@ function handleAccountChange(pubkey: string) {
             <a href="/chats" class="p-2">
                 <span class="sidebar-link {activeTab === 'chats' ? 'active' : ''}">
                     <ChatsCircle size={32} weight={activeTab === "chats" ? "fill" : "light"} />
-                </span>
-            </a>
-            <a href="/legacy" class="p-2">
-                <span class="sidebar-link relative {activeTab === 'legacy' ? 'active' : ''}">
-                    <Eyes size={30} weight={activeTab === "legacy" ? "fill" : "light"} />
-                    <Warning size={18} weight="fill" class="absolute -bottom-2 -right-2 text-red-500" />
                 </span>
             </a>
             <a href="/calls" class="p-2">

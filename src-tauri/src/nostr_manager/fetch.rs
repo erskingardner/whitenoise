@@ -121,15 +121,6 @@ impl NostrManager {
         Ok(invites)
     }
 
-    pub async fn fecth_user_private_messages(
-        &self,
-        pubkey: PublicKey,
-    ) -> Result<Vec<UnsignedEvent>> {
-        let gw_events = self.fetch_user_giftwrapped_events(pubkey).await?;
-        let private_messages = self.extract_private_message_events(gw_events).await;
-        Ok(private_messages)
-    }
-
     async fn fetch_user_giftwrapped_events(&self, pubkey: PublicKey) -> Result<Vec<Event>> {
         let filter = Filter::new().kind(Kind::GiftWrap).pubkey(pubkey);
         let stored_events = self.client.database().query(vec![filter.clone()]).await?;

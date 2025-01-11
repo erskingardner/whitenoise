@@ -1,5 +1,5 @@
 <script lang="ts">
-import { ChatCircle, Eyes, GearSix, Phone, Warning } from "phosphor-svelte";
+import { ChatCircle, GearSix, Phone } from "phosphor-svelte";
 
 let { activeTab = $bindable("chats") }: { activeTab: string } = $props();
 </script>
@@ -12,13 +12,6 @@ let { activeTab = $bindable("chats") }: { activeTab: string } = $props();
             <span class="tabbar-link {activeTab === 'chats' ? 'active' : ''}">
                 <ChatCircle size={30} weight={activeTab === "chats" ? "fill" : "light"} />
                 Chats
-            </span>
-        </a>
-        <a href="/legacy">
-            <span class="tabbar-link relative {activeTab === 'legacy' ? 'active' : ''}">
-                <Eyes size={30} weight={activeTab === "legacy" ? "fill" : "light"} />
-                <Warning size={18} weight="fill" class="absolute bottom-6 right-0 text-red-500" />
-                DMs
             </span>
         </a>
         <a href="/calls">
