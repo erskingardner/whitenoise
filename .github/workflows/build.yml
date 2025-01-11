@@ -236,6 +236,7 @@ jobs:
           # Get version from Cargo.toml
           VERSION=$(grep '^version = ' src-tauri/Cargo.toml | cut -d '"' -f2)
 
+
           # Create a directory for renamed files
           mkdir -p android-artifacts
 
@@ -316,6 +317,11 @@ jobs:
               cp "${1}.sha256" desktop-artifacts/whitenoise-${VERSION}-${{ matrix.arch }}.app.tar.gz.sha256
             ' sh {} \;
           fi
+
+      - name: List macos artifacts
+        if: matrix.platform == 'macos-latest'
+        run: |
+          find desktop-artifacts/* -type f
 
       - name: Upload Desktop binaries
         if: ${{ !matrix.android }}
