@@ -8,8 +8,7 @@
 - Disappearing messages
 - Remote signing
 - Duress PIN codes (one deletes all the messages in all chats, another deletes ALL data)
-- Allow for inviting Nostr contacts to download the app via NIP-17 or NIP-04
-- search should also search all of nostr for a user by npub, nprofile, name, or hex pubkey (NIP-50 + Primal cache)
+- Search should also search all of nostr for a user by npub, nprofile, name, or hex pubkey (NIP-50 + Primal cache)
 - Adding another device to conversation flow
 - filter chats by unread conversations
 - filter contacts by active conversations

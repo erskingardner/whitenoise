@@ -267,26 +267,34 @@ jobs:
 
           # Copy and rename AAB with version
           find src-tauri/gen/android/app/build/outputs/bundle/universalRelease -name "*.aab" -exec sh -c '
-            cp "$1" android-artifacts/whitenoise-'"$VERSION"'-universal-release.aab
-            cp "${1}.sha256" android-artifacts/whitenoise-'"$VERSION"'-universal-release.aab.sha256
+            cp "$1" android-artifacts/whitenoise-'"$VERSION"'-android-universal.aab
+            cp "${1}.sha256" android-artifacts/whitenoise-'"$VERSION"'-android-universal.aab.sha256
           ' sh {} \;
 
           # Copy and rename APKs with version and their ABI
           find src-tauri/gen/android/app/build/outputs/apk/*/release -name "*.apk" -exec sh -c '
             filename=$(basename "$1")
-            if [[ $filename =~ arm64-v8a ]]; then
-              cp "$1" android-artifacts/whitenoise-'"$VERSION"'-arm64-v8a-release.apk
-              cp "${1}.sha256" android-artifacts/whitenoise-'"$VERSION"'-arm64-v8a-release.apk.sha256
-            elif [[ $filename =~ armeabi-v7a ]]; then
-              cp "$1" android-artifacts/whitenoise-'"$VERSION"'-armeabi-v7a-release.apk
-              cp "${1}.sha256" android-artifacts/whitenoise-'"$VERSION"'-armeabi-v7a-release.apk.sha256
-            elif [[ $filename =~ x86_64 ]]; then
-              cp "$1" android-artifacts/whitenoise-'"$VERSION"'-x86_64-release.apk
-              cp "${1}.sha256" android-artifacts/whitenoise-'"$VERSION"'-x86_64-release.apk.sha256
-            elif [[ $filename =~ x86 ]]; then
-              cp "$1" android-artifacts/whitenoise-'"$VERSION"'-x86-release.apk
-              cp "${1}.sha256" android-artifacts/whitenoise-'"$VERSION"'-x86-release.apk.sha256
-            fi
+            case "$filename" in
+              *arm64-v8a*)
+                cp "$1" android-artifacts/whitenoise-'"$VERSION"'-android-arm64-v8a.apk
+                cp "${1}.sha256" android-artifacts/whitenoise-'"$VERSION"'-android-arm64-v8a.apk.sha256
+                ;;
+              *armeabi-v7a*)
+                cp "$1" android-artifacts/whitenoise-'"$VERSION"'-android-armeabi-v7a.apk
+                cp "${1}.sha256" android-artifacts/whitenoise-'"$VERSION"'-android-armeabi-v7a.apk.sha256
+                ;;
+              *x86_64*)
+                cp "$1" android-artifacts/whitenoise-'"$VERSION"'-android-x86_64.apk
+                cp "${1}.sha256" android-artifacts/whitenoise-'"$VERSION"'-android-x86_64.apk.sha256
+                ;;
+              *x86_32*|*x86[^_]*) # More specific pattern for x86 (32-bit)
+                cp "$1" android-artifacts/whitenoise-'"$VERSION"'-android-x86.apk
+                cp "${1}.sha256" android-artifacts/whitenoise-'"$VERSION"'-android-x86.apk.sha256
+                ;;
+              *)
+                echo "Warning: Unrecognized APK architecture in filename: $filename"
+                ;;
+            esac
           ' sh {} \;
 
       - name: List Android artifacts
