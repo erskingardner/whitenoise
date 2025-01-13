@@ -61,7 +61,7 @@ impl Whitenoise {
         // Delete nostr cache db
         self.nostr.delete_all_data().await?;
         // Drop the app database completely
-        let db_path = self.data_dir.join("whitenoise.sled");
+        let db_path = self.data_dir.join("whitenoise_lmdb");
         if db_path.exists() {
             std::fs::remove_dir_all(&db_path)
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
