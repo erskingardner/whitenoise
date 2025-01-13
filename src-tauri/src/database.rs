@@ -99,11 +99,7 @@ impl Database {
 
     /// Gets the active account pubkey
     pub fn get_active_account(&self) -> Result<String, DatabaseError> {
-        let rtxn = self
-            .env
-            .read_txn()
-            .map_err(|e| DatabaseError::TransactionError(e.to_string()))?;
-
+        let rtxn = self.env.read_txn()?;
         match self
             .active_account_db
             .get(&rtxn, "Active")
@@ -120,11 +116,7 @@ impl Database {
             return Err(DatabaseError::InvalidKeyFormat("Empty pubkey".into()));
         }
 
-        let mut wtxn = self
-            .env
-            .write_txn()
-            .map_err(|e| DatabaseError::TransactionError(e.to_string()))?;
-
+        let mut wtxn = self.env.write_txn()?;
         self.active_account_db
             .put(&mut wtxn, "Active", pubkey)
             .map_err(|e| DatabaseError::LmdbError(e))?;
@@ -141,11 +133,7 @@ impl Database {
             return Err(DatabaseError::InvalidKeyFormat("Empty pubkey".into()));
         }
 
-        let rtxn = self
-            .env
-            .read_txn()
-            .map_err(|e| DatabaseError::TransactionError(e.to_string()))?;
-
+        let rtxn = self.env.read_txn()?;
         self.accounts_db
             .get(&rtxn, pubkey)
             .map_err(|e| DatabaseError::LmdbError(e))?
@@ -160,11 +148,7 @@ impl Database {
             ));
         }
 
-        let mut wtxn = self
-            .env
-            .write_txn()
-            .map_err(|e| DatabaseError::TransactionError(e.to_string()))?;
-
+        let mut wtxn = self.env.write_txn()?;
         self.accounts_db
             .put(&mut wtxn, &account.pubkey, account)
             .map_err(|e| DatabaseError::SerializationError(e.to_string()))?;
@@ -177,16 +161,8 @@ impl Database {
 
     /// Gets all accounts with better error handling
     pub fn get_all_accounts(&self) -> Result<Vec<Account>, DatabaseError> {
-        let rtxn = self
-            .env
-            .read_txn()
-            .map_err(|e| DatabaseError::TransactionError(e.to_string()))?;
-
-        let iter = self
-            .accounts_db
-            .iter(&rtxn)
-            .map_err(|e| DatabaseError::LmdbError(e))?;
-
+        let rtxn = self.env.read_txn()?;
+        let iter = self.accounts_db.iter(&rtxn)?;
         iter.map(|r| r.map(|(_, v)| v))
             .map(|res| res.map_err(|e| DatabaseError::DeserializationError(e.to_string())))
             .collect()
@@ -195,7 +171,6 @@ impl Database {
     /// Gets a group by its MLS group ID
     pub fn get_group(&self, group_id: &[u8]) -> Result<Option<Group>, DatabaseError> {
         let rtxn = self.env.read_txn()?;
-
         self.groups_db
             .get(&rtxn, group_id)
             .map_err(|e| DatabaseError::LmdbError(e))
@@ -213,8 +188,9 @@ impl Database {
     pub fn get_all_groups(&self) -> Result<Vec<Group>, DatabaseError> {
         let rtxn = self.env.read_txn()?;
         let iter = self.groups_db.iter(&rtxn)?;
-        let groups: Result<Vec<_>, _> = iter.map(|r| r.map(|(_, v)| v)).collect();
-        Ok(groups?)
+        iter.map(|r| r.map(|(_, v)| v))
+            .map(|res| res.map_err(|e| DatabaseError::DeserializationError(e.to_string())))
+            .collect()
     }
 
     /// Gets an invite by its Nostr event ID
@@ -235,14 +211,11 @@ impl Database {
 
     /// Gets all invites
     pub fn get_all_invites(&self) -> Result<Vec<Invite>, DatabaseError> {
-        let rtxn = self
-            .env
-            .read_txn()
-            .map_err(|e| DatabaseError::TransactionError(e.to_string()))?;
-
+        let rtxn = self.env.read_txn()?;
         let iter = self.invites_db.iter(&rtxn)?;
-        let invites: Result<Vec<_>, _> = iter.map(|r| r.map(|(_, v)| v)).collect();
-        Ok(invites?)
+        iter.map(|r| r.map(|(_, v)| v))
+            .map(|res| res.map_err(|e| DatabaseError::DeserializationError(e.to_string())))
+            .collect()
     }
 
     /// Creates a compound key for chat storage using binary group_id
@@ -268,11 +241,7 @@ impl Database {
 
     /// Saves a chat message with compound binary key
     pub fn save_chat(&self, group_id: &[u8], event: &UnsignedEvent) -> Result<(), DatabaseError> {
-        let mut wtxn = self
-            .env
-            .write_txn()
-            .map_err(|e| DatabaseError::TransactionError(e.to_string()))?;
-
+        let mut wtxn = self.env.write_txn()?;
         let key = self.create_chat_key(group_id, event)?;
         self.chats_db.put(&mut wtxn, &key, event)?;
         wtxn.commit()?;
@@ -307,16 +276,14 @@ impl Database {
                 true
             });
 
-        let chats: Result<Vec<_>, _> = iter.map(|r| r.map(|(_, v)| v)).collect();
-        Ok(chats?)
+        iter.map(|r| r.map(|(_, v)| v))
+            .map(|res| res.map_err(|e| DatabaseError::DeserializationError(e.to_string())))
+            .collect()
     }
 
     /// Deletes all data from the database
     pub fn delete_all_data(&self) -> Result<(), DatabaseError> {
-        let mut wtxn = self
-            .env
-            .write_txn()
-            .map_err(|e| DatabaseError::TransactionError(e.to_string()))?;
+        let mut wtxn = self.env.write_txn()?;
 
         // Using a macro to reduce repetition
         macro_rules! clear_db {
