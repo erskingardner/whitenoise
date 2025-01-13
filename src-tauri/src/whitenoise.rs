@@ -1,4 +1,5 @@
 use crate::account_manager::AccountManager;
+use crate::database::Database;
 use crate::group_manager::GroupManager;
 use crate::nostr_manager::NostrManager;
 use nostr_openmls::NostrMls;
@@ -23,9 +24,8 @@ impl Whitenoise {
             &data_dir
         );
 
-        let database = Arc::new(
-            sled::open(data_dir.join("whitenoise.sled")).expect("Failed to open database"),
-        );
+        let database =
+            Database::new(data_dir.join("whitenoise_lmdb")).expect("Failed to create database");
 
         let account_manager = AccountManager::new(database.clone(), app_handle)
             .expect("Failed to create account manager");

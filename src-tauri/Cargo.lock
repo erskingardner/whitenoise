@@ -1751,11 +1751,30 @@ dependencies = [
  "bitflags 2.6.0",
  "byteorder",
  "heed-traits",
- "heed-types",
+ "heed-types 0.20.1",
  "libc",
  "lmdb-master-sys",
  "once_cell",
  "page_size",
+ "synchronoise",
+ "url",
+]
+
+[[package]]
+name = "heed"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd54745cfacb7b97dee45e8fdb91814b62bccddb481debb7de0f9ee6b7bf5b43"
+dependencies = [
+ "bitflags 2.6.0",
+ "byteorder",
+ "heed-traits",
+ "heed-types 0.21.0",
+ "libc",
+ "lmdb-master-sys",
+ "once_cell",
+ "page_size",
+ "serde",
  "synchronoise",
  "url",
 ]
@@ -1774,6 +1793,19 @@ checksum = "9d3f528b053a6d700b2734eabcd0fd49cb8230647aa72958467527b0b7917114"
 dependencies = [
  "byteorder",
  "heed-traits",
+]
+
+[[package]]
+name = "heed-types"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "13c255bdf46e07fb840d120a36dcc81f385140d7191c76a7391672675c01a55d"
+dependencies = [
+ "bincode",
+ "byteorder",
+ "heed-traits",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2647,7 +2679,7 @@ version = "0.37.0"
 source = "git+https://github.com/rust-nostr/nostr?rev=096e7b2e2e3f8fc8e36283f99a4d24d2cd34b1e1#096e7b2e2e3f8fc8e36283f99a4d24d2cd34b1e1"
 dependencies = [
  "async-utility",
- "heed",
+ "heed 0.20.5",
  "nostr",
  "nostr-database",
  "thiserror 1.0.69",
@@ -5658,13 +5690,13 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
+ "heed 0.21.0",
  "keyring",
  "nostr-openmls",
  "nostr-sdk",
  "once_cell",
  "serde",
  "serde_json",
- "sled",
  "tauri",
  "tauri-build",
  "tauri-plugin-shell",

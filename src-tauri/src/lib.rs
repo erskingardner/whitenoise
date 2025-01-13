@@ -1,5 +1,6 @@
 mod account_manager;
 mod commands;
+mod database;
 mod group_manager;
 mod groups;
 mod invites;
