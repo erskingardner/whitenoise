@@ -109,7 +109,6 @@ export type NostrMlsGroup = {
     last_message_id: string;
     relay_urls: string[];
     group_type: NostrMlsGroupType;
-    transcript: NEvent[];
 };
 
 export enum NostrMlsGroupType {

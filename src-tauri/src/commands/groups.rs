@@ -49,8 +49,44 @@ pub fn get_groups(wn: tauri::State<'_, Whitenoise>) -> Result<Vec<Group>, String
 #[tauri::command]
 pub fn get_group(group_id: &str, wn: tauri::State<'_, Whitenoise>) -> Result<Group, String> {
     let account = Account::get_active(&wn).map_err(|e| e.to_string())?;
-    Group::find_by_mls_group_id(&account.pubkey, group_id.as_bytes(), &wn)
-        .map_err(|e| format!("Error fetching groups for account: {}", e))
+    let mls_group_id =
+        hex::decode(group_id).map_err(|e| format!("Error decoding group id: {}", e))?;
+    Group::find_by_mls_group_id(&account.pubkey, &mls_group_id, &wn)
+        .map_err(|e| format!("Error fetching group: {}", e))
+}
+
+/// Gets a single MLS group and its messages by group ID
+///
+/// # Arguments
+/// * `group_id` - Hex encoded MLS group ID
+/// * `wn` - Whitenoise state
+///
+/// # Returns
+/// * `Ok((Group, Vec<UnsignedEvent>))` - Tuple containing:
+///   - The requested group if found
+///   - Vector of unsigned message events for the group
+/// * `Err(String)` - Error message if operation fails
+///
+/// # Errors
+/// Returns error if:
+/// - No active account found
+/// - Group ID is not valid hex
+/// - Group not found in database
+/// - Error fetching messages
+#[tauri::command]
+pub fn get_group_and_messages(
+    group_id: &str,
+    wn: tauri::State<'_, Whitenoise>,
+) -> Result<(Group, Vec<UnsignedEvent>), String> {
+    let account = Account::get_active(&wn).map_err(|e| e.to_string())?;
+    let mls_group_id =
+        hex::decode(group_id).map_err(|e| format!("Error decoding group id: {}", e))?;
+    let group = Group::find_by_mls_group_id(&account.pubkey, &mls_group_id, &wn)
+        .map_err(|e| format!("Error fetching group: {}", e))?;
+    let messages = group
+        .messages(None, None, &wn)
+        .map_err(|e| format!("Error fetching messages: {}", e))?;
+    Ok((group, messages))
 }
 
 /// Creates a new MLS group with the specified members and settings

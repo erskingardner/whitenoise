@@ -1,6 +1,7 @@
 use crate::accounts::Account;
 use crate::types::{EnrichedContact, NostrEncryptionMethod};
 use crate::whitenoise::Whitenoise;
+use nostr_openmls::NostrMls;
 use nostr_sdk::prelude::*;
 use std::collections::HashMap;
 use tauri::Emitter;
@@ -17,6 +18,12 @@ pub async fn init_nostr_for_current_user(
         .set_nostr_identity(&current_account, &wn, &app_handle)
         .await
         .map_err(|e| e.to_string())?;
+
+    // Then update Nostr MLS instance
+    {
+        let mut nostr_mls = wn.nostr_mls.lock().expect("Failed to lock Nostr MLS");
+        *nostr_mls = NostrMls::new(wn.data_dir.clone(), Some(current_account.pubkey.clone()));
+    }
 
     tracing::debug!(
         target: "whitenoise::commands::nostr::init_nostr_for_current_user",

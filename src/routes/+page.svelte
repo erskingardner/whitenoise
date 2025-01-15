@@ -9,6 +9,7 @@ import { onMount } from "svelte";
 onMount(async () => {
     updateAccountsStore().then(() => {
         if ($activeAccount?.pubkey && isValidHexPubkey($activeAccount?.pubkey)) {
+            console.log("init_nostr_for_current_user");
             invoke("init_nostr_for_current_user");
             setTimeout(() => {
                 goto("/chats");

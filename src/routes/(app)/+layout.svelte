@@ -5,7 +5,7 @@ import Modal from "$lib/components/Modals/Modal.svelte";
 import PreOnboard from "$lib/components/Modals/Onboarding/PreOnboard.svelte";
 import Sidebar from "$lib/components/Sidebar.svelte";
 import Tabbar from "$lib/components/Tabbar.svelte";
-import { activeAccount, updateAccountsStore } from "$lib/stores/accounts";
+import { accounts, activeAccount, updateAccountsStore } from "$lib/stores/accounts";
 import { invoke } from "@tauri-apps/api/core";
 import { type UnlistenFn, listen } from "@tauri-apps/api/event";
 import { onDestroy, onMount } from "svelte";
@@ -48,6 +48,9 @@ async function checkPreflight() {
         keyPackagePublished = $activeAccount.onboarding.publish_key_package;
     }
 }
+
+$inspect("activeAccount", $activeAccount);
+$inspect("accounts", $accounts);
 
 onMount(async () => {
     if (!unlistenNostrReady) {

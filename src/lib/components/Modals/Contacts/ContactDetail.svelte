@@ -45,8 +45,6 @@ async function startSecureChat() {
         });
 }
 
-$inspect("Contact", contact);
-
 async function inviteToWhiteNoise() {
     // TODO: await invoke("invite_to_white_noise", { pubkey });
 }

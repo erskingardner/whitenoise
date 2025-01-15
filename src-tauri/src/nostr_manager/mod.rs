@@ -135,7 +135,8 @@ impl NostrManager {
     ) -> Result<()> {
         tracing::debug!(
             target: "whitenoise::nostr_client::update_nostr_identity",
-            "Updating Nostr identity"
+            "Updating Nostr identity to {}",
+            account.pubkey
         );
 
         let keys = account
@@ -216,7 +217,6 @@ impl NostrManager {
             "Nostr identity updated and connected to relays"
         );
 
-        // TODO: Update subscriptions and fetch data
         // Spawn two tasks in parallel:
         // 1. Setup subscriptions to catch future events
         // 2. Fetch past events

@@ -91,6 +91,7 @@ pub fn run() {
             publish_relay_list,
             update_account_onboarding,
             get_group,
+            get_group_and_messages,
             get_invite,
             accept_invite,
             decline_invite,

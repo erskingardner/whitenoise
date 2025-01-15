@@ -25,7 +25,7 @@ let group: NostrMlsGroup | undefined = $state(undefined);
 let counterpartyPubkey: string | undefined = $state(undefined);
 let enrichedCounterparty: EnrichedContact | undefined = $state(undefined);
 let groupName = $state("");
-let transcript: NEvent[] = $state([]);
+let messages: NEvent[] = $state([]);
 
 $effect(() => {
     if (
@@ -41,9 +41,9 @@ $effect(() => {
 });
 
 async function loadGroup() {
-    invoke("get_group", { groupId: page.params.id }).then((groupResponse) => {
-        group = groupResponse as NostrMlsGroup;
-        transcript = group.transcript.sort((a, b) => a.created_at - b.created_at);
+    invoke("get_group_and_messages", { groupId: page.params.id }).then((groupResponse) => {
+        console.log("groupResponse", groupResponse);
+        [group, messages] = groupResponse as [NostrMlsGroup, NEvent[]];
         counterpartyPubkey =
             group.group_type === NostrMlsGroupType.DirectMessage
                 ? group.admin_pubkeys.filter((pubkey) => pubkey !== $activeAccount?.pubkey)[0]
@@ -80,13 +80,11 @@ onMount(async () => {
     if (!unlistenMlsMessageProcessed) {
         unlistenMlsMessageProcessed = await listen<[NostrMlsGroup, NEvent]>(
             "mls_message_processed",
-            ({ payload: [updatedGroup, message] }) => {
+            ({ payload: [_updatedGroup, message] }) => {
                 console.log("mls_message_processed event received", message.content);
-                if (!transcript.some((m) => m.id === message.id)) {
+                if (!messages.some((m) => m.id === message.id)) {
                     console.log("pushing message to transcript");
-                    transcript = [...transcript, message].sort(
-                        (a, b) => a.created_at - b.created_at
-                    );
+                    messages = [...messages, message].sort((a, b) => a.created_at - b.created_at);
                 }
                 scrollToBottom();
             }
@@ -109,9 +107,9 @@ onMount(async () => {
 
 function handleNewMessage(message: NEvent, replaceTemp: boolean) {
     if (replaceTemp) {
-        transcript = transcript.filter((event) => event.id !== "temp");
+        messages = messages.filter((event) => event.id !== "temp");
     }
-    transcript = [...transcript, message].sort((a, b) => a.created_at - b.created_at);
+    messages = [...messages, message].sort((a, b) => a.created_at - b.created_at);
     scrollToBottom();
 }
 
@@ -260,7 +258,7 @@ function handleNewMessage(message: NEvent, replaceTemp: boolean) {
             id="messagesContainer"
             class="flex-1 px-8 flex flex-col gap-2 pt-10 pb-40 overflow-y-auto opacity-100 transition-opacity ease-in-out duration-50"
         >
-            {#each transcript as message (message.id)}
+            {#each messages as message (message.id)}
                 <div class={`flex ${message.pubkey === $activeAccount?.pubkey ? "justify-end" : "justify-start"}`}>
                     <div
                         class={`max-w-[70%] rounded-lg ${message.pubkey === $activeAccount?.pubkey ? "bg-chat-bg-me text-gray-50 rounded-br" : "bg-chat-bg-other text-gray-50 rounded-bl"} p-3`}

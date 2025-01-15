@@ -31,7 +31,7 @@ async function sendMessage() {
         id: "temp",
         content: message,
         created_at: Math.floor(Date.now() / 1000),
-        pubkey: $activeAccount?.pubkey as string,
+        pubkey: $activeAccount?.pubkey,
         kind: 9,
         tags: [["h", group.nostr_group_id]],
     };

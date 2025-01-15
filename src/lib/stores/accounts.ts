@@ -57,7 +57,8 @@ export async function setActiveAccount(pubkey: string): Promise<void> {
     if (
         !get(accounts)
             .map((account) => account.pubkey)
-            .includes(pubkey)
+            .includes(pubkey) ||
+        pubkey === get(activeAccount)?.pubkey
     )
         return;
     emit("account_changing", pubkey);
