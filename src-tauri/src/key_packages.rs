@@ -1,4 +1,4 @@
-use crate::account_manager::AccountError;
+use crate::accounts::AccountError;
 use crate::nostr_manager;
 use crate::whitenoise::Whitenoise;
 use nostr_openmls::key_packages::KeyPackage;
@@ -32,9 +32,10 @@ pub struct KeyPackageResponse {
 
 pub type Result<T> = std::result::Result<T, KeyPackageError>;
 
+/// Fetches key packages for a list of pubkeys
 pub async fn fetch_key_packages_for_members(
     member_pubkeys: &[String],
-    wn: &tauri::State<'_, Whitenoise>,
+    wn: &Whitenoise,
 ) -> Result<Vec<KeyPackageResponse>> {
     let mut member_key_packages: Vec<KeyPackageResponse> = Vec::new();
 
@@ -73,9 +74,10 @@ pub async fn fetch_key_packages_for_members(
     Ok(member_key_packages)
 }
 
+/// Fetches key packages for a single pubkey
 pub async fn fetch_key_package_for_pubkey(
     pubkey: String,
-    wn: &tauri::State<'_, Whitenoise>,
+    wn: &Whitenoise,
 ) -> Result<Option<(EventId, KeyPackage)>> {
     tracing::debug!(target: "whitenoise::key_packages::fetch_key_package_for_pubkey", "Fetching key package for pubkey: {:?}", pubkey);
     let public_key = PublicKey::from_hex(&pubkey).expect("Invalid pubkey");
@@ -163,7 +165,7 @@ pub async fn delete_key_package_from_relays(
     event_id: &EventId,
     key_package_relays: &[String],
     delete_mls_stored_keys: bool,
-    wn: &tauri::State<'_, Whitenoise>,
+    wn: &Whitenoise,
 ) -> Result<()> {
     let current_pubkey = wn
         .nostr

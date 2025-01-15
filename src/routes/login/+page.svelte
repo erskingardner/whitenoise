@@ -3,7 +3,7 @@ import { goto } from "$app/navigation";
 import Loader from "$lib/components/Loader.svelte";
 import {
     LoginError,
-    accounts,
+    activeAccount,
     createAccount,
     login,
     updateAccountsStore,
@@ -42,7 +42,7 @@ onMount(async () => {
 
     updateAccountsStore().then(() => {
         loading = false;
-        if ($accounts.activeAccount && isValidHexPubkey($accounts.activeAccount)) {
+        if ($activeAccount?.pubkey && isValidHexPubkey($activeAccount?.pubkey)) {
             invoke("init_nostr_for_current_user");
         }
     });

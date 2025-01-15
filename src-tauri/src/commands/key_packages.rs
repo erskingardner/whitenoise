@@ -1,6 +1,8 @@
-use crate::{key_packages::fetch_key_package_for_pubkey, Whitenoise};
-use nostr_sdk::event::{EventBuilder, Kind, Tag, TagKind};
+use crate::accounts::Account;
+use crate::key_packages::fetch_key_package_for_pubkey;
+use crate::Whitenoise;
 use nostr_openmls::key_packages::create_key_package_for_event;
+use nostr_sdk::event::{EventBuilder, Kind, Tag, TagKind};
 
 /// Checks if a valid MLS key package exists for a given user
 ///
@@ -78,33 +80,19 @@ pub async fn publish_key_package(wn: tauri::State<'_, Whitenoise>) -> Result<(),
         if cfg!(dev) {
             key_package_relays = vec!["ws://localhost:8080".to_string()];
         } else {
-            key_package_relays = match wn
-                .account_manager
-            .get_active_account()
-            .map_err(|e| e.to_string())?
-            .key_package_relays
-            .is_empty()
-        {
-            true => return Err("Key package relays not set".to_string()),
-            false => wn
-                .account_manager
-                .get_active_account()
-                .map_err(|e| e.to_string())?
-                .key_package_relays
-                .clone(),
+            let active_account = Account::get_active(wn.inner()).map_err(|e| e.to_string())?;
+            key_package_relays = match active_account.key_package_relays.is_empty() {
+                true => return Err("Key package relays not set".to_string()),
+                false => active_account.key_package_relays.clone(),
             };
         }
-        event = EventBuilder::new(
-            Kind::MlsKeyPackage,
-            serialized_key_package).tags(
-            [
-                Tag::custom(TagKind::MlsProtocolVersion, ["1.0"]),
-                Tag::custom(TagKind::MlsCiphersuite, [ciphersuite]),
-                Tag::custom(TagKind::MlsExtensions, [extensions]),
-                Tag::custom(TagKind::Client, ["whitenoise"]),
-                Tag::custom(TagKind::Relays, key_package_relays.clone()),
-            ]
-        );
+        event = EventBuilder::new(Kind::MlsKeyPackage, serialized_key_package).tags([
+            Tag::custom(TagKind::MlsProtocolVersion, ["1.0"]),
+            Tag::custom(TagKind::MlsCiphersuite, [ciphersuite]),
+            Tag::custom(TagKind::MlsExtensions, [extensions]),
+            Tag::custom(TagKind::Client, ["whitenoise"]),
+            Tag::custom(TagKind::Relays, key_package_relays.clone()),
+        ]);
     }
     wn.nostr
         .client
@@ -127,7 +115,7 @@ pub async fn delete_all_key_packages(wn: tauri::State<'_, Whitenoise>) -> Result
         .await
         .map_err(|e| e.to_string())?;
 
-    let active_account = wn.account_manager.get_active_account().map_err(|e| e.to_string())?;
+    let active_account = Account::get_active(wn.inner()).map_err(|e| e.to_string())?;
 
     let key_package_relays: Vec<String> = if cfg!(dev) {
         vec!["ws://localhost:8080".to_string()]
@@ -135,12 +123,23 @@ pub async fn delete_all_key_packages(wn: tauri::State<'_, Whitenoise>) -> Result
         active_account.key_package_relays.clone()
     };
 
-    let key_package_events = wn.nostr.query_user_key_packages(pubkey).await.map_err(|e| e.to_string())?;
+    let key_package_events = wn
+        .nostr
+        .query_user_key_packages(pubkey)
+        .await
+        .map_err(|e| e.to_string())?;
 
     if !key_package_events.is_empty() {
-        let delete_event = EventBuilder::delete_with_reason(key_package_events.iter().map(|e| e.id), "Delete own key package");
+        let delete_event = EventBuilder::delete_with_reason(
+            key_package_events.iter().map(|e| e.id),
+            "Delete own key package",
+        );
         tracing::debug!(target: "whitenoise::commands::key_packages::delete_all_key_packages", "Deleting key packages: {:?}", delete_event);
-        wn.nostr.client.send_event_builder_to(key_package_relays, delete_event).await.map_err(|e| e.to_string())?;
+        wn.nostr
+            .client
+            .send_event_builder_to(key_package_relays, delete_event)
+            .await
+            .map_err(|e| e.to_string())?;
     } else {
         tracing::debug!(target: "whitenoise::commands::key_packages::delete_all_key_packages", "No key packages to delete");
     }

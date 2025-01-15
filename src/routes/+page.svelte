@@ -1,14 +1,14 @@
 <script lang="ts">
 import { goto } from "$app/navigation";
 import Loader from "$lib/components/Loader.svelte";
-import { accounts, updateAccountsStore } from "$lib/stores/accounts";
+import { activeAccount, updateAccountsStore } from "$lib/stores/accounts";
 import { isValidHexPubkey } from "$lib/types/nostr";
 import { invoke } from "@tauri-apps/api/core";
 import { onMount } from "svelte";
 
 onMount(async () => {
     updateAccountsStore().then(() => {
-        if ($accounts.activeAccount && isValidHexPubkey($accounts.activeAccount)) {
+        if ($activeAccount?.pubkey && isValidHexPubkey($activeAccount?.pubkey)) {
             invoke("init_nostr_for_current_user");
             setTimeout(() => {
                 goto("/chats");

@@ -7,6 +7,7 @@ import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
 import {
     LogoutError,
     accounts,
+    activeAccount,
     createAccount,
     fetchRelays,
     login,
@@ -250,7 +251,7 @@ async function toggleInspectInvites() {
 <main class="px-4 flex flex-col pb-40">
     <h2 class="section-title">Accounts</h2>
     <div class="section w-full">
-        {#each $accounts.accounts as account (account.pubkey)}
+        {#each $accounts as account (account.pubkey)}
             <div class="flex flex-row gap-4 items-center border-b border-gray-700 py-3 min-w-0 w-full">
                 <button
                     class="flex flex-row items-center flex-1 min-w-0"
@@ -260,7 +261,7 @@ async function toggleInspectInvites() {
                         pubkey={account.pubkey}
                         picture={account.metadata?.picture}
                         pxSize={40}
-                        showRing={$accounts.activeAccount === account.pubkey}
+                        showRing={$activeAccount?.pubkey === account.pubkey}
                     />
 
                     <div class="flex flex-col gap-1 min-w-0 justify-start text-left pl-4 truncate">

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { accounts } from "$lib/stores/accounts";
+import { activeAccount } from "$lib/stores/accounts";
 import { getToastState } from "$lib/stores/toast-state.svelte";
 import type { PushView } from "$lib/types/modal";
 import { invoke } from "@tauri-apps/api/core";
@@ -25,7 +25,7 @@ async function publishKeyPackage(): Promise<void> {
         .then(async () => {
             keyPackagePublished = true;
             await invoke("update_account_onboarding", {
-                pubkey: $accounts.activeAccount,
+                pubkey: $activeAccount?.pubkey,
                 inboxRelays: !!inboxRelaysPublished,
                 keyPackageRelays: !!keyPackageRelaysPublished,
                 publishKeyPackage: true,

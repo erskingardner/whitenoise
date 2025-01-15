@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::account_manager::Account;
+use crate::accounts::Account;
 use crate::groups::Group;
 use crate::invites::Invite;
 use nostr_sdk::UnsignedEvent;
@@ -9,16 +9,38 @@ use nostr_sdk::UnsignedEvent;
 #[derive(Debug, Clone)]
 pub struct Database {
     env: Arc<heed::Env>,
-    /// Key: "Active"; Value: Account pubkey
+    /// Active account
+    /// Key: "Active"; Value: <account_pubkey>
     active_account_db: heed::Database<heed::types::Str, heed::types::Str>,
-    /// Key: Account pubkey; Value: Account
+
+    /// Accounts
+    /// Key: <account_pubkey>; Value: <Account>
     accounts_db: heed::Database<heed::types::Str, heed::types::SerdeJson<Account>>,
-    /// Key: MLS Group ID; Value: Group
+
+    /// Groups
+    /// Key: <mls_group_id>; Value: <Group>
     groups_db: heed::Database<heed::types::Bytes, heed::types::SerdeJson<Group>>,
-    /// Key: Nostr event ID; Value: Invite
+
+    /// Invites
+    /// The <event_id> is the id of the 444 rumor event (the invite)
+    /// Key: <event_id>; Value: <Invite>
     invites_db: heed::Database<heed::types::Str, heed::types::SerdeJson<Invite>>,
-    /// Key: Compound binary key (group_id + timestamp + event_id); Value: UnsignedEvent
-    chats_db: heed::Database<heed::types::Bytes, heed::types::SerdeJson<UnsignedEvent>>,
+
+    /// Processed Invites Index
+    /// This indexes the id of the giftwrapped invites that have been processed so we don't process them again
+    /// The <event_id> is the id of the 1059 event that contains the giftwrapped invite
+    /// Key: <event_id>; Value: <event_id>;
+    processed_invites_index: heed::Database<heed::types::Str, heed::types::Str>,
+
+    /// Messages
+    /// Processed (decrypted) messages that are group specific
+    /// Key: <mls_group_id> + <timestamp> + <event_id>; Value: <UnsignedEvent>
+    messages_db: heed::Database<heed::types::Bytes, heed::types::SerdeJson<UnsignedEvent>>,
+
+    /// Processed Messages Index
+    /// This indexes the id of the unprocessed/encrypted 445 messages that have been processed so we don't process them again
+    /// Key: <event_id>; Value: <mls_group_id> + <timestamp> + <event_id>;
+    processed_messages_index: heed::Database<heed::types::Str, heed::types::Bytes>,
 }
 
 /// Errors thrown by the database
@@ -30,30 +52,25 @@ pub enum DatabaseError {
     SerializationError(String),
     #[error("Failed to deserialize data: {0}")]
     DeserializationError(String),
-    #[error("Account not found: {0}")]
-    AccountNotFound(String),
-    #[error("Group not found: {0}")]
-    GroupNotFound(String),
-    #[error("Invite not found: {0}")]
-    InviteNotFound(String),
-    #[error("No active account set")]
-    NoActiveAccount,
     #[error("Transaction error: {0}")]
     TransactionError(String),
-    #[error("Database is full")]
-    DatabaseFull,
-    #[error("Invalid key format: {0}")]
-    InvalidKeyFormat(String),
+    #[error("Invalid key: {0}")]
+    InvalidKey(String),
 }
 
 impl Database {
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, DatabaseError> {
+        // Create directory if it doesn't exist
+        std::fs::create_dir_all(&path).map_err(|e| {
+            DatabaseError::TransactionError(format!("Failed to create directory: {}", e))
+        })?;
+
         let env = unsafe {
             heed::EnvOpenOptions::new()
-                .map_size(100 * 1024 * 1024)
-                .max_dbs(5)
+                .map_size(10 * 1024 * 1024 * 1024) // 10GB
+                .max_dbs(7)
                 .open(path)
-                .map_err(|e| DatabaseError::LmdbError(e))?
+                .map_err(DatabaseError::LmdbError)?
         };
 
         let mut wtxn = env
@@ -62,20 +79,25 @@ impl Database {
 
         let active_account_db = env
             .create_database(&mut wtxn, Some("active_account"))
-            .map_err(|e| DatabaseError::LmdbError(e))?;
+            .map_err(DatabaseError::LmdbError)?;
         let accounts_db = env
             .create_database(&mut wtxn, Some("accounts"))
-            .map_err(|e| DatabaseError::LmdbError(e))?;
+            .map_err(DatabaseError::LmdbError)?;
         let groups_db = env
             .create_database(&mut wtxn, Some("groups"))
-            .map_err(|e| DatabaseError::LmdbError(e))?;
+            .map_err(DatabaseError::LmdbError)?;
         let invites_db = env
             .create_database(&mut wtxn, Some("invites"))
-            .map_err(|e| DatabaseError::LmdbError(e))?;
-        let chats_db = env
-            .create_database(&mut wtxn, Some("chats"))
-            .map_err(|e| DatabaseError::LmdbError(e))?;
-
+            .map_err(DatabaseError::LmdbError)?;
+        let processed_invites_index = env
+            .create_database(&mut wtxn, Some("processed_invites_index"))
+            .map_err(DatabaseError::LmdbError)?;
+        let messages_db = env
+            .create_database(&mut wtxn, Some("messages"))
+            .map_err(DatabaseError::LmdbError)?;
+        let processed_messages_index = env
+            .create_database(&mut wtxn, Some("processed_messages_index"))
+            .map_err(DatabaseError::LmdbError)?;
         wtxn.commit()
             .map_err(|e| DatabaseError::TransactionError(e.to_string()))?;
 
@@ -85,200 +107,57 @@ impl Database {
             accounts_db,
             groups_db,
             invites_db,
-            chats_db,
+            processed_invites_index,
+            messages_db,
+            processed_messages_index,
         })
     }
 
     pub fn write_txn(&self) -> Result<heed::RwTxn, DatabaseError> {
-        Ok(self.env.write_txn()?)
+        self.env
+            .write_txn()
+            .map_err(|e| DatabaseError::TransactionError(e.to_string()))
     }
 
     pub fn read_txn(&self) -> Result<heed::RoTxn, DatabaseError> {
-        Ok(self.env.read_txn()?)
+        self.env
+            .read_txn()
+            .map_err(|e| DatabaseError::TransactionError(e.to_string()))
     }
 
-    /// Gets the active account pubkey
-    pub fn get_active_account(&self) -> Result<String, DatabaseError> {
-        let rtxn = self.env.read_txn()?;
-        match self
-            .active_account_db
-            .get(&rtxn, "Active")
-            .map_err(|e| DatabaseError::LmdbError(e))?
-        {
-            Some(pubkey) => Ok(pubkey.to_string()),
-            None => Err(DatabaseError::NoActiveAccount),
-        }
+    pub fn active_account_db(&self) -> &heed::Database<heed::types::Str, heed::types::Str> {
+        &self.active_account_db
     }
 
-    /// Sets the active account pubkey
-    pub fn set_active_account(&self, pubkey: &str) -> Result<(), DatabaseError> {
-        if pubkey.is_empty() {
-            return Err(DatabaseError::InvalidKeyFormat("Empty pubkey".into()));
-        }
-
-        let mut wtxn = self.env.write_txn()?;
-        self.active_account_db
-            .put(&mut wtxn, "Active", pubkey)
-            .map_err(|e| DatabaseError::LmdbError(e))?;
-
-        wtxn.commit()
-            .map_err(|e| DatabaseError::TransactionError(e.to_string()))?;
-
-        Ok(())
-    }
-
-    /// Gets an account by its pubkey
-    pub fn get_account(&self, pubkey: &str) -> Result<Account, DatabaseError> {
-        if pubkey.is_empty() {
-            return Err(DatabaseError::InvalidKeyFormat("Empty pubkey".into()));
-        }
-
-        let rtxn = self.env.read_txn()?;
-        self.accounts_db
-            .get(&rtxn, pubkey)
-            .map_err(|e| DatabaseError::LmdbError(e))?
-            .ok_or_else(|| DatabaseError::AccountNotFound(pubkey.to_string()))
-    }
-
-    /// Saves an account
-    pub fn save_account(&self, account: &Account) -> Result<(), DatabaseError> {
-        if account.pubkey.is_empty() {
-            return Err(DatabaseError::InvalidKeyFormat(
-                "Empty account pubkey".into(),
-            ));
-        }
-
-        let mut wtxn = self.env.write_txn()?;
-        self.accounts_db
-            .put(&mut wtxn, &account.pubkey, account)
-            .map_err(|e| DatabaseError::SerializationError(e.to_string()))?;
-
-        wtxn.commit()
-            .map_err(|e| DatabaseError::TransactionError(e.to_string()))?;
-
-        Ok(())
-    }
-
-    /// Gets all accounts with better error handling
-    pub fn get_all_accounts(&self) -> Result<Vec<Account>, DatabaseError> {
-        let rtxn = self.env.read_txn()?;
-        let iter = self.accounts_db.iter(&rtxn)?;
-        iter.map(|r| r.map(|(_, v)| v))
-            .map(|res| res.map_err(|e| DatabaseError::DeserializationError(e.to_string())))
-            .collect()
-    }
-
-    /// Gets a group by its MLS group ID
-    pub fn get_group(&self, group_id: &[u8]) -> Result<Option<Group>, DatabaseError> {
-        let rtxn = self.env.read_txn()?;
-        self.groups_db
-            .get(&rtxn, group_id)
-            .map_err(|e| DatabaseError::LmdbError(e))
-    }
-
-    /// Saves a group
-    pub fn save_group(&self, group_id: &[u8], group: &Group) -> Result<(), DatabaseError> {
-        let mut wtxn = self.env.write_txn()?;
-        self.groups_db.put(&mut wtxn, group_id, group)?;
-        wtxn.commit()?;
-        Ok(())
-    }
-
-    /// Gets all groups
-    pub fn get_all_groups(&self) -> Result<Vec<Group>, DatabaseError> {
-        let rtxn = self.env.read_txn()?;
-        let iter = self.groups_db.iter(&rtxn)?;
-        iter.map(|r| r.map(|(_, v)| v))
-            .map(|res| res.map_err(|e| DatabaseError::DeserializationError(e.to_string())))
-            .collect()
-    }
-
-    /// Gets an invite by its Nostr event ID
-    pub fn get_invite(&self, event_id: &str) -> Result<Option<Invite>, DatabaseError> {
-        let rtxn = self.env.read_txn()?;
-        self.invites_db
-            .get(&rtxn, event_id)
-            .map_err(|e| DatabaseError::LmdbError(e))
-    }
-
-    /// Saves an invite
-    pub fn save_invite(&self, event_id: &str, invite: &Invite) -> Result<(), DatabaseError> {
-        let mut wtxn = self.env.write_txn()?;
-        self.invites_db.put(&mut wtxn, event_id, invite)?;
-        wtxn.commit()?;
-        Ok(())
-    }
-
-    /// Gets all invites
-    pub fn get_all_invites(&self) -> Result<Vec<Invite>, DatabaseError> {
-        let rtxn = self.env.read_txn()?;
-        let iter = self.invites_db.iter(&rtxn)?;
-        iter.map(|r| r.map(|(_, v)| v))
-            .map(|res| res.map_err(|e| DatabaseError::DeserializationError(e.to_string())))
-            .collect()
-    }
-
-    /// Creates a compound key for chat storage using binary group_id
-    /// Key format: group_id bytes + timestamp bytes + event_id bytes
-    fn create_chat_key(
+    pub fn accounts_db(
         &self,
-        group_id: &[u8],
-        event: &UnsignedEvent,
-    ) -> Result<Vec<u8>, DatabaseError> {
-        if event.id.is_none() {
-            return Err(DatabaseError::InvalidKeyFormat(
-                "Event ID is required".into(),
-            ));
-        }
-        let timestamp_bytes = event.created_at.as_u64().to_be_bytes();
-        let mut key = Vec::with_capacity(group_id.len() + 8 + event.id.unwrap().as_bytes().len());
-
-        key.extend_from_slice(group_id);
-        key.extend_from_slice(&timestamp_bytes);
-        key.extend_from_slice(event.id.unwrap().as_bytes());
-        Ok(key)
+    ) -> &heed::Database<heed::types::Str, heed::types::SerdeJson<Account>> {
+        &self.accounts_db
     }
 
-    /// Saves a chat message with compound binary key
-    pub fn save_chat(&self, group_id: &[u8], event: &UnsignedEvent) -> Result<(), DatabaseError> {
-        let mut wtxn = self.env.write_txn()?;
-        let key = self.create_chat_key(group_id, event)?;
-        self.chats_db.put(&mut wtxn, &key, event)?;
-        wtxn.commit()?;
-        Ok(())
+    pub fn groups_db(&self) -> &heed::Database<heed::types::Bytes, heed::types::SerdeJson<Group>> {
+        &self.groups_db
     }
 
-    /// Gets chat messages for a given MLS group ID, optionally filtered by time range
-    pub fn get_chats(
+    pub fn invites_db(&self) -> &heed::Database<heed::types::Str, heed::types::SerdeJson<Invite>> {
+        &self.invites_db
+    }
+
+    pub fn messages_db(
         &self,
-        group_id: &[u8],
-        start_time: Option<u64>,
-        end_time: Option<u64>,
-    ) -> Result<Vec<UnsignedEvent>, DatabaseError> {
-        let rtxn = self.env.read_txn()?;
+    ) -> &heed::Database<heed::types::Bytes, heed::types::SerdeJson<UnsignedEvent>> {
+        &self.messages_db
+    }
 
-        let iter = self
-            .chats_db
-            .prefix_iter(&rtxn, group_id)?
-            .filter(|result| {
-                if let Ok((key, _)) = result {
-                    if key.len() >= group_id.len() + 8 {
-                        // Extract timestamp from the key (8 bytes after group_id)
-                        let timestamp_bytes = &key[group_id.len()..group_id.len() + 8];
-                        if let Ok(timestamp_array) = timestamp_bytes.try_into() {
-                            let timestamp = u64::from_be_bytes(timestamp_array);
-                            let after_start = start_time.map_or(true, |start| timestamp >= start);
-                            let before_end = end_time.map_or(true, |end| timestamp <= end);
-                            return after_start && before_end;
-                        }
-                    }
-                }
-                true
-            });
-
-        iter.map(|r| r.map(|(_, v)| v))
-            .map(|res| res.map_err(|e| DatabaseError::DeserializationError(e.to_string())))
-            .collect()
+    pub fn processed_messages_ids(&self) -> Result<Vec<String>, DatabaseError> {
+        let rtxn = self.read_txn()?;
+        let iter = self.processed_messages_index.iter(&rtxn)?;
+        let mut ids = Vec::new();
+        for result in iter {
+            let (key, _) = result.map_err(DatabaseError::from)?;
+            ids.push(key.to_string());
+        }
+        Ok(ids)
     }
 
     /// Deletes all data from the database
@@ -288,12 +167,8 @@ impl Database {
         // Using a macro to reduce repetition
         macro_rules! clear_db {
             ($db:expr, $name:expr) => {
-                $db.clear(&mut wtxn).map_err(|e| {
-                    DatabaseError::TransactionError(format!(
-                        "Failed to clear {} database: {}",
-                        $name, e
-                    ))
-                })?;
+                $db.clear(&mut wtxn)
+                    .map_err(|e| DatabaseError::LmdbError(e))?;
             };
         }
 
@@ -301,7 +176,9 @@ impl Database {
         clear_db!(self.accounts_db, "accounts");
         clear_db!(self.groups_db, "groups");
         clear_db!(self.invites_db, "invites");
-        clear_db!(self.chats_db, "chats");
+        clear_db!(self.processed_invites_index, "processed_invites_index");
+        clear_db!(self.messages_db, "messages");
+        clear_db!(self.processed_messages_index, "processed_messages_index");
 
         wtxn.commit()
             .map_err(|e| DatabaseError::TransactionError(e.to_string()))?;

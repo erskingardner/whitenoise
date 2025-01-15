@@ -1,5 +1,5 @@
 <script lang="ts">
-import { accounts } from "$lib/stores/accounts";
+import { activeAccount } from "$lib/stores/accounts";
 import { getToastState } from "$lib/stores/toast-state.svelte";
 import type { PushView } from "$lib/types/modal";
 import { isValidWebSocketURL } from "$lib/utils/nostr";
@@ -58,7 +58,7 @@ async function publishInboxRelays() {
         .then(async () => {
             inboxRelaysPublished = true;
             await invoke("update_account_onboarding", {
-                pubkey: $accounts.activeAccount,
+                pubkey: $activeAccount?.pubkey,
                 inboxRelays: true,
                 keyPackageRelays: !!keyPackageRelaysPublished,
                 publishKeyPackage: !!keyPackagePublished,
@@ -92,10 +92,10 @@ async function publishInboxRelays() {
         {/each}
         <div class="flex flex-col gap-2 mt-8">
             <div class="flex flex-row gap-2">
-                <input 
-                    type="text" 
-                    bind:value={newInboxRelay} 
-                    class="w-full bg-transparent border-gray-700 rounded-md" 
+                <input
+                    type="text"
+                    bind:value={newInboxRelay}
+                    class="w-full bg-transparent border-gray-700 rounded-md"
                     class:border-red-500={inputError}
                 />
                 <button class="button-outline flex flex-row gap-2 items-center whitespace-nowrap" onclick={addInboxRelay}>

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { accounts } from "$lib/stores/accounts";
+import { activeAccount } from "$lib/stores/accounts";
 import type { NEvent, NostrMlsGroup } from "$lib/types/nostr";
 import { invoke } from "@tauri-apps/api/core";
 import { PaperPlaneTilt } from "phosphor-svelte";
@@ -31,7 +31,7 @@ async function sendMessage() {
         id: "temp",
         content: message,
         created_at: Math.floor(Date.now() / 1000),
-        pubkey: $accounts.activeAccount as string,
+        pubkey: $activeAccount?.pubkey as string,
         kind: 9,
         tags: [["h", group.nostr_group_id]],
     };

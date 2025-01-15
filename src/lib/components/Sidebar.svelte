@@ -1,6 +1,6 @@
 <script lang="ts">
 import { goto } from "$app/navigation";
-import { accounts, setActiveAccount } from "$lib/stores/accounts";
+import { accounts, activeAccount, setActiveAccount } from "$lib/stores/accounts";
 import { ChatsCircle, Gear, Phone } from "phosphor-svelte";
 import Avatar from "./Avatar.svelte";
 
@@ -31,13 +31,13 @@ function handleAccountChange(pubkey: string) {
             </a>
         </div>
         <div class="flex flex-col gap-4 justify-between items-center mt-auto mb-0">
-            {#each $accounts.accounts as account}
+            {#each $accounts as account}
                 <button onclick={() => handleAccountChange(account.pubkey)}>
                     <Avatar
                         pubkey={account.pubkey}
                         picture={account.metadata.picture}
                         pxSize={32}
-                        showRing={account.pubkey === $accounts.activeAccount}
+                        showRing={account.pubkey === $activeAccount?.pubkey}
                     />
                 </button>
             {/each}

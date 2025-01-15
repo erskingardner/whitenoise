@@ -2,7 +2,7 @@
 import { page } from "$app/state";
 import GroupAvatar from "$lib/components/GroupAvatar.svelte";
 import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
-import { accounts } from "$lib/stores/accounts";
+import { activeAccount } from "$lib/stores/accounts";
 import { type NostrMlsGroup, NostrMlsGroupType } from "$lib/types/nostr";
 import type { EnrichedContact, NEvent } from "$lib/types/nostr";
 import { nameFromMetadata } from "$lib/utils/nostr";
@@ -35,7 +35,7 @@ async function loadGroup() {
         transcript = group.transcript;
         counterpartyPubkey =
             group.group_type === NostrMlsGroupType.DirectMessage
-                ? group.admin_pubkeys.filter((pubkey) => pubkey !== $accounts.activeAccount)[0]
+                ? group.admin_pubkeys.filter((pubkey) => pubkey !== $activeAccount?.pubkey)[0]
                 : undefined;
         if (counterpartyPubkey) {
             invoke("query_enriched_contact", {

@@ -3,11 +3,6 @@ import { emit } from "@tauri-apps/api/event";
 import { type Writable, get, writable } from "svelte/store";
 import type { NMetadata } from "../types/nostr";
 
-export type Accounts = {
-    accounts: Account[];
-    activeAccount: string | null;
-};
-
 export type Account = {
     pubkey: string;
     metadata: NMetadata;
@@ -32,15 +27,10 @@ export type AccountOnboarding = {
     publish_key_package: boolean;
 };
 
-type AccountsData = {
-    accounts: Record<string, Account>;
-    active_account: string;
-};
-
 type RelaysData = Record<string, string>;
 
-/** This is an object containing all the logged in accounts and the currently active one */
-export const accounts: Writable<Accounts> = writable({} as Accounts);
+export const accounts: Writable<Account[]> = writable([]);
+export const activeAccount: Writable<Account | null> = writable(null);
 export const relays: Writable<RelaysData> = writable({} as RelaysData);
 
 /** Basic matching patterns for hex and nsec keys */
@@ -64,29 +54,34 @@ export class LogoutError extends Error {
 }
 
 export async function setActiveAccount(pubkey: string): Promise<void> {
-    if (pubkey === get(accounts).activeAccount) return;
+    if (
+        !get(accounts)
+            .map((account) => account.pubkey)
+            .includes(pubkey)
+    )
+        return;
     emit("account_changing", pubkey);
-    invoke("set_active_account", { hexPubkey: pubkey }).then(async (accountState) => {
-        await updateAccountsStore(accountState as AccountsData);
+    invoke("set_active_account", { hexPubkey: pubkey }).then(async (account) => {
+        activeAccount.set(account as Account);
         await fetchRelays();
     });
 }
 
 export async function createAccount(): Promise<void> {
-    invoke("create_identity").then(async (accountState) => {
-        await updateAccountsStore(accountState as AccountsData);
+    invoke("create_identity").then(async (account) => {
+        activeAccount.set(account as Account);
         await fetchRelays();
     });
 }
 
 export async function logout(pubkey: string): Promise<void> {
-    const accountState = await invoke("logout", { hexPubkey: pubkey }).catch((e) => {
-        if (e === "No accounts exist") {
-            throw new LogoutError("No accounts exist");
+    await invoke("logout", { hexPubkey: pubkey }).catch((e) => {
+        if (e === "No account found") {
+            throw new LogoutError("No account found");
         }
         throw new LogoutError(e);
     });
-    await updateAccountsStore(accountState as AccountsData);
+    await updateAccountsStore();
     await fetchRelays();
 }
 
@@ -94,21 +89,22 @@ export async function login(nsecOrHex: string): Promise<void> {
     if (!nsecOrHex || (!hexPattern.test(nsecOrHex) && !nsecPattern.test(nsecOrHex))) {
         throw new LoginError("Invalid private key");
     }
-    const accountState = await invoke("login", { nsecOrHexPrivkey: nsecOrHex });
-    await updateAccountsStore(accountState as AccountsData);
+    await invoke("login", { nsecOrHexPrivkey: nsecOrHex });
+    await updateAccountsStore();
     await fetchRelays();
 }
 
-export async function updateAccountsStore(accountState?: AccountsData): Promise<void> {
-    let state = accountState;
-    if (!state) {
-        state = await invoke("get_accounts_state");
-    }
-    if (!state) return;
-    accounts.set({
-        accounts: Object.values(state.accounts),
-        activeAccount: state.active_account,
-    });
+export async function updateAccountsStore(): Promise<void> {
+    const [accountsResp, activeAccountResp] = await Promise.all([
+        invoke("get_accounts").catch((_) => {
+            return [];
+        }),
+        invoke("get_active_account").catch((_) => {
+            return null;
+        }),
+    ]);
+    accounts.set(accountsResp as Account[]);
+    activeAccount.set(activeAccountResp as Account | null);
 }
 
 export async function fetchRelays(): Promise<void> {

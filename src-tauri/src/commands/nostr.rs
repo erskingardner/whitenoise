@@ -1,98 +1,22 @@
-use crate::secrets_store;
+use crate::accounts::Account;
 use crate::types::{EnrichedContact, NostrEncryptionMethod};
 use crate::whitenoise::Whitenoise;
 use nostr_sdk::prelude::*;
 use std::collections::HashMap;
 use tauri::Emitter;
-use tokio::spawn;
 
 #[tauri::command]
 pub async fn init_nostr_for_current_user(
     wn: tauri::State<'_, Whitenoise>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
-    let current_account = wn
-        .account_manager
-        .get_active_account()
-        .map_err(|e| e.to_string())?;
-
-    let keys = secrets_store::get_nostr_keys_for_pubkey(&current_account.pubkey, &wn.data_dir)
-        .map_err(|e| e.to_string())?;
+    let current_account = Account::get_active(wn.inner()).map_err(|e| e.to_string())?;
 
     // Update Nostr identity and connect relays
     wn.nostr
-        .update_nostr_identity(keys.clone())
+        .set_nostr_identity(&current_account, &wn, &app_handle)
         .await
         .map_err(|e| e.to_string())?;
-
-    // Spawn two tasks in parallel:
-    // 1. Fetch past events
-    // 2. Setup subscriptions to catch future events
-    let pubkey = keys.public_key();
-    let last_synced = current_account.last_synced;
-
-    let group_ids_clone_subs = current_account.nostr_group_ids.clone();
-    let nostr_clone_subs = wn.nostr.clone();
-    let app_handle_clone_subs = app_handle.clone();
-    spawn(async move {
-        tracing::debug!(
-            target: "whitenoise::commands::nostr::init_nostr_for_current_user",
-            "Starting subscriptions"
-        );
-        match nostr_clone_subs
-            .setup_subscriptions(pubkey, group_ids_clone_subs, app_handle_clone_subs)
-            .await
-        {
-            Ok(_) => {
-                tracing::debug!(
-                    target: "whitenoise::commands::nostr::init_nostr_for_current_user",
-                    "Subscriptions shutdown triggered"
-                );
-            }
-            Err(e) => {
-                tracing::error!(
-                target: "whitenoise::commands::nostr::init_nostr_for_current_user",
-                "Error subscribing to events: {}",
-                e
-                );
-            }
-        }
-    });
-
-    let group_ids_clone_sync = current_account.nostr_group_ids.clone();
-    let nostr_clone_sync = wn.nostr.clone();
-    let account_manager_clone_sync = wn.account_manager.clone();
-    spawn(async move {
-        tracing::debug!(
-            target: "whitenoise::commands::nostr::init_nostr_for_current_user",
-            "Starting fetch"
-        );
-        match nostr_clone_sync
-            .fetch_for_user(pubkey, last_synced, group_ids_clone_sync)
-            .await
-        {
-            Ok(_) => {
-                tracing::debug!(
-                    target: "whitenoise::commands::nostr::init_nostr_for_current_user",
-                    "Fetch completed"
-                );
-                let _ = account_manager_clone_sync
-                    .update_account_last_synced(pubkey.to_hex())
-                    .map_err(|e| format!("Error updating account last synced: {}", e));
-
-                let _ = app_handle
-                    .emit("nostr_ready", ())
-                    .map_err(|e| e.to_string());
-            }
-            Err(e) => {
-                tracing::error!(
-                    target: "whitenoise::commands::nostr::init_nostr_for_current_user",
-                    "Error in fetching events: {}",
-                    e
-                );
-            }
-        }
-    });
 
     tracing::debug!(
         target: "whitenoise::commands::nostr::init_nostr_for_current_user",
@@ -146,9 +70,17 @@ pub async fn fetch_enriched_contact(
     };
 
     if update_account {
-        wn.account_manager
-            .update_account(pubkey.to_hex(), enriched_contact.clone())
-            .map_err(|e| format!("Failed to update account: {}", e))?;
+        let mut account = Account::find_by_pubkey(&pubkey.to_hex(), &wn)
+            .map_err(|e| format!("Failed to find account: {}", e))?;
+
+        account.metadata = enriched_contact.metadata.clone();
+        account.inbox_relays = enriched_contact.inbox_relays.clone();
+        account.nostr_relays = enriched_contact.nostr_relays.clone();
+        account.key_package_relays = enriched_contact.key_package_relays.clone();
+        account
+            .save(&wn)
+            .map_err(|e| format!("Failed to save account: {}", e))?;
+
         app_handle
             .emit("account_changed", ())
             .map_err(|e| e.to_string())?;
@@ -202,9 +134,16 @@ pub async fn query_enriched_contact(
     };
 
     if update_account {
-        wn.account_manager
-            .update_account(pubkey.to_hex(), enriched_contact.clone())
-            .map_err(|e| format!("Failed to update account: {}", e))?;
+        let mut account = Account::find_by_pubkey(&pubkey.to_hex(), &wn)
+            .map_err(|e| format!("Failed to find account: {}", e))?;
+
+        account.metadata = enriched_contact.metadata.clone();
+        account.inbox_relays = enriched_contact.inbox_relays.clone();
+        account.nostr_relays = enriched_contact.nostr_relays.clone();
+        account.key_package_relays = enriched_contact.key_package_relays.clone();
+        account
+            .save(&wn)
+            .map_err(|e| format!("Failed to save account: {}", e))?;
         app_handle
             .emit("account_changed", ())
             .map_err(|e| e.to_string())?;
@@ -564,10 +503,7 @@ pub async fn publish_relay_list(
         .await
         .map_err(|e| e.to_string())?;
 
-    let active_account = wn
-        .account_manager
-        .get_active_account()
-        .map_err(|e| e.to_string())?;
+    let active_account = Account::get_active(wn.inner()).map_err(|e| e.to_string())?;
 
     let new_enriched_contact = match kind {
         10050 => EnrichedContact {
@@ -589,16 +525,16 @@ pub async fn publish_relay_list(
         _ => return Err("Invalid relay list kind".to_string()),
     };
 
-    wn.account_manager
-        .update_account(
-            signer
-                .get_public_key()
-                .await
-                .map_err(|e| e.to_string())?
-                .to_hex(),
-            new_enriched_contact,
-        )
-        .map_err(|e| e.to_string())?;
+    let mut account =
+        Account::get_active(wn.inner()).map_err(|e| format!("Failed to find account: {}", e))?;
+
+    account.metadata = new_enriched_contact.metadata.clone();
+    account.inbox_relays = new_enriched_contact.inbox_relays.clone();
+    account.nostr_relays = new_enriched_contact.nostr_relays.clone();
+    account.key_package_relays = new_enriched_contact.key_package_relays.clone();
+    account
+        .save(&wn)
+        .map_err(|e| format!("Failed to save account: {}", e))?;
 
     Ok(())
 }

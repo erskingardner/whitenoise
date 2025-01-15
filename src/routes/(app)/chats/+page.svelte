@@ -6,7 +6,7 @@ import InviteListItem from "$lib/components/InviteListItem.svelte";
 import Loader from "$lib/components/Loader.svelte";
 import ContactsList from "$lib/components/Modals/Contacts/ContactsList.svelte";
 import Modal from "$lib/components/Modals/Modal.svelte";
-import { accounts } from "$lib/stores/accounts";
+import { activeAccount } from "$lib/stores/accounts";
 import { getToastState } from "$lib/stores/toast-state.svelte";
 import type { Invite, InvitesWithFailures, NostrMlsGroup } from "$lib/types/nostr";
 import { invoke } from "@tauri-apps/api/core";
@@ -53,7 +53,7 @@ async function loadEvents() {
 }
 
 onMount(async () => {
-    if ($accounts.activeAccount) {
+    if ($activeAccount) {
         await loadEvents();
     }
 
@@ -75,7 +75,7 @@ onMount(async () => {
     if (!unlistenNostrReady) {
         unlistenNostrReady = await listen<string>("nostr_ready", async (_event) => {
             console.log("Event received on chats page: nostr_ready");
-            if ($accounts.activeAccount) {
+            if ($activeAccount) {
                 await loadEvents();
             }
         });

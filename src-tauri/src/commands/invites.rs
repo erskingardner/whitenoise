@@ -1,5 +1,6 @@
+use crate::accounts::Account;
 use crate::commands::key_packages::publish_key_package;
-use crate::groups::GroupType;
+use crate::groups::{Group, GroupType};
 use crate::invites::{Invite, InviteState};
 use crate::key_packages::delete_key_package_from_relays;
 use crate::whitenoise::Whitenoise;
@@ -46,14 +47,13 @@ pub async fn get_invites(
     wn: tauri::State<'_, Whitenoise>,
     app_handle: tauri::AppHandle,
 ) -> Result<InvitesWithFailures, String> {
-    let active_account = wn
-        .account_manager
-        .get_active_account()
-        .map_err(|e| e.to_string())?;
+    let active_account = Account::get_active(wn.inner()).map_err(|e| e.to_string())?;
 
     let mut invites: Vec<Invite> = Vec::new();
 
-    let stored_invites = wn.group_manager.get_invites().map_err(|e| e.to_string())?;
+    let stored_invites = active_account
+        .invites(wn.inner())
+        .map_err(|e| e.to_string())?;
 
     let stored_invite_ids: Vec<_> = stored_invites
         .iter()
@@ -137,8 +137,8 @@ pub async fn get_invites(
         };
 
         invites.push(invite.clone());
-        wn.group_manager
-            .add_invite(invite)
+        invite
+            .save(&active_account.pubkey, &wn)
             .map_err(|e| e.to_string())?;
 
         if let Some(key_package_event_id) = key_package_event_id {
@@ -146,11 +146,10 @@ pub async fn get_invites(
         }
 
         app_handle
-            .emit("invite_processed", ())
+            .emit("invite_processed", invite)
             .map_err(|e| e.to_string())?;
     }
 
-    #[allow(unused)]
     let key_package_relays: Vec<String> = if cfg!(dev) {
         vec!["ws://localhost:8080".to_string()]
     } else {
@@ -198,10 +197,12 @@ pub async fn get_invites(
 /// * `Ok(Invite)` if the invite was found
 /// * `Err(String)` if there was an error retrieving the invite or it wasn't found
 #[tauri::command]
-pub fn get_invite(invite_id: String, wn: tauri::State<'_, Whitenoise>) -> Result<Invite, String> {
-    wn.group_manager
-        .get_invite(invite_id)
-        .map_err(|e| e.to_string())
+pub fn get_invite(
+    active_account: String,
+    invite_id: String,
+    wn: tauri::State<'_, Whitenoise>,
+) -> Result<Invite, String> {
+    Invite::find_by_id(&active_account, &invite_id, &wn).map_err(|e| e.to_string())
 }
 
 /// Accepts a group invite and joins the corresponding group.
@@ -220,14 +221,16 @@ pub fn get_invite(invite_id: String, wn: tauri::State<'_, Whitenoise>) -> Result
 /// * `invite_accepted` - Emitted with the updated invite after it is accepted
 #[tauri::command]
 pub async fn accept_invite(
-    invite: Invite,
+    mut invite: Invite,
     wn: tauri::State<'_, Whitenoise>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
     tracing::debug!(target: "whitenoise::invites::accept_invite", "Accepting invite {:?}", invite.event.id.unwrap());
 
+    let active_account = Account::get_active(&wn).map_err(|e| e.to_string())?;
+
     // Scope the MutexGuard to drop it before the .await points
-    let (group, nostr_group_data) = {
+    let (mls_group, nostr_group_data) = {
         let nostr_mls = wn.nostr_mls.lock().expect("Failed to lock nostr_mls");
         let joined_group_result = nostr_mls
             .join_group_from_welcome(
@@ -242,25 +245,25 @@ pub async fn accept_invite(
         )
     };
 
-    let group_type = match group.members().count() {
+    let group_type = match mls_group.members().count() {
         2 => GroupType::DirectMessage,
         _ => GroupType::Group,
     };
 
-    let group = wn
-        .group_manager
-        .add_group(
-            group.group_id().to_vec(),
-            group.epoch().as_u64(),
-            group_type,
-            nostr_group_data,
-        )
-        .map_err(|e| format!("Failed to add group: {}", e))?;
+    let group = Group::new(
+        &active_account.pubkey,
+        mls_group.group_id().to_vec(),
+        mls_group.epoch().as_u64(),
+        group_type,
+        nostr_group_data,
+        &wn,
+        &app_handle,
+    )
+    .map_err(|e| format!("Failed to add group: {}", e))?;
 
     // Update the subscription for MLS group messages to include the new group
-    let group_ids = wn
-        .group_manager
-        .get_groups()
+    let group_ids = active_account
+        .groups(&wn)
         .map_err(|e| format!("Failed to get groups: {}", e))?
         .into_iter()
         .map(|group| group.nostr_group_id.clone())
@@ -281,13 +284,14 @@ pub async fn accept_invite(
         .emit("group_added", group.clone())
         .map_err(|e| e.to_string())?;
 
-    let new_invite = wn
-        .group_manager
-        .update_invite_state(invite.event.id.unwrap().to_string(), InviteState::Accepted)
-        .map_err(|e| format!("Failed to update invite state: {}", e))?;
+    // Update the invite state to accepted
+    invite.state = InviteState::Accepted;
+    invite
+        .save(&active_account.pubkey, &wn)
+        .map_err(|e| e.to_string())?;
 
     app_handle
-        .emit("invite_accepted", new_invite)
+        .emit("invite_accepted", invite)
         .map_err(|e| e.to_string())?;
 
     tracing::debug!(target: "whitenoise::invites::accept_invite", "Accepted invite - Added group: {:?}", group);
@@ -310,19 +314,21 @@ pub async fn accept_invite(
 /// * `invite_declined` - Emitted with the updated invite after it is declined
 #[tauri::command]
 pub fn decline_invite(
-    invite: Invite,
+    mut invite: Invite,
     wn: tauri::State<'_, Whitenoise>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
     tracing::debug!(target: "whitenoise::invites::decline_invite", "Declining invite {:?}", invite.event.id.unwrap());
 
-    let new_invite = wn
-        .group_manager
-        .update_invite_state(invite.event.id.unwrap().to_string(), InviteState::Declined)
-        .map_err(|e| format!("Failed to decline invite: {}", e))?;
+    let active_account = Account::get_active(&wn).map_err(|e| e.to_string())?;
+
+    invite.state = InviteState::Declined;
+    invite
+        .save(&active_account.pubkey, &wn)
+        .map_err(|e| e.to_string())?;
 
     app_handle
-        .emit("invite_declined", new_invite)
+        .emit("invite_declined", invite)
         .map_err(|e| e.to_string())?;
 
     Ok(())

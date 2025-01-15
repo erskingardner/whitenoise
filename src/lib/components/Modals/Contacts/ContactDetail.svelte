@@ -1,6 +1,6 @@
 <script lang="ts">
 import Loader from "$lib/components/Loader.svelte";
-import { accounts } from "$lib/stores/accounts";
+import { activeAccount } from "$lib/stores/accounts";
 import { getToastState } from "$lib/stores/toast-state.svelte";
 import type { CloseModal } from "$lib/types/modal";
 import type { EnrichedContact } from "$lib/types/nostr";
@@ -23,9 +23,9 @@ let isLoading = $state(false);
 async function startSecureChat() {
     isLoading = true;
     await invoke("create_group", {
-        creatorPubkey: $accounts.activeAccount,
+        creatorPubkey: $activeAccount?.pubkey,
         memberPubkeys: [pubkey],
-        adminPubkeys: [$accounts.activeAccount, pubkey],
+        adminPubkeys: [$activeAccount?.pubkey, pubkey],
         groupName: "Secure DM",
         description: "",
     })

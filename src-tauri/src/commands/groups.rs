@@ -1,5 +1,6 @@
+use crate::accounts::Account;
 use crate::fetch_enriched_contact;
-use crate::groups::{validate_group_members, Group, GroupType};
+use crate::groups::{Group, GroupType};
 use crate::key_packages::fetch_key_packages_for_members;
 use crate::secrets_store;
 use crate::whitenoise::Whitenoise;
@@ -25,7 +26,9 @@ use tauri::Emitter;
 /// - Database error occurs retrieving groups
 #[tauri::command]
 pub fn get_groups(wn: tauri::State<'_, Whitenoise>) -> Result<Vec<Group>, String> {
-    wn.group_manager.get_groups().map_err(|e| e.to_string())
+    let account = Account::get_active(&wn).map_err(|e| e.to_string())?;
+    Group::get_all_groups(&account.pubkey, &wn)
+        .map_err(|e| format!("Error fetching groups for account: {}", e))
 }
 
 /// Gets a single MLS group by its group ID
@@ -44,10 +47,10 @@ pub fn get_groups(wn: tauri::State<'_, Whitenoise>) -> Result<Vec<Group>, String
 /// - Group not found in database
 /// - Database error occurs
 #[tauri::command]
-pub fn get_group(group_id: String, wn: tauri::State<'_, Whitenoise>) -> Result<Group, String> {
-    wn.group_manager
-        .get_group(group_id)
-        .map_err(|e| e.to_string())
+pub fn get_group(group_id: &str, wn: tauri::State<'_, Whitenoise>) -> Result<Group, String> {
+    let account = Account::get_active(&wn).map_err(|e| e.to_string())?;
+    Group::find_by_mls_group_id(&account.pubkey, group_id.as_bytes(), &wn)
+        .map_err(|e| format!("Error fetching groups for account: {}", e))
 }
 
 /// Creates a new MLS group with the specified members and settings
@@ -93,11 +96,7 @@ pub async fn create_group(
     wn: tauri::State<'_, Whitenoise>,
     app_handle: tauri::AppHandle,
 ) -> Result<Group, String> {
-    let active_account = wn
-        .account_manager
-        .get_active_account()
-        .map_err(|e| e.to_string())?;
-
+    let active_account = Account::get_active(&wn).map_err(|e| e.to_string())?;
     let signer = wn.nostr.client.signer().await.map_err(|e| e.to_string())?;
 
     // Check that active account is the creator and signer
@@ -109,12 +108,14 @@ pub async fn create_group(
                 .map_err(|e| e.to_string())?
                 .to_hex()
     {
-        return Err("You must be the creator to create a group".to_string());
+        return Err("You cannot create a group for another account".to_string());
     }
 
-    validate_group_members(&creator_pubkey, &member_pubkeys, &admin_pubkeys)
+    // Run various checks on the group members
+    Group::validate_group_members(&creator_pubkey, &member_pubkeys, &admin_pubkeys)
         .map_err(|e| e.to_string())?;
 
+    // Fetch key packages for all members
     let member_key_packages = fetch_key_packages_for_members(&member_pubkeys, &wn)
         .await
         .map_err(|e| e.to_string())?;
@@ -125,6 +126,7 @@ pub async fn create_group(
         member_key_packages
     );
 
+    // TODO: Add ability to specify relays for the group
     let group_relays = wn.nostr.relays().map_err(|e| e.to_string())?;
 
     let create_group_result;
@@ -299,15 +301,18 @@ pub async fn create_group(
 
     let group_id = mls_group.group_id().to_vec();
 
-    let nostr_group = wn
-        .group_manager
-        .add_group(
-            group_id.clone(),
-            mls_group.epoch().as_u64(),
-            group_type,
-            group_data,
-        )
-        .map_err(|e| e.to_string())?;
+    // Create the group and save it to the database
+    // Also adds the group to the active account
+    let nostr_group = Group::new(
+        &active_account.pubkey,
+        group_id.clone(),
+        mls_group.epoch().as_u64(),
+        group_type,
+        group_data,
+        &wn,
+        &app_handle,
+    )
+    .map_err(|e| e.to_string())?;
 
     tracing::debug!(
         target: "whitenoise::groups::create_group",
@@ -316,9 +321,8 @@ pub async fn create_group(
     );
 
     // Update the subscription for MLS group messages to include the new group
-    let group_ids = wn
-        .group_manager
-        .get_groups()
+    let group_ids = active_account
+        .groups(&wn)
         .map_err(|e| format!("Failed to get groups: {}", e))?
         .into_iter()
         .map(|group| group.nostr_group_id.clone())
@@ -331,14 +335,6 @@ pub async fn create_group(
 
     app_handle
         .emit("group_added", nostr_group.clone())
-        .map_err(|e| e.to_string())?;
-
-    wn.account_manager
-        .add_group_ids(
-            active_account.pubkey,
-            group_id.clone(),
-            nostr_group.nostr_group_id.clone(),
-        )
         .map_err(|e| e.to_string())?;
 
     tracing::debug!(
@@ -429,13 +425,12 @@ pub async fn send_mls_message(
         .await
         .map_err(|e| e.to_string())?;
 
-    let new_group = wn
-        .group_manager
-        .add_message_to_group(group.mls_group_id.clone(), inner_event.clone())
+    group
+        .add_message(inner_event.clone(), &wn)
         .map_err(|e| e.to_string())?;
 
     app_handle
-        .emit("mls_message_sent", (new_group, inner_event.clone()))
+        .emit("mls_message_sent", (group.clone(), inner_event.clone()))
         .expect("Couldn't emit event");
 
     Ok(inner_event)
@@ -448,9 +443,10 @@ pub async fn fetch_mls_messages(
     wn: tauri::State<'_, Whitenoise>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
-    let group_ids: Vec<String> = wn
-        .group_manager
-        .get_groups()
+    let active_account =
+        Account::get_active(&wn).map_err(|e| format!("Error fetching active account: {}", e))?;
+
+    let group_ids: Vec<String> = Group::get_all_groups(&active_account.pubkey, &wn)
         .expect("Failed to get groups")
         .iter()
         .map(|group| group.nostr_group_id.clone())
@@ -462,7 +458,16 @@ pub async fn fetch_mls_messages(
         .await
         .map_err(|e| e.to_string())?;
 
-    let grouped_messages = message_events
+    // Filter the events to only include ones we haven't processed yet
+    let processed_event_ids = wn
+        .database
+        .processed_messages_ids()
+        .map_err(|e| e.to_string())?;
+    let unprocessed_messages = message_events
+        .into_iter()
+        .filter(|event| !processed_event_ids.contains(&event.id.to_string()));
+
+    let grouped_messages = unprocessed_messages
         .into_iter()
         .filter_map(|event| {
             event
@@ -483,18 +488,15 @@ pub async fn fetch_mls_messages(
         );
 
     for (group_id, events) in grouped_messages {
-        let group = wn
-            .group_manager
-            .get_group_by_nostr_id(group_id)
-            .map_err(|e| e.to_string())?;
+        let group =
+            Group::get_by_nostr_group_id(active_account.pubkey.as_str(), group_id.as_str(), &wn)
+                .map_err(|e| e.to_string())?;
 
         // Sort the events by created_at (and then lexigraphically by ID)
         let mut sorted_events = events.into_iter().collect::<Vec<_>>();
         sorted_events.sort_by(|a, b| a.created_at.cmp(&b.created_at).then(a.id.cmp(&b.id)));
 
         for event in sorted_events {
-            // TODO: Should we track the id's of the message_events that we've already processed?
-
             tracing::debug!(
                 target: "whitenoise::commands::groups::fetch_mls_messages",
                 "Processing event: {:?}",
@@ -547,7 +549,7 @@ pub async fn fetch_mls_messages(
                     group.mls_group_id.clone(),
                     decrypted_content.clone(),
                 ) {
-                    Ok(messages) => message_vec = messages,
+                    Ok(message) => message_vec = message,
                     Err(e) => {
                         match e {
                             GroupError::ProcessMessageError(e) => {
@@ -582,22 +584,14 @@ pub async fn fetch_mls_messages(
                     );
                     let json_str = json_value.to_string();
                     let json_event = UnsignedEvent::from_json(&json_str).unwrap();
-                    // Check to make sure we don't already have this event in the transcript
-                    if !group.transcript.iter().any(|e| e.id == json_event.id) {
-                        tracing::debug!(
-                            target: "whitenoise::commands::groups::fetch_mls_messages",
-                            "Adding new message to transcript: {:?}",
-                            json_event.id
-                        );
 
-                        wn.group_manager
-                            .add_message_to_group(group.mls_group_id.clone(), json_event.clone())
-                            .map_err(|e| e.to_string())?;
+                    group
+                        .add_message(json_event.clone(), &wn)
+                        .map_err(|e| e.to_string())?;
 
-                        app_handle
-                            .emit("mls_message_processed", (group.clone(), json_event.clone()))
-                            .expect("Couldn't emit event");
-                    }
+                    app_handle
+                        .emit("mls_message_processed", (group.clone(), json_event.clone()))
+                        .expect("Couldn't emit event");
                 }
                 Err(e) => {
                     tracing::error!(

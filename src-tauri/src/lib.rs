@@ -1,10 +1,10 @@
-mod account_manager;
+mod accounts;
 mod commands;
 mod database;
-mod group_manager;
 mod groups;
 mod invites;
 mod key_packages;
+mod messages;
 mod nostr_manager;
 mod secrets_store;
 mod types;
@@ -60,19 +60,18 @@ pub fn run() {
             }
 
             tauri::async_runtime::block_on(async move {
-                let whitenoise =
-                    Whitenoise::new(formatted_data_dir, formatted_logs_dir, app.handle()).await;
+                let whitenoise = Whitenoise::new(formatted_data_dir, formatted_logs_dir).await;
                 app.manage(whitenoise);
             });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            create_identity,
             get_active_account,
-            get_accounts_state,
+            get_accounts,
+            set_active_account,
             login,
             logout,
-            create_identity,
-            set_active_account,
             init_nostr_for_current_user,
             fetch_contacts_with_metadata,
             query_contacts_with_metadata,

@@ -25,6 +25,7 @@ impl NostrManager {
     }
 
     pub async fn fetch_user_metadata(&self, pubkey: PublicKey) -> Result<Option<Metadata>> {
+        tracing::debug!(target: "whitenoise::nostr_manager::fetch", "Fetching metadata for pubkey: {}", pubkey.to_hex());
         match self
             .client
             .fetch_metadata(pubkey, Some(self.timeout()?))
@@ -83,7 +84,6 @@ impl NostrManager {
             .fetch_events(vec![filter], Some(self.timeout()?))
             .await
             .map_err(NostrManagerError::from)?;
-
         Ok(events)
     }
 

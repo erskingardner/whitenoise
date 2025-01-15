@@ -1,5 +1,5 @@
 <script lang="ts">
-import { accounts } from "$lib/stores/accounts";
+import { activeAccount } from "$lib/stores/accounts";
 import { getToastState } from "$lib/stores/toast-state.svelte";
 import type { PushView } from "$lib/types/modal";
 import { isValidWebSocketURL } from "$lib/utils/nostr";
@@ -62,7 +62,7 @@ async function publishKeyPackageRelays() {
         .then(async () => {
             keyPackageRelaysPublished = true;
             await invoke("update_account_onboarding", {
-                pubkey: $accounts.activeAccount,
+                pubkey: $activeAccount?.pubkey,
                 inboxRelays: !!inboxRelaysPublished,
                 keyPackageRelays: true,
                 publishKeyPackage: !!keyPackagePublished,

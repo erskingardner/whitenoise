@@ -1,5 +1,5 @@
 <script lang="ts">
-import { accounts } from "$lib/stores/accounts";
+import { activeAccount } from "$lib/stores/accounts";
 
 interface Props {
     picture?: string;
@@ -11,7 +11,7 @@ let { pubkey, picture, pxSize = 32, showRing = false }: Props = $props();
 </script>
 
 <div
-    class="flex flex-col items-center justify-center rounded-full bg-gray-900 {$accounts.activeAccount === pubkey &&
+    class="flex flex-col items-center justify-center rounded-full bg-gray-900 {$activeAccount?.pubkey === pubkey &&
     showRing
         ? 'ring-4 ring-blue-600 ring-offset-2 ring-offset-gray-900'
         : ''}"

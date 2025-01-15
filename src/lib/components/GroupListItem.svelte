@@ -1,5 +1,5 @@
 <script lang="ts">
-import { accounts } from "$lib/stores/accounts";
+import { activeAccount } from "$lib/stores/accounts";
 import { type NostrMlsGroup, NostrMlsGroupType } from "$lib/types/nostr";
 import type { EnrichedContact } from "$lib/types/nostr";
 import { hexMlsGroupId } from "$lib/utils/group";
@@ -14,7 +14,7 @@ let { group } = $props<{
 
 let counterpartyPubkey: string | undefined = $derived(
     group.group_type === NostrMlsGroupType.DirectMessage
-        ? group.admin_pubkeys.filter((pubkey: string) => pubkey !== $accounts.activeAccount)[0]
+        ? group.admin_pubkeys.filter((pubkey: string) => pubkey !== $activeAccount?.pubkey)[0]
         : undefined
 );
 

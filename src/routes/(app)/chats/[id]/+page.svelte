@@ -3,7 +3,7 @@ import { page } from "$app/state";
 import GroupAvatar from "$lib/components/GroupAvatar.svelte";
 import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
 import MessageBar from "$lib/components/MessageBar.svelte";
-import { accounts } from "$lib/stores/accounts";
+import { activeAccount } from "$lib/stores/accounts";
 import {
     type EnrichedContact,
     type NEvent,
@@ -46,7 +46,7 @@ async function loadGroup() {
         transcript = group.transcript.sort((a, b) => a.created_at - b.created_at);
         counterpartyPubkey =
             group.group_type === NostrMlsGroupType.DirectMessage
-                ? group.admin_pubkeys.filter((pubkey) => pubkey !== $accounts.activeAccount)[0]
+                ? group.admin_pubkeys.filter((pubkey) => pubkey !== $activeAccount?.pubkey)[0]
                 : undefined;
         if (counterpartyPubkey) {
             invoke("query_enriched_contact", {
@@ -261,9 +261,9 @@ function handleNewMessage(message: NEvent, replaceTemp: boolean) {
             class="flex-1 px-8 flex flex-col gap-2 pt-10 pb-40 overflow-y-auto opacity-100 transition-opacity ease-in-out duration-50"
         >
             {#each transcript as message (message.id)}
-                <div class={`flex ${message.pubkey === $accounts.activeAccount ? "justify-end" : "justify-start"}`}>
+                <div class={`flex ${message.pubkey === $activeAccount?.pubkey ? "justify-end" : "justify-start"}`}>
                     <div
-                        class={`max-w-[70%] rounded-lg ${message.pubkey === $accounts.activeAccount ? "bg-chat-bg-me text-gray-50 rounded-br" : "bg-chat-bg-other text-gray-50 rounded-bl"} p-3`}
+                        class={`max-w-[70%] rounded-lg ${message.pubkey === $activeAccount?.pubkey ? "bg-chat-bg-me text-gray-50 rounded-br" : "bg-chat-bg-other text-gray-50 rounded-bl"} p-3`}
                     >
                         <div class="flex flex-col lg:flex-row gap-2 lg:gap-6 lg:items-end">
                             <span class="break-words">
@@ -273,7 +273,7 @@ function handleNewMessage(message: NEvent, replaceTemp: boolean) {
                                     <span class="italic opacity-60">No message content</span>
                                 {/if}
                             </span>
-                            <div class={`flex flex-row gap-2 items-center justify-end ${message.pubkey === $accounts.activeAccount ? "text-gray-300" : "text-gray-400"}`}>
+                            <div class={`flex flex-row gap-2 items-center justify-end ${message.pubkey === $activeAccount?.pubkey ? "text-gray-300" : "text-gray-400"}`}>
                                 {#if message.id !== "temp"}
                                     <span><CheckCircle size={18} weight="light" /></span>
                                 {:else}

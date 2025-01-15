@@ -2,7 +2,7 @@
 import { goto } from "$app/navigation";
 import Header from "$lib/components/Header.svelte";
 import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
-import { accounts } from "$lib/stores/accounts";
+import { activeAccount } from "$lib/stores/accounts";
 import { invoke } from "@tauri-apps/api/core";
 import { CaretLeft } from "phosphor-svelte";
 
@@ -12,7 +12,7 @@ function goBack() {
 
 async function refetchAccount() {
     await invoke("query_enriched_contact", {
-        pubkey: $accounts.activeAccount,
+        pubkey: $activeAccount?.pubkey,
         updateAccount: true,
     });
 }

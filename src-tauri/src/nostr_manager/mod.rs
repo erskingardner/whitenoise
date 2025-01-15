@@ -1,10 +1,13 @@
+use crate::accounts::Account;
 use crate::types::NostrEncryptionMethod;
+use crate::Whitenoise;
 use nostr_sdk::prelude::*;
 use nostr_sdk::NostrLMDB;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use thiserror::Error;
+use tokio::spawn;
 
 pub mod fetch;
 pub mod query;
@@ -21,6 +24,13 @@ pub enum NostrManagerError {
     Database(#[from] DatabaseError),
     #[error("Signer Error: {0}")]
     Signer(#[from] nostr_sdk::signer::SignerError),
+
+    #[error("Error with secrets store: {0}")]
+    SecretsStoreError(String),
+
+    #[error("Tauri error: {0}")]
+    TauriError(#[from] tauri::Error),
+
     #[error("Failed to acquire lock: {0}")]
     LockError(String),
 }
@@ -117,11 +127,20 @@ impl NostrManager {
         invite_events
     }
 
-    pub async fn update_nostr_identity(&self, keys: Keys) -> Result<()> {
+    pub async fn set_nostr_identity(
+        &self,
+        account: &Account,
+        wn: &Whitenoise,
+        app_handle: &tauri::AppHandle,
+    ) -> Result<()> {
         tracing::debug!(
             target: "whitenoise::nostr_client::update_nostr_identity",
             "Updating Nostr identity"
         );
+
+        let keys = account
+            .keys(wn)
+            .map_err(|e| NostrManagerError::SecretsStoreError(e.to_string()))?;
 
         // Reset the client
         self.client.reset().await.map_err(NostrManagerError::from)?;
@@ -196,6 +215,80 @@ impl NostrManager {
             target: "whitenoise::nostr_client::update_nostr_identity",
             "Nostr identity updated and connected to relays"
         );
+
+        // TODO: Update subscriptions and fetch data
+        // Spawn two tasks in parallel:
+        // 1. Setup subscriptions to catch future events
+        // 2. Fetch past events
+        let wn_inner_subs = wn.clone();
+        let app_handle_clone_subs = app_handle.clone();
+        spawn(async move {
+            tracing::debug!(
+                target: "whitenoise::nostr_manager::set_nostr_identity",
+                "Starting subscriptions"
+            );
+            let account = Account::get_active(&wn_inner_subs).expect("Couldn't get active account");
+            let public_key =
+                PublicKey::parse(account.pubkey.as_str()).expect("Couldn't parse nostr public key");
+            match wn_inner_subs
+                .nostr
+                .setup_subscriptions(public_key, account.nostr_group_ids, app_handle_clone_subs)
+                .await
+            {
+                Ok(_) => {
+                    tracing::debug!(
+                        target: "whitenoise::nostr_manager::set_nostr_identity",
+                        "Subscriptions shutdown triggered"
+                    );
+                }
+                Err(e) => {
+                    tracing::error!(
+                    target: "whitenoise::nostr_manager::set_nostr_identity",
+                    "Error subscribing to events: {}",
+                    e
+                    );
+                }
+            }
+        });
+
+        let wn_inner_fetch = wn.clone();
+        spawn(async move {
+            tracing::debug!(
+                target: "whitenoise::nostr_manager::set_nostr_identity",
+                "Starting fetch"
+            );
+            let mut account =
+                Account::get_active(&wn_inner_fetch).expect("Couldn't get active account");
+            let public_key =
+                PublicKey::parse(account.pubkey.as_str()).expect("Couldn't parse nostr public key");
+            match &wn_inner_fetch
+                .nostr
+                .fetch_for_user(
+                    public_key,
+                    account.last_synced,
+                    account.clone().nostr_group_ids,
+                )
+                .await
+            {
+                Ok(_) => {
+                    tracing::debug!(
+                        target: "whitenoise::nostr_manager::set_nostr_identity",
+                        "Fetch completed"
+                    );
+                    account.last_synced = Timestamp::now();
+                    account
+                        .save(&wn_inner_fetch)
+                        .expect("Error updateding last synced");
+                }
+                Err(e) => {
+                    tracing::error!(
+                        target: "whitenoise::nostr_manager::set_nostr_identity",
+                        "Error in fetch: {}",
+                        e
+                    );
+                }
+            }
+        });
 
         Ok(())
     }
