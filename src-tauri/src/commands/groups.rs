@@ -621,6 +621,15 @@ pub async fn fetch_mls_messages(
                     let json_str = json_value.to_string();
                     let json_event = UnsignedEvent::from_json(&json_str).unwrap();
 
+                    if !group.members(&wn).unwrap().contains(&json_event.pubkey) {
+                        tracing::error!(
+                            target: "whitenoise::commands::groups::fetch_mls_messages",
+                            "Message from non-member: {:?}",
+                            json_event.pubkey
+                        );
+                        continue;
+                    }
+
                     group
                         .add_message(json_event.clone(), &wn)
                         .map_err(|e| e.to_string())?;
@@ -646,4 +655,33 @@ pub async fn fetch_mls_messages(
     }
 
     Ok(())
+}
+
+/// Gets the list of members in an MLS group
+///
+/// # Arguments
+/// * `group_id` - Hex-encoded MLS group ID
+/// * `wn` - Whitenoise state handle
+///
+/// # Returns
+/// * `Ok(Vec<String>)` - List of member public keys if successful
+/// * `Err(String)` - Error message if operation fails
+///
+/// # Errors
+/// * If no active account is found
+/// * If group ID cannot be decoded from hex
+/// * If group cannot be found
+/// * If members cannot be retrieved
+#[tauri::command]
+pub fn get_group_members(
+    group_id: &str,
+    wn: tauri::State<'_, Whitenoise>,
+) -> Result<Vec<PublicKey>, String> {
+    let account = Account::get_active(&wn).map_err(|e| e.to_string())?;
+    let mls_group_id =
+        hex::decode(group_id).map_err(|e| format!("Error decoding group id: {}", e))?;
+    let group = Group::find_by_mls_group_id(&account.pubkey, &mls_group_id, &wn)
+        .map_err(|e| format!("Error fetching group: {}", e))?;
+    let members = group.members(&wn).map_err(|e| e.to_string())?;
+    Ok(members)
 }

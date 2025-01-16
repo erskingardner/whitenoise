@@ -92,6 +92,7 @@ pub fn run() {
             update_account_onboarding,
             get_group,
             get_group_and_messages,
+            get_group_members,
             get_invite,
             accept_invite,
             decline_invite,

@@ -3,6 +3,7 @@ use crate::database::DatabaseError;
 use crate::messages::Message;
 use crate::utils::is_valid_hex_pubkey;
 use crate::Whitenoise;
+use nostr_openmls::groups::GroupError as NostrMlsError;
 use nostr_openmls::nostr_group_data_extension::NostrGroupDataExtension;
 use nostr_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -61,6 +62,12 @@ pub enum GroupError {
 
     #[error("Database error: {0}")]
     DatabaseError(#[from] DatabaseError),
+
+    #[error("MLS error: {0}")]
+    MlsError(#[from] NostrMlsError),
+
+    #[error("Key error: {0}")]
+    KeyError(#[from] nostr_sdk::key::Error),
 }
 
 pub type Result<T> = std::result::Result<T, GroupError>;
@@ -353,10 +360,28 @@ impl Group {
         Ok(messages.into_iter().map(|(_, event)| event).collect())
     }
 
+    pub fn members(&self, wn: &tauri::State<'_, Whitenoise>) -> Result<Vec<PublicKey>> {
+        let nostr_mls = wn.nostr_mls.lock().unwrap();
+        let member_pubkeys = nostr_mls
+            .member_pubkeys(self.mls_group_id.clone())
+            .map_err(|e| GroupError::MlsError(e))?;
+        member_pubkeys
+            .iter()
+            .try_fold(Vec::with_capacity(member_pubkeys.len()), |mut acc, pk| {
+                acc.push(PublicKey::parse(pk)?);
+                Ok(acc)
+            })
+    }
+
+    pub fn admins(&self) -> Result<Vec<PublicKey>> {
+        self.admin_pubkeys.iter().try_fold(
+            Vec::with_capacity(self.admin_pubkeys.len()),
+            |mut acc, pk| {
+                acc.push(PublicKey::parse(pk)?);
+                Ok(acc)
+            },
+        )
+    }
+
     // pub fn remove(&self, wn: &tauri::State<'_, Whitenoise>) -> Result<()> {}
-    // pub fn members(&self, wn: &tauri::State<'_, Whitenoise>) -> Result<Vec<PublicKey>> {}
-    // pub fn admins(&self, wn: &tauri::State<'_, Whitenoise>) -> Result<Vec<PublicKey>> {}
-    // pub fn chats(&self, wn: &tauri::State<'_, Whitenoise>) -> Result<Vec<Chat>> {}
-    // pub fn send_chat(&self, chat: &str, wn: &tauri::State<'_, Whitenoise>) -> Result<()> {}
-    // pub fn fetch_chats_from_relays(&self, wn: &tauri::State<'_, Whitenoise>) -> Result<()> {}
 }
