@@ -93,6 +93,8 @@ pub fn run() {
             get_group,
             get_group_and_messages,
             get_group_members,
+            get_group_admins,
+            rotate_key_in_group,
             get_invite,
             accept_invite,
             decline_invite,

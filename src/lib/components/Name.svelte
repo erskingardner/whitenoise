@@ -1,6 +1,7 @@
 <script lang="ts">
-import type { NMetadata } from "$lib/types/nostr";
+import type { EnrichedContact, NMetadata } from "$lib/types/nostr";
 import { npubFromPubkey } from "$lib/utils/nostr";
+import { invoke } from "@tauri-apps/api/core";
 
 interface Props {
     pubkey: string;
@@ -11,8 +12,26 @@ interface Props {
 
 let { pubkey, metadata, extraClasses, unstyled = false }: Props = $props();
 
-let name = $derived(metadata?.display_name || metadata?.name || npubFromPubkey(pubkey));
-let isNpub = $derived(!metadata?.display_name && !metadata?.name);
+let user: EnrichedContact | undefined = $state(undefined);
+let userMetadata: NMetadata | undefined = $derived.by(() => user?.metadata ?? undefined);
+let name = $derived(userMetadata?.display_name || userMetadata?.name || npubFromPubkey(pubkey));
+let isNpub = $derived(!userMetadata?.display_name && !userMetadata?.name);
+let userFetched: boolean = $state(false);
+
+$effect(() => {
+    if (!userMetadata && !userFetched) {
+        invoke("query_enriched_contact", {
+            pubkey,
+            updateAccount: false,
+        })
+            .then((userResp) => {
+                console.log("user fetched");
+                user = userResp as EnrichedContact;
+                userFetched = true;
+            })
+            .catch((e) => console.error(e));
+    }
+});
 </script>
 
 {#if unstyled}

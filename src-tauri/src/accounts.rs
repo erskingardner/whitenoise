@@ -107,7 +107,7 @@ impl Account {
     }
     /// Adds an account from an existing keypair
     pub async fn add_from_keys(
-        keys: Keys,
+        keys: &Keys,
         set_active: bool,
         wn: &Whitenoise,
         app_handle: &tauri::AppHandle,
@@ -189,7 +189,7 @@ impl Account {
         account.save(wn)?;
 
         // If the record saves, add the keys to the secret store
-        secrets_store::store_private_key(&keys, &wn.data_dir)?;
+        secrets_store::store_private_key(keys, &wn.data_dir)?;
 
         tracing::debug!(target: "whitenoise::accounts", "Account added from keys and secret saved");
 
@@ -201,15 +201,12 @@ impl Account {
     }
 
     /// Finds an account by its public key
-    pub fn find_by_pubkey(pubkey: &str, wn: &Whitenoise) -> Result<Account> {
-        if pubkey.is_empty() {
-            return Err(AccountError::MissingPubkey);
-        }
-
+    pub fn find_by_pubkey(pubkey: &PublicKey, wn: &Whitenoise) -> Result<Account> {
         let rtxn = wn.database.read_txn()?;
+
         wn.database
             .accounts_db()
-            .get(&rtxn, pubkey)
+            .get(&rtxn, pubkey.to_hex().as_str())
             .map_err(DatabaseError::LmdbError)?
             .ok_or_else(|| AccountError::AccountNotFound)
     }
@@ -251,6 +248,24 @@ impl Account {
         } else {
             Err(AccountError::NoActiveAccount)
         }
+    }
+
+    /// Returns the public key of the currently active account
+    ///
+    /// # Arguments
+    /// * `wn` - Whitenoise state handle
+    ///
+    /// # Returns
+    /// * `Ok(PublicKey)` - Public key of active account if successful
+    /// * `Err(AccountError)` - Error if no active account or invalid public key
+    ///
+    /// # Errors
+    /// Returns error if:
+    /// - No active account is found
+    /// - Active account's public key is invalid
+    pub fn get_active_pubkey(wn: &Whitenoise) -> Result<PublicKey> {
+        let account = Account::get_active(wn)?;
+        Ok(PublicKey::parse(account.pubkey.as_str())?)
     }
 
     /// Sets the active account in the database and updates nostr for the active identity

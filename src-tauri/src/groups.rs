@@ -1,6 +1,7 @@
 use crate::accounts::{Account, AccountError};
 use crate::database::DatabaseError;
 use crate::messages::Message;
+use crate::secrets_store;
 use crate::utils::is_valid_hex_pubkey;
 use crate::Whitenoise;
 use nostr_openmls::groups::GroupError as NostrMlsError;
@@ -8,7 +9,6 @@ use nostr_openmls::nostr_group_data_extension::NostrGroupDataExtension;
 use nostr_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Group {
     /// This is the MLS group ID, this will serve as the PK in the DB and doesn't change
@@ -68,6 +68,18 @@ pub enum GroupError {
 
     #[error("Key error: {0}")]
     KeyError(#[from] nostr_sdk::key::Error),
+
+    #[error("Nostr event error: {0}")]
+    NostrEventError(#[from] nostr_sdk::event::builder::Error),
+
+    #[error("NIP-44 encryption error: {0}")]
+    NostrEncryptionError(#[from] nostr_sdk::nips::nip44::Error),
+
+    #[error("Nostr error: {0}")]
+    NostrError(#[from] nostr_sdk::client::Error),
+
+    #[error("Secrets store error: {0}")]
+    SecretsStoreError(#[from] secrets_store::SecretsStoreError),
 }
 
 pub type Result<T> = std::result::Result<T, GroupError>;
@@ -154,13 +166,12 @@ impl Group {
     }
 
     /// Creates a compound key for group storage using account pubkey and mls_group_id
-    fn create_group_key(account_pubkey: &str, mls_group_id: &[u8]) -> Vec<u8> {
-        [account_pubkey.as_bytes(), mls_group_id].concat()
+    fn group_key(account_pubkey: PublicKey, mls_group_id: &[u8]) -> Vec<u8> {
+        [account_pubkey.to_bytes().as_slice(), mls_group_id].concat()
     }
 
     /// Create and save a new group to the database
     pub fn new(
-        account_pubkey: &str,
         mls_group_id: Vec<u8>,
         mls_group_epoch: u64,
         group_type: GroupType,
@@ -169,6 +180,9 @@ impl Group {
         _app_handle: &tauri::AppHandle,
     ) -> Result<Group> {
         tracing::debug!("Creating group with ID: {:?}", hex::encode(&mls_group_id));
+
+        let mut account = Account::get_active(wn).map_err(GroupError::AccountError)?;
+
         let group = Group {
             mls_group_id,
             nostr_group_id: group_data.nostr_group_id(),
@@ -183,11 +197,9 @@ impl Group {
             state: GroupState::Active,
         };
 
-        group.save(account_pubkey, wn)?;
+        group.save(wn)?;
 
         // Add the group to the account
-        let mut account =
-            Account::find_by_pubkey(account_pubkey, wn).map_err(GroupError::AccountError)?;
         account.mls_group_ids.push(group.mls_group_id.clone());
         account.nostr_group_ids.push(group.nostr_group_id.clone());
         account.save(wn).map_err(GroupError::AccountError)?;
@@ -196,24 +208,11 @@ impl Group {
     }
 
     /// Find a group by their mls_group_id and the account it belongs to
-    pub fn find_by_mls_group_id(
-        account_pubkey: &str,
-        mls_group_id: &[u8],
-        wn: &Whitenoise,
-    ) -> Result<Group> {
-        if account_pubkey.is_empty() {
-            return Err(GroupError::InvalidParameters(
-                "Missing account_pubkey param".into(),
-            ));
-        }
-        if mls_group_id.is_empty() {
-            return Err(GroupError::InvalidParameters(
-                "Missing mls_group_id param".into(),
-            ));
-        }
+    pub fn find_by_mls_group_id(mls_group_id: &[u8], wn: &Whitenoise) -> Result<Group> {
+        let pubkey = Account::get_active_pubkey(wn).map_err(GroupError::AccountError)?;
 
         let rtxn = &wn.database.read_txn()?;
-        let key = Self::create_group_key(account_pubkey, mls_group_id);
+        let key = Self::group_key(pubkey, mls_group_id);
         wn.database
             .groups_db()
             .get(rtxn, &key)
@@ -221,27 +220,14 @@ impl Group {
             .ok_or_else(|| GroupError::GroupNotFound)
     }
 
-    pub fn get_by_nostr_group_id(
-        account_pubkey: &str,
-        nostr_group_id: &str,
-        wn: &Whitenoise,
-    ) -> Result<Group> {
-        if account_pubkey.is_empty() {
-            return Err(GroupError::InvalidParameters(
-                "Missing account_pubkey param".into(),
-            ));
-        }
-        if nostr_group_id.is_empty() {
-            return Err(GroupError::InvalidParameters(
-                "Missing nostr_group_id param".into(),
-            ));
-        }
+    pub fn get_by_nostr_group_id(nostr_group_id: &str, wn: &Whitenoise) -> Result<Group> {
+        let pubkey = Account::get_active_pubkey(wn).map_err(GroupError::AccountError)?;
 
         let rtxn = wn.database.read_txn()?;
         let mut iter = wn
             .database
             .groups_db()
-            .prefix_iter(&rtxn, account_pubkey.as_bytes())
+            .prefix_iter(&rtxn, &pubkey.to_bytes())
             .map_err(|e| DatabaseError::SerializationError(e.to_string()))?;
 
         iter.find(|result| {
@@ -256,12 +242,14 @@ impl Group {
     }
 
     /// Gets all groups for a given account
-    pub fn get_all_groups(account_pubkey: &str, wn: &Whitenoise) -> Result<Vec<Group>> {
+    pub fn get_all_groups(wn: &Whitenoise) -> Result<Vec<Group>> {
+        let pubkey = Account::get_active_pubkey(wn).map_err(GroupError::AccountError)?;
+
         let rtxn = wn.database.read_txn()?;
         let iter = wn
             .database
             .groups_db()
-            .prefix_iter(&rtxn, account_pubkey.as_bytes())
+            .prefix_iter(&rtxn, &pubkey.to_bytes())
             .map_err(|e| DatabaseError::SerializationError(e.to_string()))?;
         iter.map(|result| {
             result
@@ -272,20 +260,11 @@ impl Group {
     }
 
     // Save the group to the database
-    pub fn save(&self, account_pubkey: &str, wn: &Whitenoise) -> Result<Group> {
-        if account_pubkey.is_empty() {
-            return Err(GroupError::InvalidParameters(
-                "Missing account_pubkey param".into(),
-            ));
-        }
-        if self.mls_group_id.is_empty() {
-            return Err(GroupError::InvalidParameters(
-                "Missing mls_group_id param".into(),
-            ));
-        }
+    pub fn save(&self, wn: &Whitenoise) -> Result<Group> {
+        let pubkey = Account::get_active_pubkey(wn).map_err(GroupError::AccountError)?;
 
         let mut wtxn = wn.database.write_txn()?;
-        let key = Self::create_group_key(account_pubkey, &self.mls_group_id);
+        let key = Self::group_key(pubkey, &self.mls_group_id);
         wn.database
             .groups_db()
             .put(&mut wtxn, &key, self)
@@ -296,8 +275,13 @@ impl Group {
     }
 
     pub fn add_message(&self, message: UnsignedEvent, wn: &Whitenoise) -> Result<()> {
+        let account_pubkey = Account::get_active(wn).map_err(GroupError::AccountError)?;
+
         let mut wtxn = wn.database.write_txn()?;
-        let key = Message::create_message_key(&self.mls_group_id, &message)
+        let pubkey =
+            PublicKey::parse(account_pubkey.pubkey.as_str()).map_err(GroupError::KeyError)?;
+
+        let key = Message::message_key(pubkey, &self.mls_group_id, &message)
             .map_err(|e| DatabaseError::InvalidKey(e.to_string()))?;
         wn.database
             .messages_db()
@@ -314,12 +298,15 @@ impl Group {
         end_time: Option<u64>,
         wn: &Whitenoise,
     ) -> Result<Vec<UnsignedEvent>> {
-        let rtxn = wn.database.read_txn()?;
+        let pubkey = Account::get_active_pubkey(wn).map_err(GroupError::AccountError)?;
 
+        let rtxn = wn.database.read_txn()?;
+        let key = Message::message_iter_key(pubkey, &self.mls_group_id)
+            .map_err(|e| DatabaseError::InvalidKey(e.to_string()))?;
         let mut messages: Vec<(u64, UnsignedEvent)> = wn
             .database
             .messages_db()
-            .prefix_iter(&rtxn, &self.mls_group_id)
+            .prefix_iter(&rtxn, &key)
             .map_err(|e| GroupError::DatabaseError(DatabaseError::LmdbError(e)))?
             .filter(|result| {
                 if let Ok((key, _)) = result {
@@ -364,7 +351,7 @@ impl Group {
         let nostr_mls = wn.nostr_mls.lock().unwrap();
         let member_pubkeys = nostr_mls
             .member_pubkeys(self.mls_group_id.clone())
-            .map_err(|e| GroupError::MlsError(e))?;
+            .map_err(GroupError::MlsError)?;
         member_pubkeys
             .iter()
             .try_fold(Vec::with_capacity(member_pubkeys.len()), |mut acc, pk| {
@@ -381,6 +368,71 @@ impl Group {
                 Ok(acc)
             },
         )
+    }
+
+    pub async fn self_update_keys(&self, wn: &tauri::State<'_, Whitenoise>) -> Result<()> {
+        let serialized_commit_message: Vec<u8>;
+        let current_exporter_secret_hex: String;
+        let new_exporter_secret_hex: String;
+        let new_epoch: u64;
+        {
+            let nostr_mls = wn.nostr_mls.lock().unwrap();
+            let self_update_result = nostr_mls
+                .self_update(self.mls_group_id.clone())
+                .map_err(GroupError::MlsError)?;
+            serialized_commit_message = self_update_result.serialized_message;
+            current_exporter_secret_hex = self_update_result.current_exporter_secret_hex;
+            new_exporter_secret_hex = self_update_result.new_exporter_secret_hex;
+            new_epoch = self_update_result.new_epoch;
+        }
+
+        // Send 445 event with commit_message - needs to be encrypted to the last epoch's exporter secret key
+
+        let last_epoch_export_nostr_keys =
+            Keys::parse(current_exporter_secret_hex.as_str()).map_err(GroupError::KeyError)?;
+
+        let encrypted_content = nip44::encrypt(
+            last_epoch_export_nostr_keys.secret_key(),
+            &last_epoch_export_nostr_keys.public_key(),
+            &serialized_commit_message,
+            nip44::Version::V2,
+        )
+        .map_err(GroupError::NostrEncryptionError)?;
+
+        let ephemeral_nostr_keys = Keys::generate();
+        let commit_message_event = EventBuilder::new(Kind::MlsGroupMessage, encrypted_content)
+            .tags(vec![Tag::custom(
+                TagKind::h(),
+                vec![self.nostr_group_id.clone()],
+            )])
+            .sign(&ephemeral_nostr_keys)
+            .await
+            .map_err(GroupError::NostrEventError)?;
+
+        tracing::debug!(
+            target: "whitenoise::groups::self_update_keys",
+            "Publishing MLS commit message event to group relays"
+        );
+
+        let relays = self.relay_urls.clone();
+        wn.nostr
+            .client
+            .send_event_to(relays, commit_message_event)
+            .await
+            .map_err(GroupError::NostrError)?;
+
+        // TODO: This is assuming we don't have any welcome messages in this commit we probably need to handle that case in the future
+
+        // Add the new epoch secret to the secret store
+        secrets_store::store_mls_export_secret(
+            self.mls_group_id.clone(),
+            new_epoch,
+            new_exporter_secret_hex.clone(),
+            wn.data_dir.as_path(),
+        )
+        .map_err(GroupError::SecretsStoreError)?;
+
+        Ok(())
     }
 
     // pub fn remove(&self, wn: &tauri::State<'_, Whitenoise>) -> Result<()> {}

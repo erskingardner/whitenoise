@@ -1,5 +1,7 @@
 <script lang="ts">
 import { activeAccount } from "$lib/stores/accounts";
+import type { EnrichedContact } from "$lib/types/nostr";
+import { invoke } from "@tauri-apps/api/core";
 
 interface Props {
     picture?: string;
@@ -8,6 +10,26 @@ interface Props {
     showRing?: boolean;
 }
 let { pubkey, picture, pxSize = 32, showRing = false }: Props = $props();
+
+let user: EnrichedContact | undefined = $state(undefined);
+let avatarImage: string | undefined = $state(picture);
+let userFetched: boolean = $state(false);
+
+$effect(() => {
+    if (!avatarImage && !userFetched) {
+        invoke("query_enriched_contact", {
+            pubkey,
+            updateAccount: false,
+        })
+            .then((userResp) => {
+                console.log("user fetched");
+                user = userResp as EnrichedContact;
+                avatarImage = user.metadata.picture;
+                userFetched = true;
+            })
+            .catch((e) => console.error(e));
+    }
+});
 </script>
 
 <div
@@ -17,8 +39,8 @@ let { pubkey, picture, pxSize = 32, showRing = false }: Props = $props();
         : ''}"
     style="width: {pxSize}px; height: {pxSize}px; min-width: {pxSize}px; min-height: {pxSize}px;"
 >
-    {#if picture}
-        <img src={picture} alt="avatar" class="shrink-0 w-full h-full rounded-full object-cover" />
+    {#if avatarImage}
+        <img src={avatarImage} alt="avatar" class="shrink-0 w-full h-full rounded-full object-cover" />
     {:else}
         <div
             class="w-full h-full rounded-full font-semibold text-xl font-mono shrink-0 flex flex-col justify-center text-center"

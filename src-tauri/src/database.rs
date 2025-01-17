@@ -34,12 +34,12 @@ pub struct Database {
 
     /// Messages
     /// Processed (decrypted) messages that are group specific
-    /// Key: <mls_group_id> + <timestamp> + <event_id>; Value: <UnsignedEvent>
+    /// Key: <account_pubkey> + <mls_group_id> + <timestamp> + <event_id>; Value: <UnsignedEvent>
     messages_db: heed::Database<heed::types::Bytes, heed::types::SerdeJson<UnsignedEvent>>,
 
     /// Processed Messages Index
     /// This indexes the id of the unprocessed/encrypted 445 messages that have been processed so we don't process them again
-    /// Key: <event_id>; Value: <mls_group_id> + <timestamp> + <event_id>;
+    /// Key: <event_id>; Value: <account_pubkey> + <mls_group_id> + <timestamp> + <event_id>;
     processed_messages_index: heed::Database<heed::types::Str, heed::types::Bytes>,
 }
 

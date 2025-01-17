@@ -42,7 +42,6 @@ $effect(() => {
 
 async function loadGroup() {
     invoke("get_group_and_messages", { groupId: page.params.id }).then((groupResponse) => {
-        console.log("groupResponse", groupResponse);
         [group, messages] = groupResponse as [NostrMlsGroup, NEvent[]];
         counterpartyPubkey =
             group.group_type === NostrMlsGroupType.DirectMessage

@@ -1,6 +1,6 @@
 use crate::accounts::Account;
 use crate::whitenoise::Whitenoise;
-use nostr_sdk::Keys;
+use nostr_sdk::prelude::*;
 
 /// Retrieves the currently active account.
 ///
@@ -74,7 +74,7 @@ pub async fn login(
 ) -> Result<Account, String> {
     let keys = Keys::parse(&nsec_or_hex_privkey).map_err(|e| e.to_string())?;
 
-    match Account::find_by_pubkey(&keys.public_key.to_hex(), &wn) {
+    match Account::find_by_pubkey(&keys.public_key, &wn) {
         Ok(account) => {
             tracing::debug!("Account found, setting active");
             account
@@ -84,7 +84,7 @@ pub async fn login(
         }
         _ => {
             tracing::debug!(target: "whitenoise::commands::accounts","Account not found, adding from keys");
-            Account::add_from_keys(keys, true, &wn, &app_handle)
+            Account::add_from_keys(&keys, true, &wn, &app_handle)
                 .await
                 .map_err(|e| format!("Error logging in: {}", e))
         }
@@ -108,7 +108,9 @@ pub async fn set_active_account(
     wn: tauri::State<'_, Whitenoise>,
     app_handle: tauri::AppHandle,
 ) -> Result<Account, String> {
-    let account = Account::find_by_pubkey(&hex_pubkey, &wn)
+    let pubkey =
+        PublicKey::parse(&hex_pubkey).map_err(|e| format!("Error parsing public key: {}", e))?;
+    let account = Account::find_by_pubkey(&pubkey, &wn)
         .map_err(|e| format!("Error fetching account: {}", e))?;
     account
         .set_active(&wn, &app_handle)
@@ -138,7 +140,9 @@ pub async fn logout(
     wn: tauri::State<'_, Whitenoise>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
-    let account = Account::find_by_pubkey(&hex_pubkey, &wn).expect("No account found");
+    let pubkey =
+        PublicKey::parse(&hex_pubkey).map_err(|e| format!("Error parsing public key: {}", e))?;
+    let account = Account::find_by_pubkey(&pubkey, &wn).expect("No account found");
     account
         .remove(&wn, app_handle)
         .await
@@ -167,6 +171,8 @@ pub fn update_account_onboarding(
     publish_key_package: bool,
     wn: tauri::State<'_, Whitenoise>,
 ) -> Result<Account, String> {
+    let pubkey =
+        PublicKey::parse(&pubkey).map_err(|e| format!("Error parsing public key: {}", e))?;
     let mut account = Account::find_by_pubkey(&pubkey, &wn)
         .map_err(|e| format!("Error fetching account: {}", e))?;
     account.onboarding.inbox_relays = inbox_relays;

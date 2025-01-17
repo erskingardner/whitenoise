@@ -77,7 +77,7 @@ pub async fn fetch_enriched_contact(
     };
 
     if update_account {
-        let mut account = Account::find_by_pubkey(&pubkey.to_hex(), &wn)
+        let mut account = Account::find_by_pubkey(&pubkey, &wn)
             .map_err(|e| format!("Failed to find account: {}", e))?;
 
         account.metadata = enriched_contact.metadata.clone();
@@ -141,7 +141,7 @@ pub async fn query_enriched_contact(
     };
 
     if update_account {
-        let mut account = Account::find_by_pubkey(&pubkey.to_hex(), &wn)
+        let mut account = Account::find_by_pubkey(&pubkey, &wn)
             .map_err(|e| format!("Failed to find account: {}", e))?;
 
         account.metadata = enriched_contact.metadata.clone();

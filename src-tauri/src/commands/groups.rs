@@ -26,9 +26,7 @@ use tauri::Emitter;
 /// - Database error occurs retrieving groups
 #[tauri::command]
 pub fn get_groups(wn: tauri::State<'_, Whitenoise>) -> Result<Vec<Group>, String> {
-    let account = Account::get_active(&wn).map_err(|e| e.to_string())?;
-    Group::get_all_groups(&account.pubkey, &wn)
-        .map_err(|e| format!("Error fetching groups for account: {}", e))
+    Group::get_all_groups(&wn).map_err(|e| format!("Error fetching groups for account: {}", e))
 }
 
 /// Gets a single MLS group by its group ID
@@ -48,10 +46,9 @@ pub fn get_groups(wn: tauri::State<'_, Whitenoise>) -> Result<Vec<Group>, String
 /// - Database error occurs
 #[tauri::command]
 pub fn get_group(group_id: &str, wn: tauri::State<'_, Whitenoise>) -> Result<Group, String> {
-    let account = Account::get_active(&wn).map_err(|e| e.to_string())?;
     let mls_group_id =
         hex::decode(group_id).map_err(|e| format!("Error decoding group id: {}", e))?;
-    Group::find_by_mls_group_id(&account.pubkey, &mls_group_id, &wn)
+    Group::find_by_mls_group_id(&mls_group_id, &wn)
         .map_err(|e| format!("Error fetching group: {}", e))
 }
 
@@ -78,10 +75,9 @@ pub fn get_group_and_messages(
     group_id: &str,
     wn: tauri::State<'_, Whitenoise>,
 ) -> Result<(Group, Vec<UnsignedEvent>), String> {
-    let account = Account::get_active(&wn).map_err(|e| e.to_string())?;
     let mls_group_id =
         hex::decode(group_id).map_err(|e| format!("Error decoding group id: {}", e))?;
-    let group = Group::find_by_mls_group_id(&account.pubkey, &mls_group_id, &wn)
+    let group = Group::find_by_mls_group_id(&mls_group_id, &wn)
         .map_err(|e| format!("Error fetching group: {}", e))?;
     let messages = group
         .messages(None, None, &wn)
@@ -340,7 +336,6 @@ pub async fn create_group(
     // Create the group and save it to the database
     // Also adds the group to the active account
     let nostr_group = Group::new(
-        &active_account.pubkey,
         group_id.clone(),
         mls_group.epoch().as_u64(),
         group_type,
@@ -479,10 +474,7 @@ pub async fn fetch_mls_messages(
     wn: tauri::State<'_, Whitenoise>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
-    let active_account =
-        Account::get_active(&wn).map_err(|e| format!("Error fetching active account: {}", e))?;
-
-    let group_ids: Vec<String> = Group::get_all_groups(&active_account.pubkey, &wn)
+    let group_ids: Vec<String> = Group::get_all_groups(&wn)
         .expect("Failed to get groups")
         .iter()
         .map(|group| group.nostr_group_id.clone())
@@ -525,8 +517,7 @@ pub async fn fetch_mls_messages(
 
     for (group_id, events) in grouped_messages {
         let group =
-            Group::get_by_nostr_group_id(active_account.pubkey.as_str(), group_id.as_str(), &wn)
-                .map_err(|e| e.to_string())?;
+            Group::get_by_nostr_group_id(group_id.as_str(), &wn).map_err(|e| e.to_string())?;
 
         // Sort the events by created_at (and then lexigraphically by ID)
         let mut sorted_events = events.into_iter().collect::<Vec<_>>();
@@ -677,11 +668,54 @@ pub fn get_group_members(
     group_id: &str,
     wn: tauri::State<'_, Whitenoise>,
 ) -> Result<Vec<PublicKey>, String> {
-    let account = Account::get_active(&wn).map_err(|e| e.to_string())?;
     let mls_group_id =
         hex::decode(group_id).map_err(|e| format!("Error decoding group id: {}", e))?;
-    let group = Group::find_by_mls_group_id(&account.pubkey, &mls_group_id, &wn)
+    let group = Group::find_by_mls_group_id(&mls_group_id, &wn)
         .map_err(|e| format!("Error fetching group: {}", e))?;
     let members = group.members(&wn).map_err(|e| e.to_string())?;
     Ok(members)
+}
+
+/// Gets the list of admin members in an MLS group
+///
+/// # Arguments
+/// * `group_id` - Hex-encoded MLS group ID
+/// * `wn` - Whitenoise state handle
+///
+/// # Returns
+/// * `Ok(Vec<String>)` - List of admin public keys if successful
+/// * `Err(String)` - Error message if operation fails
+///
+/// # Errors
+/// * If no active account is found
+/// * If group ID cannot be decoded from hex
+/// * If group cannot be found
+/// * If admin list cannot be retrieved
+#[tauri::command]
+pub fn get_group_admins(
+    group_id: &str,
+    wn: tauri::State<'_, Whitenoise>,
+) -> Result<Vec<PublicKey>, String> {
+    let mls_group_id =
+        hex::decode(group_id).map_err(|e| format!("Error decoding group id: {}", e))?;
+    let group = Group::find_by_mls_group_id(&mls_group_id, &wn)
+        .map_err(|e| format!("Error fetching group: {}", e))?;
+    let admins = group.admins().map_err(|e| e.to_string())?;
+    Ok(admins)
+}
+
+#[tauri::command]
+pub async fn rotate_key_in_group(
+    group_id: &str,
+    wn: tauri::State<'_, Whitenoise>,
+) -> Result<(), String> {
+    let mls_group_id =
+        hex::decode(group_id).map_err(|e| format!("Error decoding group id: {}", e))?;
+    let group = Group::find_by_mls_group_id(&mls_group_id, &wn)
+        .map_err(|e| format!("Error fetching group: {}", e))?;
+    group
+        .self_update_keys(&wn)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }

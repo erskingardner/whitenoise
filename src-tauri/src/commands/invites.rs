@@ -251,7 +251,6 @@ pub async fn accept_invite(
     };
 
     let group = Group::new(
-        &active_account.pubkey,
         mls_group.group_id().to_vec(),
         mls_group.epoch().as_u64(),
         group_type,
