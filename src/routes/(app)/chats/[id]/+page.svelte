@@ -15,8 +15,17 @@ import { nameFromMetadata } from "$lib/utils/nostr";
 import { formatMessageTime } from "$lib/utils/time";
 import { invoke } from "@tauri-apps/api/core";
 import { type UnlistenFn, listen } from "@tauri-apps/api/event";
-import { CaretLeft, CheckCircle, CircleDashed } from "phosphor-svelte";
-import { onMount } from "svelte";
+import {
+    ArrowBendUpLeft,
+    CaretLeft,
+    CheckCircle,
+    CircleDashed,
+    CopySimple,
+    PencilSimple,
+    TrashSimple,
+} from "phosphor-svelte";
+import { onDestroy, onMount } from "svelte";
+import { type PressCustomEvent, press } from "svelte-gestures";
 
 let unlistenMlsMessageReceived: UnlistenFn;
 let unlistenMlsMessageProcessed: UnlistenFn;
@@ -26,6 +35,10 @@ let counterpartyPubkey: string | undefined = $state(undefined);
 let enrichedCounterparty: EnrichedContact | undefined = $state(undefined);
 let groupName = $state("");
 let messages: NEvent[] = $state([]);
+let showMessageMenu = $state(false);
+let selectedMessageId: string | null | undefined = $state(undefined);
+let messageMenuPosition = $state({ x: 0, y: 0 });
+let messageMenuExtendedPosition = $state({ x: 0, y: 0 });
 
 $effect(() => {
     if (
@@ -112,123 +125,114 @@ function handleNewMessage(message: NEvent, replaceTemp: boolean) {
     scrollToBottom();
 }
 
-// const fakeMessages: NEvent[] = [
-//     {
-//         id: "1",
-//         content: "Hello, how are you?",
-//         created_at: Math.floor(Date.now() / 1000) - 20000,
-//         pubkey: "ee73f3642ebc2cfd10e5f67b285e06af5672416b4b916e9be38020ccdf5e1a84",
-//         kind: 9,
-//         tags: [],
-//     },
-//     {
-//         id: "2",
-//         content: "I'm fine, thank you!",
-//         created_at: Math.floor(Date.now() / 1000) - 18000,
-//         pubkey: "7a6ac2abc092d404a6a8ca93e97a58dc5082dfb8a744c984cd40c944fb6d6574",
-//         kind: 9,
-//         tags: [],
-//     },
-//     {
-//         id: "3",
-//         content:
-//             "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.?",
-//         created_at: Math.floor(Date.now() / 1000) - 17800,
-//         pubkey: "ee73f3642ebc2cfd10e5f67b285e06af5672416b4b916e9be38020ccdf5e1a84",
-//         kind: 9,
-//         tags: [],
-//     },
-//     {
-//         id: "4",
-//         content: "Whoa dude.",
-//         created_at: Math.floor(Date.now() / 1000) - 16000,
-//         pubkey: "7a6ac2abc092d404a6a8ca93e97a58dc5082dfb8a744c984cd40c944fb6d6574",
-//         kind: 9,
-//         tags: [],
-//     },
-//     {
-//         id: "5",
-//         content: "Hello, how are you?",
-//         created_at: Math.floor(Date.now() / 1000) - 15500,
-//         pubkey: "ee73f3642ebc2cfd10e5f67b285e06af5672416b4b916e9be38020ccdf5e1a84",
-//         kind: 9,
-//         tags: [],
-//     },
-//     {
-//         id: "6",
-//         content:
-//             "What is Lorem Ipsum? Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.",
-//         created_at: Math.floor(Date.now() / 1000) - 15000,
-//         pubkey: "7a6ac2abc092d404a6a8ca93e97a58dc5082dfb8a744c984cd40c944fb6d6574",
-//         kind: 9,
-//         tags: [],
-//     },
-//     {
-//         id: "7",
-//         content: "Hello, how are you?",
-//         created_at: Math.floor(Date.now() / 1000) - 9000,
-//         pubkey: "ee73f3642ebc2cfd10e5f67b285e06af5672416b4b916e9be38020ccdf5e1a84",
-//         kind: 9,
-//         tags: [],
-//     },
-//     {
-//         id: "8",
-//         content:
-//             "What is Lorem Ipsum? Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.",
-//         created_at: Math.floor(Date.now() / 1000) - 8000,
-//         pubkey: "7a6ac2abc092d404a6a8ca93e97a58dc5082dfb8a744c984cd40c944fb6d6574",
-//         kind: 9,
-//         tags: [],
-//     },
-//     {
-//         id: "9",
-//         content: "Are you coming to the meeting later?",
-//         created_at: Math.floor(Date.now() / 1000) - 7000,
-//         pubkey: "ee73f3642ebc2cfd10e5f67b285e06af5672416b4b916e9be38020ccdf5e1a84",
-//         kind: 9,
-//         tags: [],
-//     },
-//     {
-//         id: "10",
-//         content: "Yes, I'll be there in 10 minutes.",
-//         created_at: Math.floor(Date.now() / 1000) - 6000,
-//         pubkey: "7a6ac2abc092d404a6a8ca93e97a58dc5082dfb8a744c984cd40c944fb6d6574",
-//         kind: 9,
-//         tags: [],
-//     },
-//     {
-//         id: "11",
-//         content: "Great! Looking forward to it.",
-//         created_at: Math.floor(Date.now() / 1000) - 5000,
-//         pubkey: "ee73f3642ebc2cfd10e5f67b285e06af5672416b4b916e9be38020ccdf5e1a84",
-//         kind: 9,
-//         tags: [],
-//     },
-//     {
-//         id: "12",
-//         content: "Did you finish the report?",
-//         created_at: Math.floor(Date.now() / 1000) - 4000,
-//         pubkey: "7a6ac2abc092d404a6a8ca93e97a58dc5082dfb8a744c984cd40c944fb6d6574",
-//         kind: 9,
-//         tags: [],
-//     },
-//     {
-//         id: "13",
-//         content: "Yes, I sent it to your email.",
-//         created_at: Math.floor(Date.now() / 1000) - 3000,
-//         pubkey: "ee73f3642ebc2cfd10e5f67b285e06af5672416b4b916e9be38020ccdf5e1a84",
-//         kind: 9,
-//         tags: [],
-//     },
-//     {
-//         id: "14",
-//         content: "Thanks! I'll check it out.",
-//         created_at: Math.floor(Date.now() / 1000) - 2000,
-//         pubkey: "7a6ac2abc092d404a6a8ca93e97a58dc5082dfb8a744c984cd40c944fb6d6574",
-//         kind: 9,
-//         tags: [],
-//     },
-// ];
+function handlePress(event: PressCustomEvent) {
+    const target = event.target as HTMLElement;
+    const messageContainer = target.closest("[data-message-container]");
+    const messageId = messageContainer?.getAttribute("data-message-id");
+    const isCurrentUser = messageContainer?.getAttribute("data-is-current-user") === "true";
+    selectedMessageId = messageId;
+    const rect = target.getBoundingClientRect();
+
+    // Temporarily make menus visible but with measuring class
+    const reactionMenu = document.getElementById("messageMenu");
+    const extendedMenu = document.getElementById("messageMenuExtended");
+    if (reactionMenu) reactionMenu.classList.replace("invisible", "visible");
+    if (extendedMenu) extendedMenu.classList.replace("invisible", "visible");
+
+    // Add measuring class
+    if (reactionMenu) reactionMenu.classList.add("measuring");
+    if (extendedMenu) extendedMenu.classList.add("measuring");
+
+    // Use setTimeout to ensure the menus are rendered before measuring
+    setTimeout(() => {
+        const reactionMenuWidth = reactionMenu?.getBoundingClientRect().width || 0;
+        const extendedMenuWidth = extendedMenu?.getBoundingClientRect().width || 0;
+
+        // Remove measuring class
+        if (reactionMenu) reactionMenu.classList.remove("measuring");
+        if (extendedMenu) extendedMenu.classList.remove("measuring");
+
+        // Calculate positions relative to the message's right edge for current user
+        // or left edge for other users
+        const messageRight = rect.right;
+        const messageLeft = rect.left;
+        const messageTop = rect.top;
+        const messageBottom = rect.bottom;
+
+        messageMenuPosition = {
+            x: isCurrentUser ? messageRight - reactionMenuWidth : messageLeft,
+            y: messageTop - 60,
+        };
+
+        messageMenuExtendedPosition = {
+            x: isCurrentUser ? messageRight - extendedMenuWidth : messageLeft,
+            y: messageBottom + 10,
+        };
+
+        // Show the menu
+        showMessageMenu = true;
+
+        // Existing animation code
+        target.style.transform = "scale(1.10)";
+        target.style.transformOrigin = "right";
+        target.style.transition = "transform 0.10s ease-out";
+
+        setTimeout(() => {
+            target.style.transform = "scale(1)";
+        }, 100);
+
+        target.addEventListener(
+            "pointerup",
+            () => {
+                target.style.transform = "scale(1)";
+            },
+            { once: true }
+        );
+    }, 0);
+}
+
+function handleOutsideClick() {
+    showMessageMenu = false;
+    selectedMessageId = undefined;
+}
+
+async function sendReaction(reaction: string) {
+    console.log("sending reaction", reaction);
+    const reactionResp = await invoke("send_reaction", {
+        groupId: page.params.id,
+        reaction: reaction,
+        messageId: selectedMessageId,
+    });
+}
+
+function copyMessage() {
+    const message = messages.find((m) => m.id === selectedMessageId);
+    if (message) {
+        navigator.clipboard.writeText(message.content);
+        const button = document.querySelector("[data-copy-button]");
+        button?.classList.add("copy-success");
+        setTimeout(() => {
+            button?.classList.remove("copy-success");
+        }, 1000);
+    }
+}
+
+function replyToMessage() {
+    console.log("replying to message");
+}
+
+function editMessage() {
+    console.log("editing message");
+}
+
+function deleteMessage() {
+    console.log("deleting message");
+}
+
+onDestroy(() => {
+    unlistenMlsMessageProcessed();
+    unlistenMlsMessageReceived();
+});
 </script>
 
 {#if group}
@@ -258,9 +262,16 @@ function handleNewMessage(message: NEvent, replaceTemp: boolean) {
             class="flex-1 px-8 flex flex-col gap-2 pt-10 pb-40 overflow-y-auto opacity-100 transition-opacity ease-in-out duration-50"
         >
             {#each messages as message (message.id)}
-                <div class={`flex ${message.pubkey === $activeAccount?.pubkey ? "justify-end" : "justify-start"}`}>
+                <div
+                    class={`flex ${message.pubkey === $activeAccount?.pubkey ? "justify-end" : "justify-start"}`}
+                >
                     <div
-                        class={`max-w-[70%] rounded-lg ${message.pubkey === $activeAccount?.pubkey ? "bg-chat-bg-me text-gray-50 rounded-br" : "bg-chat-bg-other text-gray-50 rounded-bl"} p-3`}
+                        use:press={()=>({ triggerBeforeFinished: true, timeframe: 300 })}
+                        onpress={handlePress}
+                        data-message-container
+                        data-message-id={message.id}
+                        data-is-current-user={message.pubkey === $activeAccount?.pubkey}
+                        class={`max-w-[70%] rounded-lg ${message.pubkey === $activeAccount?.pubkey ? "bg-chat-bg-me text-gray-50 rounded-br" : "bg-chat-bg-other text-gray-50 rounded-bl"} p-3 ${showMessageMenu && message.id === selectedMessageId ? 'relative z-20' : ''}`}
                     >
                         <div class="flex flex-col lg:flex-row gap-2 lg:gap-6 lg:items-end">
                             <span class="break-words">
@@ -288,3 +299,59 @@ function handleNewMessage(message: NEvent, replaceTemp: boolean) {
         <MessageBar {group} {handleNewMessage} />
     </main>
 {/if}
+
+{#if showMessageMenu}
+    <button
+        type="button"
+        class="fixed inset-0 backdrop-blur-sm z-10"
+        onclick={handleOutsideClick}
+        onkeydown={(e) => e.key === 'Escape' && handleOutsideClick()}
+        aria-label="Close message menu"
+    ></button>
+{/if}
+
+<div
+    id="messageMenu"
+    class="{showMessageMenu ? 'visible' : 'invisible'} fixed bg-gray-800/60 backdrop-blur-sm drop-shadow-md drop-shadow-black py-1 px-2 rounded-full ring-1 ring-gray-700 z-30 translate-x-0"
+    style="left: {messageMenuPosition.x}px; top: {messageMenuPosition.y}px;"
+    role="menu"
+>
+    <div class="flex flex-row gap-3 text-xl">
+        <button onclick={() => sendReaction("❤️")} class="p-3">❤️</button>
+        <button onclick={() => sendReaction("👍")} class="p-3">👍</button>
+        <button onclick={() => sendReaction("👎")} class="p-3">👎</button>
+        <button onclick={() => sendReaction("😂")} class="p-3">😂</button>
+        <button onclick={() => sendReaction("🤔")} class="p-3">🤔</button>
+        <button onclick={() => sendReaction("🤙")} class="p-3">🤙</button>
+        <button onclick={() => sendReaction("😥")} class="p-3">😥</button>
+    </div>
+</div>
+
+<div
+    id="messageMenuExtended"
+    class="{showMessageMenu ? 'visible' : 'invisible'} fixed bg-gray-800/60 backdrop-blur-sm drop-shadow-md drop-shadow-black rounded-md ring-1 ring-gray-700 z-30 translate-x-0"
+    style="left: {messageMenuExtendedPosition.x}px; top: {messageMenuExtendedPosition.y}px;"
+    role="menu"
+>
+    <div class="flex flex-col gap-2 justify-start items-between divide-y divide-gray-800">
+        <button data-copy-button onclick={copyMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between">Copy <CopySimple size={20} /></button>
+        <!-- <button onclick={replyToMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between">Reply <ArrowBendUpLeft size={20} /></button>
+        <button onclick={editMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between">Edit <PencilSimple size={20} /></button>
+        <button onclick={deleteMessage} class="text-red-500 px-4 py-2 flex flex-row gap-20 items-center justify-between">Delete <TrashSimple size={20} /></button> -->
+    </div>
+</div>
+
+<style>
+    .measuring {
+        position: fixed !important;
+        visibility: hidden !important;
+        top: -9999px !important;
+        left: -9999px !important;
+    }
+
+    .copy-success {
+        color: rgb(34 197 94); /* text-green-500 */
+        transition: color 0.2s ease-in-out;
+    }
+</style>
+

@@ -21,7 +21,7 @@ let headerBorderOpacity = $derived(Math.min(headerOpacity * 3, 1));
 </script>
 
 <div
-    class="flex flex-row justify-between items-center p-4 sticky h-16 top-0 left-0 right-0 backdrop-blur-sm z-40"
+    class="flex flex-row justify-between items-center p-4 sticky h-16 top-0 left-0 right-0 backdrop-blur-sm"
     style="border-bottom: 1px solid rgba(55, 65, 81, {headerBorderOpacity}); background-color: rgba(3, 7, 18, {headerOpacity})"
 >
     {#if left}
