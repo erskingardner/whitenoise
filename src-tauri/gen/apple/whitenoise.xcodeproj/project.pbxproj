@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 54;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -22,45 +22,46 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		01A2572D445E430C88188322 /* groups.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = groups.rs; sourceTree = "<group>"; };
-		0FB1F48362B514DAD572FEF0 /* key_packages.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = key_packages.rs; sourceTree = "<group>"; };
-		1061B39E0E59D8485BB0F539 /* types.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = types.rs; sourceTree = "<group>"; };
-		1BD35E67F51AA40D2465E73D /* query.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = query.rs; sourceTree = "<group>"; };
+		01A2572D445E430C88188322 /* groups.rs */ = {isa = PBXFileReference; path = groups.rs; sourceTree = "<group>"; };
+		0F3C29C0EE901608F7788C61 /* accounts.rs */ = {isa = PBXFileReference; path = accounts.rs; sourceTree = "<group>"; };
+		0FB1F48362B514DAD572FEF0 /* key_packages.rs */ = {isa = PBXFileReference; path = key_packages.rs; sourceTree = "<group>"; };
+		1061B39E0E59D8485BB0F539 /* types.rs */ = {isa = PBXFileReference; path = types.rs; sourceTree = "<group>"; };
+		1BD35E67F51AA40D2465E73D /* query.rs */ = {isa = PBXFileReference; path = query.rs; sourceTree = "<group>"; };
 		3042DB441B5678F3F7D1FCB0 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
 		3AA0B921FAD54ABD891D33E4 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
-		3ECC01012FDFD97C8B46E479 /* nostr_client.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = nostr_client.rs; sourceTree = "<group>"; };
-		418971728966C16C7D79829E /* invites.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = invites.rs; sourceTree = "<group>"; };
-		4627F4EA54A3AF9F06100D75 /* subscriptions.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = subscriptions.rs; sourceTree = "<group>"; };
-		4B5CF62BA88A4EE5111BFC57 /* fetch.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = fetch.rs; sourceTree = "<group>"; };
+		3ECC01012FDFD97C8B46E479 /* nostr_client.rs */ = {isa = PBXFileReference; path = nostr_client.rs; sourceTree = "<group>"; };
+		418971728966C16C7D79829E /* invites.rs */ = {isa = PBXFileReference; path = invites.rs; sourceTree = "<group>"; };
+		4627F4EA54A3AF9F06100D75 /* subscriptions.rs */ = {isa = PBXFileReference; path = subscriptions.rs; sourceTree = "<group>"; };
+		4B5CF62BA88A4EE5111BFC57 /* fetch.rs */ = {isa = PBXFileReference; path = fetch.rs; sourceTree = "<group>"; };
 		4C155538E3225C5CF6581437 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
-		4D187D1ED1181313EA65405C /* invites.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = invites.rs; sourceTree = "<group>"; };
-		52A99F570D75FED8D74E2C99 /* mod.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = mod.rs; sourceTree = "<group>"; };
-		542685059599D94B38614F51 /* mod.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = mod.rs; sourceTree = "<group>"; };
+		4D187D1ED1181313EA65405C /* invites.rs */ = {isa = PBXFileReference; path = invites.rs; sourceTree = "<group>"; };
+		52A99F570D75FED8D74E2C99 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		542685059599D94B38614F51 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		59599F9EA2F93942C2A112E2 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
-		5D3DAC41A870193F5C4CD495 /* whitenoise.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = whitenoise.rs; sourceTree = "<group>"; };
+		5D3DAC41A870193F5C4CD495 /* whitenoise.rs */ = {isa = PBXFileReference; path = whitenoise.rs; sourceTree = "<group>"; };
 		681B9552B18F4C38ADE8A778 /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
 		6E34C725FF7514A5529CCF31 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
 		796CB328C116FCF5532FA59E /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
-		89C1CDB301F2A231F929DC0A /* utils.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = utils.rs; sourceTree = "<group>"; };
-		9A69A625F19B0951D076B676 /* sync.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = sync.rs; sourceTree = "<group>"; };
+		86A0D82C2BF1FCD7943B885A /* database.rs */ = {isa = PBXFileReference; path = database.rs; sourceTree = "<group>"; };
+		89C1CDB301F2A231F929DC0A /* utils.rs */ = {isa = PBXFileReference; path = utils.rs; sourceTree = "<group>"; };
+		9A69A625F19B0951D076B676 /* sync.rs */ = {isa = PBXFileReference; path = sync.rs; sourceTree = "<group>"; };
 		A221768B33430349B755EB68 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
-		A416E5E297D561D8824E0F22 /* accounts.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = accounts.rs; sourceTree = "<group>"; };
-		AA10FE581C70E936618D3981 /* whitenoise.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = whitenoise.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A416E5E297D561D8824E0F22 /* accounts.rs */ = {isa = PBXFileReference; path = accounts.rs; sourceTree = "<group>"; };
+		AA10FE581C70E936618D3981 /* whitenoise_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = whitenoise_iOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AC07A55688DF191EF3097F24 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 		AD53EB7691CBBA4D98B03ADC /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
 		B502F228E08A1C4A2205BDCD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B90A97802C6C3ED4E7D708DD /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
-		B963C51B438E824B60F31810 /* account_manager.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = account_manager.rs; sourceTree = "<group>"; };
-		BC8A0D7DC480106434BA317E /* groups.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = groups.rs; sourceTree = "<group>"; };
+		BC8A0D7DC480106434BA317E /* groups.rs */ = {isa = PBXFileReference; path = groups.rs; sourceTree = "<group>"; };
 		C26FD33373FE1956CAAA228E /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
-		C41870C027AE71554916DF9B /* main.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = main.rs; sourceTree = "<group>"; };
+		C41870C027AE71554916DF9B /* main.rs */ = {isa = PBXFileReference; path = main.rs; sourceTree = "<group>"; };
 		C7942B57D8291C1D556EBBB8 /* whitenoise_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = whitenoise_iOS.entitlements; sourceTree = "<group>"; };
-		CB6B0DBBD138B92F19B7EE4F /* key_packages.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = key_packages.rs; sourceTree = "<group>"; };
-		CF94DF3DAB1B498C781ECBDA /* group_manager.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = group_manager.rs; sourceTree = "<group>"; };
-		D99CE1AD6D4D077A5C202780 /* nostr.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = nostr.rs; sourceTree = "<group>"; };
-		DD4AA3103DEDA1EFF0ED8640 /* lib.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = lib.rs; sourceTree = "<group>"; };
+		CB6B0DBBD138B92F19B7EE4F /* key_packages.rs */ = {isa = PBXFileReference; path = key_packages.rs; sourceTree = "<group>"; };
+		D99CE1AD6D4D077A5C202780 /* nostr.rs */ = {isa = PBXFileReference; path = nostr.rs; sourceTree = "<group>"; };
+		DD4AA3103DEDA1EFF0ED8640 /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
 		DE61E10042B039181A054D94 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		E5DA47629B355E90E58F2E59 /* secrets_store.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = secrets_store.rs; sourceTree = "<group>"; };
+		E5DA47629B355E90E58F2E59 /* secrets_store.rs */ = {isa = PBXFileReference; path = secrets_store.rs; sourceTree = "<group>"; };
+		FD01CC307F161CB09A25CF5E /* messages.rs */ = {isa = PBXFileReference; path = messages.rs; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -148,13 +149,14 @@
 		9D9EC2B4DD82FA186E8C2516 /* src */ = {
 			isa = PBXGroup;
 			children = (
-				B963C51B438E824B60F31810 /* account_manager.rs */,
-				CF94DF3DAB1B498C781ECBDA /* group_manager.rs */,
+				0F3C29C0EE901608F7788C61 /* accounts.rs */,
+				86A0D82C2BF1FCD7943B885A /* database.rs */,
 				BC8A0D7DC480106434BA317E /* groups.rs */,
 				4D187D1ED1181313EA65405C /* invites.rs */,
 				CB6B0DBBD138B92F19B7EE4F /* key_packages.rs */,
 				DD4AA3103DEDA1EFF0ED8640 /* lib.rs */,
 				C41870C027AE71554916DF9B /* main.rs */,
+				FD01CC307F161CB09A25CF5E /* messages.rs */,
 				3ECC01012FDFD97C8B46E479 /* nostr_client.rs */,
 				E5DA47629B355E90E58F2E59 /* secrets_store.rs */,
 				1061B39E0E59D8485BB0F539 /* types.rs */,
@@ -203,7 +205,7 @@
 		FB2DA15E7D7D53D344CE5226 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				AA10FE581C70E936618D3981 /* whitenoise.app */,
+				AA10FE581C70E936618D3981 /* whitenoise_iOS.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -226,7 +228,7 @@
 			);
 			name = whitenoise_iOS;
 			productName = whitenoise_iOS;
-			productReference = AA10FE581C70E936618D3981 /* whitenoise.app */;
+			productReference = AA10FE581C70E936618D3981 /* whitenoise_iOS.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -237,6 +239,11 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					FBFE9DDA7D3B97496A80009B = {
+						DevelopmentTeam = 8Z6Q2LZ77W;
+					};
+				};
 			};
 			buildConfigurationList = 3691BC62CF91C701BB9FB1E6 /* Build configuration list for PBXProject "whitenoise" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -289,7 +296,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "[ -s \"$NVM_DIR/nvm.sh\" ] && \\. \"$NVM_DIR/nvm.sh\"\n/Users/jeff/.bun/bin/bun tauri ios xcode-script -v --platform ${PLATFORM_DISPLAY_NAME:?} --sdk-root ${SDKROOT:?} --framework-search-paths \"${FRAMEWORK_SEARCH_PATHS:?}\" --header-search-paths \"${HEADER_SEARCH_PATHS:?}\" --gcc-preprocessor-definitions \"${GCC_PREPROCESSOR_DEFINITIONS:-}\" --configuration ${CONFIGURATION:?} ${FORCE_COLOR} ${ARCHS:?}\n";
+			shellScript = "bun tauri ios xcode-script -v --platform ${PLATFORM_DISPLAY_NAME:?} --sdk-root ${SDKROOT:?} --framework-search-paths \"${FRAMEWORK_SEARCH_PATHS:?}\" --header-search-paths \"${HEADER_SEARCH_PATHS:?}\" --gcc-preprocessor-definitions \"${GCC_PREPROCESSOR_DEFINITIONS:-}\" --configuration ${CONFIGURATION:?} ${FORCE_COLOR} ${ARCHS:?}";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -392,29 +399,11 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				"LIBRARY_SEARCH_PATHS[arch=arm64-sim]" = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Externals/arm64-sim/$(CONFIGURATION)",
-					"$(SDKROOT)/usr/lib/swift",
-					"$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)",
-					"$(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)",
-				);
-				"LIBRARY_SEARCH_PATHS[arch=arm64]" = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION)",
-					"$(SDKROOT)/usr/lib/swift",
-					"$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)",
-					"$(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)",
-				);
-				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION)",
-					"$(SDKROOT)/usr/lib/swift",
-					"$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)",
-					"$(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.paper-robin.whitenoise;
-				PRODUCT_NAME = whitenoise;
+				"LIBRARY_SEARCH_PATHS[arch=arm64-sim]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64-sim/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.paper-robin.whitenoise";
+				PRODUCT_NAME = "White Noise";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALID_ARCHS = "arm64  arm64-sim";
@@ -445,29 +434,11 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				"LIBRARY_SEARCH_PATHS[arch=arm64-sim]" = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Externals/arm64-sim/$(CONFIGURATION)",
-					"$(SDKROOT)/usr/lib/swift",
-					"$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)",
-					"$(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)",
-				);
-				"LIBRARY_SEARCH_PATHS[arch=arm64]" = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION)",
-					"$(SDKROOT)/usr/lib/swift",
-					"$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)",
-					"$(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)",
-				);
-				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION)",
-					"$(SDKROOT)/usr/lib/swift",
-					"$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)",
-					"$(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.paper-robin.whitenoise;
-				PRODUCT_NAME = whitenoise;
+				"LIBRARY_SEARCH_PATHS[arch=arm64-sim]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64-sim/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.paper-robin.whitenoise";
+				PRODUCT_NAME = "White Noise";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALID_ARCHS = "arm64  arm64-sim";

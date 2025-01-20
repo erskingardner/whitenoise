@@ -1,6 +1,6 @@
 name: whitenoise
 options:
-  bundleIdPrefix: chat.whitenoise.dev
+  bundleIdPrefix: com.paper-robin.whitenoise
   deploymentTarget:
     iOS: 13.0
 fileGroups: [../../src]
@@ -10,8 +10,9 @@ configs:
 settingGroups:
   app:
     base:
-      PRODUCT_NAME: whitenoise
-      PRODUCT_BUNDLE_IDENTIFIER: chat.whitenoise.dev
+      PRODUCT_NAME: White Noise
+      PRODUCT_BUNDLE_IDENTIFIER: com.paper-robin.whitenoise
+      DEVELOPMENT_TEAM: 8Z6Q2LZ77W
 targetTemplates:
   app:
     type: application
