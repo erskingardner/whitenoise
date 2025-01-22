@@ -1,6 +1,6 @@
 use crate::accounts::{Account, AccountError};
 use crate::database::DatabaseError;
-use crate::messages::Message;
+use crate::messages::{Message, MessageRow};
 use crate::secrets_store;
 use crate::utils::is_valid_hex_pubkey;
 use crate::Whitenoise;
@@ -9,10 +9,29 @@ use nostr_openmls::nostr_group_data_extension::NostrGroupDataExtension;
 use nostr_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+/// This is an intermediate struct representing a group in the database
+#[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]
+pub struct GroupRow {
+    pub mls_group_id: Vec<u8>,
+    pub account_pubkey: String,
+    pub nostr_group_id: String,
+    pub name: String,
+    pub description: String,
+    pub admin_pubkeys: String, // JSON string
+    pub last_message_id: Option<String>,
+    pub last_message_at: Option<u64>,
+    pub group_type: String,
+    pub epoch: u64,
+    pub state: String,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Group {
     /// This is the MLS group ID, this will serve as the PK in the DB and doesn't change
     pub mls_group_id: Vec<u8>,
+    /// The account that owns this group
+    pub account_pubkey: PublicKey,
     /// Hex encoded (same value as the NostrGroupDataExtension) this is the group_id used in Nostr events
     pub nostr_group_id: String,
     /// UTF-8 encoded (same value as the NostrGroupDataExtension)
@@ -25,8 +44,6 @@ pub struct Group {
     pub last_message_id: Option<String>,
     /// Timestamp of the last message in the group
     pub last_message_at: Option<Timestamp>,
-    /// URLs of the Nostr relays this group is using
-    pub relay_urls: Vec<String>,
     /// Type of Nostr MLS group
     pub group_type: GroupType,
     /// Epoch of the group
@@ -43,10 +60,48 @@ pub enum GroupType {
     Group,
 }
 
+impl From<String> for GroupType {
+    fn from(s: String) -> Self {
+        match s.to_lowercase().as_str() {
+            "direct_message" => GroupType::DirectMessage,
+            "group" => GroupType::Group,
+            _ => panic!("Invalid group type: {}", s),
+        }
+    }
+}
+
+impl From<GroupType> for String {
+    fn from(group_type: GroupType) -> Self {
+        match group_type {
+            GroupType::DirectMessage => "direct_message".to_string(),
+            GroupType::Group => "group".to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum GroupState {
     Active,
     Inactive,
+}
+
+impl From<String> for GroupState {
+    fn from(s: String) -> Self {
+        match s.to_lowercase().as_str() {
+            "active" => GroupState::Active,
+            "inactive" => GroupState::Inactive,
+            _ => panic!("Invalid group state: {}", s),
+        }
+    }
+}
+
+impl From<GroupState> for String {
+    fn from(state: GroupState) -> Self {
+        match state {
+            GroupState::Active => "active".to_string(),
+            GroupState::Inactive => "inactive".to_string(),
+        }
+    }
 }
 
 #[derive(Error, Debug)]
@@ -80,6 +135,12 @@ pub enum GroupError {
 
     #[error("Secrets store error: {0}")]
     SecretsStoreError(#[from] secrets_store::SecretsStoreError),
+
+    #[error("SQLx error: {0}")]
+    SqlxError(#[from] sqlx::Error),
+
+    #[error("Serialization error: {0}")]
+    SerializationError(#[from] serde_json::Error),
 }
 
 pub type Result<T> = std::result::Result<T, GroupError>;
@@ -165,189 +226,237 @@ impl Group {
         Ok(true)
     }
 
-    /// Creates a compound key for group storage using account pubkey and mls_group_id
-    fn group_key(account_pubkey: PublicKey, mls_group_id: &[u8]) -> Vec<u8> {
-        [account_pubkey.to_bytes().as_slice(), mls_group_id].concat()
-    }
-
     /// Create and save a new group to the database
-    pub fn new(
+    pub async fn new(
         mls_group_id: Vec<u8>,
         mls_group_epoch: u64,
         group_type: GroupType,
         group_data: NostrGroupDataExtension,
-        wn: &Whitenoise,
+        wn: tauri::State<'_, Whitenoise>,
         _app_handle: &tauri::AppHandle,
     ) -> Result<Group> {
         tracing::debug!("Creating group with ID: {:?}", hex::encode(&mls_group_id));
 
-        let mut account = Account::get_active(wn).map_err(GroupError::AccountError)?;
+        let account = Account::get_active(wn.clone())
+            .await
+            .map_err(GroupError::AccountError)?;
 
         let group = Group {
             mls_group_id,
+            account_pubkey: account.pubkey,
             nostr_group_id: group_data.nostr_group_id(),
             name: group_data.name(),
             description: group_data.description(),
             admin_pubkeys: group_data.admin_pubkeys(),
             last_message_id: None,
             last_message_at: None,
-            relay_urls: group_data.relays(),
             group_type,
             epoch: mls_group_epoch,
             state: GroupState::Active,
         };
 
-        group.save(wn)?;
+        group.save(wn.clone()).await?;
 
-        // Add the group to the account
-        account.mls_group_ids.push(group.mls_group_id.clone());
-        account.nostr_group_ids.push(group.nostr_group_id.clone());
-        account.save(wn).map_err(GroupError::AccountError)?;
+        // Add the relays for the group
+        let mut txn = wn.database.pool.begin().await?;
+        for relay in group_data.relays() {
+            sqlx::query("INSERT INTO relays (url, relay_type, account_pubkey, group_id) VALUES (?, ?, ?, ?)")
+                .bind(relay)
+                .bind("group")
+                .bind(Option::<String>::None)
+                .bind(group.mls_group_id.clone())
+                .execute(&mut *txn)
+                .await?;
+        }
+        txn.commit().await?;
 
         Ok(group)
     }
 
     /// Find a group by their mls_group_id and the account it belongs to
-    pub fn find_by_mls_group_id(mls_group_id: &[u8], wn: &Whitenoise) -> Result<Group> {
-        let pubkey = Account::get_active_pubkey(wn).map_err(GroupError::AccountError)?;
+    pub async fn find_by_mls_group_id(
+        mls_group_id: &[u8],
+        wn: tauri::State<'_, Whitenoise>,
+    ) -> Result<Group> {
+        let account = Account::get_active(wn.clone())
+            .await
+            .map_err(GroupError::AccountError)?;
 
-        let rtxn = &wn.database.read_txn()?;
-        let key = Self::group_key(pubkey, mls_group_id);
-        wn.database
-            .groups_db()
-            .get(rtxn, &key)
-            .map_err(DatabaseError::LmdbError)?
-            .ok_or_else(|| GroupError::GroupNotFound)
+        let group_row = sqlx::query_as::<_, GroupRow>(
+            "SELECT * FROM groups WHERE mls_group_id = ? AND account_pubkey = ?",
+        )
+        .bind(hex::encode(mls_group_id))
+        .bind(account.pubkey.to_hex().as_str())
+        .fetch_optional(&wn.database.pool)
+        .await?
+        .ok_or_else(|| GroupError::GroupNotFound)?;
+
+        Ok(Group {
+            mls_group_id: group_row.mls_group_id,
+            account_pubkey: account.pubkey,
+            nostr_group_id: group_row.nostr_group_id,
+            name: group_row.name,
+            description: group_row.description,
+            admin_pubkeys: serde_json::from_str(&group_row.admin_pubkeys)?,
+            last_message_id: group_row.last_message_id,
+            last_message_at: group_row.last_message_at.map(Timestamp::from),
+            group_type: group_row.group_type.into(),
+            epoch: group_row.epoch,
+            state: group_row.state.into(),
+        })
     }
 
-    pub fn get_by_nostr_group_id(nostr_group_id: &str, wn: &Whitenoise) -> Result<Group> {
-        let pubkey = Account::get_active_pubkey(wn).map_err(GroupError::AccountError)?;
+    pub async fn get_by_nostr_group_id(
+        nostr_group_id: &str,
+        wn: tauri::State<'_, Whitenoise>,
+    ) -> Result<Group> {
+        let account = Account::get_active(wn.clone())
+            .await
+            .map_err(GroupError::AccountError)?;
 
-        let rtxn = wn.database.read_txn()?;
-        let mut iter = wn
-            .database
-            .groups_db()
-            .prefix_iter(&rtxn, &pubkey.to_bytes())
-            .map_err(|e| DatabaseError::SerializationError(e.to_string()))?;
+        let group_row = sqlx::query_as::<_, GroupRow>(
+            "SELECT * FROM groups WHERE nostr_group_id = ? AND account_pubkey = ?",
+        )
+        .bind(nostr_group_id)
+        .bind(account.pubkey.to_hex().as_str())
+        .fetch_optional(&wn.database.pool)
+        .await?
+        .ok_or_else(|| GroupError::GroupNotFound)?;
 
-        iter.find(|result| {
-            result
-                .as_ref()
-                .map(|(_, group)| group.nostr_group_id == nostr_group_id)
-                .unwrap_or(false)
+        Ok(Group {
+            mls_group_id: group_row.mls_group_id,
+            account_pubkey: account.pubkey,
+            nostr_group_id: group_row.nostr_group_id,
+            name: group_row.name,
+            description: group_row.description,
+            admin_pubkeys: serde_json::from_str(&group_row.admin_pubkeys)?,
+            last_message_id: group_row.last_message_id,
+            last_message_at: group_row.last_message_at.map(Timestamp::from),
+            group_type: group_row.group_type.into(),
+            epoch: group_row.epoch,
+            state: group_row.state.into(),
         })
-        .ok_or(GroupError::GroupNotFound)?
-        .map(|(_, group)| group)
-        .map_err(|e| DatabaseError::DeserializationError(e.to_string()).into())
     }
 
     /// Gets all groups for a given account
-    pub fn get_all_groups(wn: &Whitenoise) -> Result<Vec<Group>> {
-        let pubkey = Account::get_active_pubkey(wn).map_err(GroupError::AccountError)?;
+    pub async fn get_all_groups(wn: tauri::State<'_, Whitenoise>) -> Result<Vec<Group>> {
+        let account = Account::get_active(wn.clone())
+            .await
+            .map_err(GroupError::AccountError)?;
 
-        let rtxn = wn.database.read_txn()?;
-        let iter = wn
-            .database
-            .groups_db()
-            .prefix_iter(&rtxn, &pubkey.to_bytes())
-            .map_err(|e| DatabaseError::SerializationError(e.to_string()))?;
-        iter.map(|result| {
-            result
-                .map(|(_, group)| group)
-                .map_err(|e| GroupError::from(DatabaseError::DeserializationError(e.to_string())))
-        })
-        .collect()
+        let group_rows =
+            sqlx::query_as::<_, GroupRow>("SELECT * FROM groups WHERE account_pubkey = ?")
+                .bind(account.pubkey.to_hex().as_str())
+                .fetch_all(&wn.database.pool)
+                .await?;
+
+        group_rows
+            .into_iter()
+            .map(|row| {
+                Ok(Group {
+                    mls_group_id: row.mls_group_id,
+                    account_pubkey: account.pubkey,
+                    nostr_group_id: row.nostr_group_id,
+                    name: row.name,
+                    description: row.description,
+                    admin_pubkeys: serde_json::from_str(&row.admin_pubkeys)?,
+                    last_message_id: row.last_message_id,
+                    last_message_at: row.last_message_at.map(Timestamp::from),
+                    group_type: row.group_type.into(),
+                    epoch: row.epoch,
+                    state: row.state.into(),
+                })
+            })
+            .collect::<Result<Vec<_>>>()
     }
 
     // Save the group to the database
-    pub fn save(&self, wn: &Whitenoise) -> Result<Group> {
-        let pubkey = Account::get_active_pubkey(wn).map_err(GroupError::AccountError)?;
+    pub async fn save(&self, wn: tauri::State<'_, Whitenoise>) -> Result<Group> {
+        let mut txn = wn.database.pool.begin().await?;
 
-        let mut wtxn = wn.database.write_txn()?;
-        let key = Self::group_key(pubkey, &self.mls_group_id);
-        wn.database
-            .groups_db()
-            .put(&mut wtxn, &key, self)
-            .map_err(|e| DatabaseError::SerializationError(e.to_string()))?;
-        wtxn.commit()
-            .map_err(|e| DatabaseError::TransactionError(e.to_string()))?;
+        sqlx::query("INSERT INTO groups (mls_group_id, account_pubkey, nostr_group_id, name, description, admin_pubkeys, last_message_id, last_message_at, group_type, epoch, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+            .bind(self.mls_group_id.clone())
+            .bind(self.account_pubkey.to_hex().as_str())
+            .bind(self.nostr_group_id.clone())
+            .bind(self.name.clone())
+            .bind(self.description.clone())
+            .bind(serde_json::to_string(&self.admin_pubkeys)?)
+            .bind(self.last_message_id.clone())
+            .bind(self.last_message_at.map(|t| t.as_u64() as i64))
+            .bind(String::from(self.group_type.clone()))
+            .bind(self.epoch as i64)
+            .bind(String::from(self.state.clone()))
+            .execute(&mut *txn)
+            .await?;
+
+        txn.commit().await?;
         Ok(self.clone())
     }
 
-    pub fn add_message(&self, message: UnsignedEvent, wn: &Whitenoise) -> Result<()> {
-        let account_pubkey = Account::get_active(wn).map_err(GroupError::AccountError)?;
-
-        let mut wtxn = wn.database.write_txn()?;
-        let pubkey =
-            PublicKey::parse(account_pubkey.pubkey.as_str()).map_err(GroupError::KeyError)?;
-
-        let key = Message::message_key(pubkey, &self.mls_group_id, &message)
-            .map_err(|e| DatabaseError::InvalidKey(e.to_string()))?;
-        wn.database
-            .messages_db()
-            .put(&mut wtxn, &key, &message)
-            .map_err(|e| DatabaseError::SerializationError(e.to_string()))?;
-        wtxn.commit()
-            .map_err(|e| DatabaseError::TransactionError(e.to_string()))?;
-        Ok(())
-    }
-
-    pub fn messages(
+    pub async fn add_message(
         &self,
-        start_time: Option<u64>,
-        end_time: Option<u64>,
-        wn: &Whitenoise,
-    ) -> Result<Vec<UnsignedEvent>> {
-        let pubkey = Account::get_active_pubkey(wn).map_err(GroupError::AccountError)?;
+        outer_event_id: String,
+        message: UnsignedEvent,
+        wn: tauri::State<'_, Whitenoise>,
+    ) -> Result<Message> {
+        let account = Account::get_active(wn.clone())
+            .await
+            .map_err(GroupError::AccountError)?;
 
-        let rtxn = wn.database.read_txn()?;
-        let key = Message::message_iter_key(pubkey, &self.mls_group_id)
-            .map_err(|e| DatabaseError::InvalidKey(e.to_string()))?;
-        let mut messages: Vec<(u64, UnsignedEvent)> = wn
-            .database
-            .messages_db()
-            .prefix_iter(&rtxn, &key)
-            .map_err(|e| GroupError::DatabaseError(DatabaseError::LmdbError(e)))?
-            .filter(|result| {
-                if let Ok((key, _)) = result {
-                    if key.len() >= self.mls_group_id.len() + 8 {
-                        // Extract timestamp from the key (8 bytes after group_id)
-                        let timestamp_bytes =
-                            &key[self.mls_group_id.len()..self.mls_group_id.len() + 8];
-                        if let Ok(timestamp_array) = timestamp_bytes.try_into() {
-                            let timestamp = u64::from_be_bytes(timestamp_array);
-                            let after_start = start_time.map_or(true, |start| timestamp >= start);
-                            let before_end = end_time.map_or(true, |end| timestamp <= end);
-                            return after_start && before_end;
-                        }
-                    }
-                }
-                true
-            })
-            .filter_map(|r| {
-                r.ok().and_then(|(key, event)| {
-                    if key.len() >= self.mls_group_id.len() + 8 {
-                        let timestamp_bytes =
-                            &key[self.mls_group_id.len()..self.mls_group_id.len() + 8];
-                        timestamp_bytes
-                            .try_into()
-                            .ok()
-                            .map(|b| (u64::from_be_bytes(b), event))
-                    } else {
-                        None
-                    }
-                })
-            })
-            .collect();
+        let mut txn = wn.database.pool.begin().await?;
 
-        // Sort by timestamp in ascending order
-        messages.sort_by_key(|(timestamp, _)| *timestamp);
+        let message_row = sqlx::query_as::<_, MessageRow>(
+            "INSERT INTO messages (event_id, account_pubkey, author_pubkey, mls_group_id, created_at, content, tags, event, outer_event_id, processed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(message.id.unwrap().to_string())
+        .bind(account.pubkey.to_hex())
+        .bind(message.pubkey.to_hex())
+        .bind(self.mls_group_id.clone())
+        .bind(message.created_at.as_u64() as i64)
+        .bind(message.content.clone())
+        .bind(serde_json::to_string(&message.tags)?)
+        .bind(serde_json::to_string(&message)?)
+        .bind(outer_event_id.clone())
+        .bind(true)
+        .fetch_one(&mut *txn)
+        .await?;
 
-        // Return only the events
-        Ok(messages.into_iter().map(|(_, event)| event).collect())
+        txn.commit().await?;
+
+        Ok(Message {
+            event_id: message_row.event_id,
+            account_pubkey: account.pubkey,
+            author_pubkey: message.pubkey,
+            mls_group_id: self.mls_group_id.clone(),
+            created_at: message.created_at,
+            content: message.content.clone(),
+            tags: message.tags.clone(),
+            event: message,
+            outer_event_id: outer_event_id.clone(),
+            processed: message_row.processed,
+        })
     }
 
-    pub fn members(&self, wn: &tauri::State<'_, Whitenoise>) -> Result<Vec<PublicKey>> {
+    pub async fn messages(&self, wn: tauri::State<'_, Whitenoise>) -> Result<Vec<UnsignedEvent>> {
+        let pubkey = Account::get_active_pubkey(wn.clone())
+            .await
+            .map_err(GroupError::AccountError)?;
+
+        let message_rows = sqlx::query_as::<_, MessageRow>(
+            "SELECT * FROM messages WHERE mls_group_id = ? AND account_pubkey = ?",
+        )
+        .bind(&self.mls_group_id)
+        .bind(pubkey.to_hex())
+        .fetch_all(&wn.database.pool)
+        .await?;
+
+        message_rows
+            .into_iter()
+            .map(|row| serde_json::from_str(&row.event).map_err(GroupError::SerializationError))
+            .collect::<Result<Vec<_>>>()
+    }
+
+    pub fn members(&self, wn: tauri::State<'_, Whitenoise>) -> Result<Vec<PublicKey>> {
         let nostr_mls = wn.nostr_mls.lock().unwrap();
         let member_pubkeys = nostr_mls
             .member_pubkeys(self.mls_group_id.clone())
@@ -370,7 +479,16 @@ impl Group {
         )
     }
 
-    pub async fn self_update_keys(&self, wn: &tauri::State<'_, Whitenoise>) -> Result<()> {
+    pub async fn relays(&self, wn: tauri::State<'_, Whitenoise>) -> Result<Vec<String>> {
+        Ok(sqlx::query_scalar::<_, String>(
+            "SELECT relay_url FROM relays WHERE relay_type = 'group' AND group_id = ?",
+        )
+        .bind(&self.mls_group_id)
+        .fetch_all(&wn.database.pool)
+        .await?)
+    }
+
+    pub async fn self_update_keys(&self, wn: tauri::State<'_, Whitenoise>) -> Result<()> {
         let serialized_commit_message: Vec<u8>;
         let current_exporter_secret_hex: String;
         let new_exporter_secret_hex: String;
@@ -414,7 +532,12 @@ impl Group {
             "Publishing MLS commit message event to group relays"
         );
 
-        let relays = self.relay_urls.clone();
+        let relays =
+            sqlx::query_scalar::<_, String>("SELECT relay_url FROM relays WHERE group_id = ?")
+                .bind(&self.mls_group_id)
+                .fetch_all(&wn.database.pool)
+                .await?;
+
         wn.nostr
             .client
             .send_event_to(relays, commit_message_event)

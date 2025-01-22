@@ -11,7 +11,7 @@ impl NostrManager {
         &self,
         pubkey: PublicKey,
         last_synced: Timestamp,
-        group_ids: Vec<String>,
+        group_ids: Vec<String>, // Nostr group ids
     ) -> Result<()> {
         self.fetch_user_metadata(pubkey).await?;
         self.fetch_contacts().await?;
@@ -25,7 +25,6 @@ impl NostrManager {
     }
 
     pub async fn fetch_user_metadata(&self, pubkey: PublicKey) -> Result<Option<Metadata>> {
-        tracing::debug!(target: "whitenoise::nostr_manager::fetch", "Fetching metadata for pubkey: {}", pubkey.to_hex());
         match self
             .client
             .fetch_metadata(pubkey, Some(self.timeout()?))
@@ -114,8 +113,12 @@ impl NostrManager {
         Ok(contacts.into_iter().collect())
     }
 
-    #[allow(dead_code)]
-    pub async fn fetch_user_welcomes(&self, pubkey: PublicKey) -> Result<Vec<UnsignedEvent>> {
+    /// Fetches all welcome events for a given user
+    /// Returns a vector of tuples containing the gift-wrap event id and the inner welcome event (the gift wrap rumor event)
+    pub async fn fetch_user_welcomes(
+        &self,
+        pubkey: PublicKey,
+    ) -> Result<Vec<(EventId, UnsignedEvent)>> {
         let gw_events = self.fetch_user_giftwrapped_events(pubkey).await?;
         let invites = self.extract_invite_events(gw_events).await;
         Ok(invites)

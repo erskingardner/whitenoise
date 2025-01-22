@@ -13,8 +13,19 @@ use nostr_sdk::prelude::*;
 /// * `Ok(Option<Account>)` - The active account if it exists.
 /// * `Err(String)` - An error message if there was an issue fetching the active account.
 #[tauri::command]
-pub fn get_active_account(wn: tauri::State<'_, Whitenoise>) -> Result<Account, String> {
-    Account::get_active(&wn).map_err(|e| e.to_string())
+pub async fn get_active_account(wn: tauri::State<'_, Whitenoise>) -> Result<Account, String> {
+    tracing::debug!(target: "whitenoise::commands::accounts", "Getting active account");
+
+    let result = Account::get_active(wn.clone())
+        .await
+        .map_err(|e| {
+            tracing::error!(target: "whitenoise::commands::accounts", "Error getting active account: {}", e);
+            e.to_string()
+        });
+
+    tracing::debug!(target: "whitenoise::commands::accounts", "Get active account result: {:?}", result);
+
+    result
 }
 
 /// Lists all accounts.
@@ -28,8 +39,10 @@ pub fn get_active_account(wn: tauri::State<'_, Whitenoise>) -> Result<Account, S
 /// * `Ok(Vec<Account>)` - A vector of accounts if successful.
 /// * `Err(String)` - An error message if there was an issue listing the accounts.
 #[tauri::command]
-pub fn get_accounts(wn: tauri::State<'_, Whitenoise>) -> Result<Vec<Account>, String> {
-    Account::all(&wn).map_err(|e| format!("Error fetching accounts: {}", e))
+pub async fn get_accounts(wn: tauri::State<'_, Whitenoise>) -> Result<Vec<Account>, String> {
+    Account::all(wn.clone())
+        .await
+        .map_err(|e| format!("Error fetching accounts: {}", e))
 }
 
 /// Creates a new identity by generating a new keypair and logging in with it.
@@ -48,9 +61,11 @@ pub async fn create_identity(
     wn: tauri::State<'_, Whitenoise>,
     app_handle: tauri::AppHandle,
 ) -> Result<Account, String> {
-    let account = Account::new(&wn).map_err(|e| format!("Error creating account: {}", e))?;
+    let account = Account::new(wn.clone())
+        .await
+        .map_err(|e| format!("Error creating account: {}", e))?;
     account
-        .set_active(&wn, &app_handle)
+        .set_active(wn.clone(), &app_handle)
         .await
         .map_err(|e| format!("Error setting active account: {}", e))
 }
@@ -74,17 +89,17 @@ pub async fn login(
 ) -> Result<Account, String> {
     let keys = Keys::parse(&nsec_or_hex_privkey).map_err(|e| e.to_string())?;
 
-    match Account::find_by_pubkey(&keys.public_key, &wn) {
+    match Account::find_by_pubkey(&keys.public_key, wn.clone()).await {
         Ok(account) => {
             tracing::debug!("Account found, setting active");
             account
-                .set_active(&wn, &app_handle)
+                .set_active(wn.clone(), &app_handle)
                 .await
                 .map_err(|e| format!("Error logging in: {}", e))
         }
         _ => {
             tracing::debug!(target: "whitenoise::commands::accounts","Account not found, adding from keys");
-            Account::add_from_keys(&keys, true, &wn, &app_handle)
+            Account::add_from_keys(&keys, true, wn.clone(), &app_handle)
                 .await
                 .map_err(|e| format!("Error logging in: {}", e))
         }
@@ -108,14 +123,25 @@ pub async fn set_active_account(
     wn: tauri::State<'_, Whitenoise>,
     app_handle: tauri::AppHandle,
 ) -> Result<Account, String> {
+    tracing::debug!(target: "whitenoise::commands::accounts", "Setting active account: {}", hex_pubkey);
+
     let pubkey =
         PublicKey::parse(&hex_pubkey).map_err(|e| format!("Error parsing public key: {}", e))?;
-    let account = Account::find_by_pubkey(&pubkey, &wn)
-        .map_err(|e| format!("Error fetching account: {}", e))?;
-    account
-        .set_active(&wn, &app_handle)
+
+    let account = Account::find_by_pubkey(&pubkey, wn.clone())
         .await
-        .map_err(|e| format!("Error setting active account: {}", e))
+        .map_err(|e| format!("Error fetching account: {}", e))?;
+
+    tracing::debug!(target: "whitenoise::commands::accounts", "Found account: {:?}", account);
+
+    let result = account
+        .set_active(wn.clone(), &app_handle)
+        .await
+        .map_err(|e| format!("Error setting active account: {}", e));
+
+    tracing::debug!(target: "whitenoise::commands::accounts", "Set active result: {:?}", result);
+
+    result
 }
 
 /// Logs out the specified account.
@@ -142,9 +168,11 @@ pub async fn logout(
 ) -> Result<(), String> {
     let pubkey =
         PublicKey::parse(&hex_pubkey).map_err(|e| format!("Error parsing public key: {}", e))?;
-    let account = Account::find_by_pubkey(&pubkey, &wn).expect("No account found");
+    let account = Account::find_by_pubkey(&pubkey, wn.clone())
+        .await
+        .map_err(|e| format!("Error fetching account: {}", e))?;
     account
-        .remove(&wn, app_handle)
+        .remove(wn.clone(), app_handle)
         .await
         .map_err(|e| format!("Error logging out: {}", e))
 }
@@ -164,7 +192,7 @@ pub async fn logout(
 /// * `Ok(Account)` - The updated account if successful
 /// * `Err(String)` - An error message if there was an issue updating the account
 #[tauri::command]
-pub fn update_account_onboarding(
+pub async fn update_account_onboarding(
     pubkey: String,
     inbox_relays: bool,
     key_package_relays: bool,
@@ -173,13 +201,15 @@ pub fn update_account_onboarding(
 ) -> Result<Account, String> {
     let pubkey =
         PublicKey::parse(&pubkey).map_err(|e| format!("Error parsing public key: {}", e))?;
-    let mut account = Account::find_by_pubkey(&pubkey, &wn)
+    let mut account = Account::find_by_pubkey(&pubkey, wn.clone())
+        .await
         .map_err(|e| format!("Error fetching account: {}", e))?;
     account.onboarding.inbox_relays = inbox_relays;
     account.onboarding.key_package_relays = key_package_relays;
     account.onboarding.publish_key_package = publish_key_package;
     account
-        .save(&wn)
+        .save(wn.clone())
+        .await
         .map_err(|e| format!("Error saving account: {}", e))?;
     Ok(account)
 }

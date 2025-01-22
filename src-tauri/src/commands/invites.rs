@@ -3,6 +3,7 @@ use crate::commands::key_packages::publish_key_package;
 use crate::groups::{Group, GroupType};
 use crate::invites::{Invite, InviteState};
 use crate::key_packages::delete_key_package_from_relays;
+use crate::relays::RelayType;
 use crate::whitenoise::Whitenoise;
 use nostr_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -47,12 +48,15 @@ pub async fn get_invites(
     wn: tauri::State<'_, Whitenoise>,
     app_handle: tauri::AppHandle,
 ) -> Result<InvitesWithFailures, String> {
-    let active_account = Account::get_active(wn.inner()).map_err(|e| e.to_string())?;
+    let active_account = Account::get_active(wn.clone())
+        .await
+        .map_err(|e| e.to_string())?;
 
     let mut invites: Vec<Invite> = Vec::new();
 
     let stored_invites = active_account
-        .invites(wn.inner())
+        .invites(wn.clone())
+        .await
         .map_err(|e| e.to_string())?;
 
     let stored_invite_ids: Vec<_> = stored_invites
@@ -87,31 +91,35 @@ pub async fn get_invites(
 
     let mut failed_invites: Vec<(EventId, String)> = Vec::new();
 
-    for event in fetched_invite_events {
+    for (wrap_event_id, invite_rumor) in fetched_invite_events {
         // Skip if we have already processed this invite
-        if stored_invite_ids.contains(&event.id.unwrap()) {
-            tracing::debug!(target: "whitenoise::commands::invites::get_invites", "Invite {:?} already processed", event.id.unwrap());
+        // TODO: Need to think this through more. We're now storing the wrap event id in the invite object so we should be able to use that and the processed flag to determine if we've already processed this invite
+        if stored_invite_ids.contains(&invite_rumor.id.unwrap()) {
+            tracing::debug!(target: "whitenoise::commands::invites::get_invites", "Invite {:?} already processed", invite_rumor.id.unwrap());
             continue;
         }
-        let nostr_mls = wn.nostr_mls.lock().expect("Failed to lock nostr_mls");
-        let welcome_preview =
-            match nostr_mls.preview_welcome_event(match hex::decode(&event.content) {
+
+        let welcome_preview;
+        {
+            let nostr_mls = wn.nostr_mls.lock().expect("Failed to lock nostr_mls");
+            welcome_preview =
+            match nostr_mls.preview_welcome_event(match hex::decode(&invite_rumor.content) {
                     Ok(content) => content,
                     Err(e) => {
-                        tracing::error!(target: "whitenoise::commands::invites::get_invites", "Error decoding welcome event {:?}: {}", event.id.unwrap(), e);
-                        failed_invites.push((event.id.unwrap(), e.to_string()));
+                        tracing::error!(target: "whitenoise::commands::invites::get_invites", "Error decoding welcome event {:?}: {}", invite_rumor.id.unwrap(), e);
+                        failed_invites.push((invite_rumor.id.unwrap(), e.to_string()));
                         continue;
                     }
                 }) {
                 Ok(invite) => invite,
                 Err(e) => {
-                    tracing::error!(target: "whitenoise::commands::invites::get_invites", "Error processing welcome event {:?}: {}", event.id.unwrap(), e);
-                    failed_invites.push((event.id.unwrap(), e.to_string()));
+                    tracing::error!(target: "whitenoise::commands::invites::get_invites", "Error processing welcome event {:?}: {}", invite_rumor.id.unwrap(), e);
+                    failed_invites.push((invite_rumor.id.unwrap(), e.to_string()));
                     continue;
                 }
             };
-
-        let key_package_event_id = event
+        }
+        let key_package_event_id = invite_rumor
             .tags
             .iter()
             .find(|tag| {
@@ -120,7 +128,7 @@ pub async fn get_invites(
             .and_then(|tag| tag.content());
 
         let invite = Invite {
-            event: event.clone(),
+            event: invite_rumor.clone(),
             mls_group_id: welcome_preview
                 .staged_welcome
                 .group_context()
@@ -131,15 +139,17 @@ pub async fn get_invites(
             group_description: welcome_preview.nostr_group_data.description(),
             group_admin_pubkeys: welcome_preview.nostr_group_data.admin_pubkeys(),
             group_relays: welcome_preview.nostr_group_data.relays(),
-            inviter: event.pubkey.to_hex(),
-            member_count: welcome_preview.staged_welcome.members().count(),
+            inviter: invite_rumor.pubkey.to_hex(),
+            member_count: welcome_preview.staged_welcome.members().count() as u32,
+            account_pubkey: active_account.pubkey.to_hex(),
+            event_id: invite_rumor.id.unwrap().to_string(),
+            outer_event_id: wrap_event_id.to_string(),
+            processed: false,
             state: InviteState::Pending,
         };
 
         invites.push(invite.clone());
-        invite
-            .save(&active_account.pubkey, &wn)
-            .map_err(|e| e.to_string())?;
+        invite.save(wn.clone()).await.map_err(|e| e.to_string())?;
 
         if let Some(key_package_event_id) = key_package_event_id {
             used_key_package_ids.push(key_package_event_id.to_string());
@@ -153,7 +163,10 @@ pub async fn get_invites(
     let key_package_relays: Vec<String> = if cfg!(dev) {
         vec!["ws://localhost:8080".to_string()]
     } else {
-        active_account.key_package_relays.clone()
+        active_account
+            .relays(RelayType::KeyPackage, wn.clone())
+            .await
+            .map_err(|e| e.to_string())?
     };
 
     // Remove used key package ids from relays and from MLS storage
@@ -169,7 +182,7 @@ pub async fn get_invites(
             &EventId::parse(key_package_id).unwrap(),
             &key_package_relays,
             false, // For now we don't want to delete the key packages from MLS storage
-            &wn,
+            wn.clone(),
         )
         .await
         .map_err(|e| format!("Couldn't delete key package {:?}: {}", key_package_id, e))?;
@@ -197,12 +210,14 @@ pub async fn get_invites(
 /// * `Ok(Invite)` if the invite was found
 /// * `Err(String)` if there was an error retrieving the invite or it wasn't found
 #[tauri::command]
-pub fn get_invite(
+pub async fn get_invite(
     active_account: String,
     invite_id: String,
     wn: tauri::State<'_, Whitenoise>,
 ) -> Result<Invite, String> {
-    Invite::find_by_id(&active_account, &invite_id, &wn).map_err(|e| e.to_string())
+    Invite::find_by_id(&active_account, &invite_id, wn.clone())
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// Accepts a group invite and joins the corresponding group.
@@ -227,7 +242,9 @@ pub async fn accept_invite(
 ) -> Result<(), String> {
     tracing::debug!(target: "whitenoise::invites::accept_invite", "Accepting invite {:?}", invite.event.id.unwrap());
 
-    let active_account = Account::get_active(&wn).map_err(|e| e.to_string())?;
+    let active_account = Account::get_active(wn.clone())
+        .await
+        .map_err(|e| e.to_string())?;
 
     // Scope the MutexGuard to drop it before the .await points
     let (mls_group, nostr_group_data) = {
@@ -255,14 +272,16 @@ pub async fn accept_invite(
         mls_group.epoch().as_u64(),
         group_type,
         nostr_group_data,
-        &wn,
+        wn.clone(),
         &app_handle,
     )
+    .await
     .map_err(|e| format!("Failed to add group: {}", e))?;
 
     // Update the subscription for MLS group messages to include the new group
     let group_ids = active_account
-        .groups(&wn)
+        .groups(wn.clone())
+        .await
         .map_err(|e| format!("Failed to get groups: {}", e))?
         .into_iter()
         .map(|group| group.nostr_group_id.clone())
@@ -285,9 +304,7 @@ pub async fn accept_invite(
 
     // Update the invite state to accepted
     invite.state = InviteState::Accepted;
-    invite
-        .save(&active_account.pubkey, &wn)
-        .map_err(|e| e.to_string())?;
+    invite.save(wn.clone()).await.map_err(|e| e.to_string())?;
 
     app_handle
         .emit("invite_accepted", invite)
@@ -312,19 +329,15 @@ pub async fn accept_invite(
 /// # Events Emitted
 /// * `invite_declined` - Emitted with the updated invite after it is declined
 #[tauri::command]
-pub fn decline_invite(
+pub async fn decline_invite(
     mut invite: Invite,
     wn: tauri::State<'_, Whitenoise>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
     tracing::debug!(target: "whitenoise::invites::decline_invite", "Declining invite {:?}", invite.event.id.unwrap());
 
-    let active_account = Account::get_active(&wn).map_err(|e| e.to_string())?;
-
     invite.state = InviteState::Declined;
-    invite
-        .save(&active_account.pubkey, &wn)
-        .map_err(|e| e.to_string())?;
+    invite.save(wn.clone()).await.map_err(|e| e.to_string())?;
 
     app_handle
         .emit("invite_declined", invite)

@@ -79,7 +79,10 @@ impl NostrManager {
     }
 
     #[allow(dead_code)]
-    pub async fn query_user_welcomes(&self, pubkey: PublicKey) -> Result<Vec<UnsignedEvent>> {
+    pub async fn query_user_welcomes(
+        &self,
+        pubkey: PublicKey,
+    ) -> Result<Vec<(EventId, UnsignedEvent)>> {
         let gw_events = self.query_user_giftwrapped_events(pubkey).await?;
         let invites = self.extract_invite_events(gw_events).await;
         Ok(invites)

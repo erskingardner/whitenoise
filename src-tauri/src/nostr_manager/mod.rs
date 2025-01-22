@@ -6,6 +6,7 @@ use nostr_sdk::NostrLMDB;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use tauri::Manager;
 use thiserror::Error;
 use tokio::spawn;
 
@@ -111,15 +112,15 @@ impl NostrManager {
     ///
     /// # Returns
     ///
-    /// A vector of UnsignedEvent objects representing the extracted welcome events.
-    async fn extract_invite_events(&self, gw_events: Vec<Event>) -> Vec<UnsignedEvent> {
-        let mut invite_events: Vec<UnsignedEvent> = Vec::new();
+    /// A vector of tuples containing the gift-wrap event id and the inner welcome event (the gift wrap rumor event)
+    async fn extract_invite_events(&self, gw_events: Vec<Event>) -> Vec<(EventId, UnsignedEvent)> {
+        let mut invite_events: Vec<(EventId, UnsignedEvent)> = Vec::new();
 
         for event in gw_events {
             if let Ok(unwrapped) = extract_rumor(&self.client.signer().await.unwrap(), &event).await
             {
                 if unwrapped.rumor.kind == Kind::MlsWelcome {
-                    invite_events.push(unwrapped.rumor);
+                    invite_events.push((event.id, unwrapped.rumor));
                 }
             }
         }
@@ -130,17 +131,17 @@ impl NostrManager {
     pub async fn set_nostr_identity(
         &self,
         account: &Account,
-        wn: &Whitenoise,
+        wn: tauri::State<'_, Whitenoise>,
         app_handle: &tauri::AppHandle,
     ) -> Result<()> {
         tracing::debug!(
-            target: "whitenoise::nostr_client::update_nostr_identity",
-            "Updating Nostr identity to {}",
+            target: "whitenoise::nostr_manager::set_nostr_identity",
+            "Starting Nostr identity update for {}",
             account.pubkey
         );
 
         let keys = account
-            .keys(wn)
+            .keys(wn.clone())
             .map_err(|e| NostrManagerError::SecretsStoreError(e.to_string()))?;
 
         // Reset the client
@@ -166,7 +167,7 @@ impl NostrManager {
                 self.client.add_relay(relay).await?;
                 self.client.connect_relay(relay).await?;
                 tracing::debug!(
-                    target: "whitenoise::nostr_client::update_nostr_identity",
+                    target: "whitenoise::nostr_manager::set_nostr_identity",
                     "Connected to user relay: {}",
                     relay
                 );
@@ -179,7 +180,7 @@ impl NostrManager {
                 self.client.add_read_relay(relay).await?;
                 self.client.connect_relay(relay).await?;
                 tracing::debug!(
-                    target: "whitenoise::nostr_client::update_nostr_identity",
+                    target: "whitenoise::nostr_manager::set_nostr_identity",
                     "Connected to user inbox relay: {}",
                     relay
                 );
@@ -194,7 +195,7 @@ impl NostrManager {
                 self.client.add_relay(relay).await?;
                 self.client.connect_relay(relay).await?;
                 tracing::debug!(
-                    target: "whitenoise::nostr_client::update_nostr_identity",
+                    target: "whitenoise::nostr_manager::set_nostr_identity",
                     "Connected to user key package relay: {}",
                     relay
                 );
@@ -202,7 +203,7 @@ impl NostrManager {
         }
 
         tracing::debug!(
-            target: "whitenoise::nostr_client::update_nostr_identity",
+            target: "whitenoise::nostr_manager::set_nostr_identity",
             "Connected to relays: {:?}",
             self.client
                 .relays()
@@ -213,26 +214,34 @@ impl NostrManager {
         );
 
         tracing::debug!(
-            target: "whitenoise::nostr_client::update_nostr_identity",
+            target: "whitenoise::nostr_manager::set_nostr_identity",
             "Nostr identity updated and connected to relays"
         );
 
         // Spawn two tasks in parallel:
         // 1. Setup subscriptions to catch future events
         // 2. Fetch past events
-        let wn_inner_subs = wn.clone();
         let app_handle_clone_subs = app_handle.clone();
+        let account_clone_subs = account.clone();
         spawn(async move {
             tracing::debug!(
                 target: "whitenoise::nostr_manager::set_nostr_identity",
                 "Starting subscriptions"
             );
-            let account = Account::get_active(&wn_inner_subs).expect("Couldn't get active account");
-            let public_key =
-                PublicKey::parse(account.pubkey.as_str()).expect("Couldn't parse nostr public key");
-            match wn_inner_subs
+            let wn_state = app_handle_clone_subs.state::<Whitenoise>();
+
+            let group_ids = account_clone_subs
+                .nostr_group_ids(wn_state.clone())
+                .await
+                .expect("Couldn't get nostr group ids");
+
+            match wn_state
                 .nostr
-                .setup_subscriptions(public_key, account.nostr_group_ids, app_handle_clone_subs)
+                .setup_subscriptions(
+                    account_clone_subs.pubkey,
+                    group_ids,
+                    app_handle_clone_subs.clone(),
+                )
                 .await
             {
                 Ok(_) => {
@@ -251,34 +260,48 @@ impl NostrManager {
             }
         });
 
-        let wn_inner_fetch = wn.clone();
+        let app_handle_clone_fetch = app_handle.clone();
+        let pubkey = account.pubkey;
+        let last_synced = account.last_synced;
         spawn(async move {
             tracing::debug!(
                 target: "whitenoise::nostr_manager::set_nostr_identity",
-                "Starting fetch"
+                "Starting fetch for {}",
+                pubkey
             );
-            let mut account =
-                Account::get_active(&wn_inner_fetch).expect("Couldn't get active account");
-            let public_key =
-                PublicKey::parse(account.pubkey.as_str()).expect("Couldn't parse nostr public key");
-            match &wn_inner_fetch
+            let wn_state = app_handle_clone_fetch.state::<Whitenoise>();
+
+            let group_ids = Account::find_by_pubkey(&pubkey, wn_state.clone())
+                .await
+                .expect("Couldn't get account")
+                .nostr_group_ids(wn_state.clone())
+                .await
+                .expect("Couldn't get nostr group ids");
+
+            match &wn_state
                 .nostr
-                .fetch_for_user(
-                    public_key,
-                    account.last_synced,
-                    account.clone().nostr_group_ids,
-                )
+                .fetch_for_user(pubkey, last_synced, group_ids)
                 .await
             {
                 Ok(_) => {
                     tracing::debug!(
                         target: "whitenoise::nostr_manager::set_nostr_identity",
-                        "Fetch completed"
+                        "Fetch completed for {}",
+                        pubkey
                     );
-                    account.last_synced = Timestamp::now();
-                    account
-                        .save(&wn_inner_fetch)
-                        .expect("Error updateding last synced");
+                    // Update last_synced through a new database query
+                    if let Ok(mut account) =
+                        Account::find_by_pubkey(&pubkey, wn_state.clone()).await
+                    {
+                        account.last_synced = Timestamp::now();
+                        if let Err(e) = account.save(wn_state.clone()).await {
+                            tracing::error!(
+                                target: "whitenoise::nostr_manager::set_nostr_identity",
+                                "Error updating last_synced: {}",
+                                e
+                            );
+                        }
+                    }
                 }
                 Err(e) => {
                     tracing::error!(

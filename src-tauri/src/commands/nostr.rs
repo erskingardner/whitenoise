@@ -1,4 +1,5 @@
 use crate::accounts::Account;
+use crate::relays::RelayType;
 use crate::types::{EnrichedContact, NostrEncryptionMethod};
 use crate::whitenoise::Whitenoise;
 use nostr_openmls::NostrMls;
@@ -11,18 +12,20 @@ pub async fn init_nostr_for_current_user(
     wn: tauri::State<'_, Whitenoise>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
-    let current_account = Account::get_active(wn.inner()).map_err(|e| e.to_string())?;
+    let current_account = Account::get_active(wn.clone())
+        .await
+        .map_err(|e| e.to_string())?;
 
     // Update Nostr identity and connect relays
     wn.nostr
-        .set_nostr_identity(&current_account, &wn, &app_handle)
+        .set_nostr_identity(&current_account, wn.clone(), &app_handle)
         .await
         .map_err(|e| e.to_string())?;
 
     // Then update Nostr MLS instance
     {
         let mut nostr_mls = wn.nostr_mls.lock().expect("Failed to lock Nostr MLS");
-        *nostr_mls = NostrMls::new(wn.data_dir.clone(), Some(current_account.pubkey.clone()));
+        *nostr_mls = NostrMls::new(wn.data_dir.clone(), Some(current_account.pubkey.to_hex()));
     }
 
     tracing::debug!(
@@ -77,15 +80,30 @@ pub async fn fetch_enriched_contact(
     };
 
     if update_account {
-        let mut account = Account::find_by_pubkey(&pubkey, &wn)
+        let mut account = Account::find_by_pubkey(&pubkey, wn.clone())
+            .await
             .map_err(|e| format!("Failed to find account: {}", e))?;
 
         account.metadata = enriched_contact.metadata.clone();
-        account.inbox_relays = enriched_contact.inbox_relays.clone();
-        account.nostr_relays = enriched_contact.nostr_relays.clone();
-        account.key_package_relays = enriched_contact.key_package_relays.clone();
         account
-            .save(&wn)
+            .update_relays(RelayType::Nostr, &enriched_contact.nostr_relays, wn.clone())
+            .await
+            .map_err(|e| format!("Failed to update relays: {}", e))?;
+        account
+            .update_relays(RelayType::Inbox, &enriched_contact.inbox_relays, wn.clone())
+            .await
+            .map_err(|e| format!("Failed to update relays: {}", e))?;
+        account
+            .update_relays(
+                RelayType::KeyPackage,
+                &enriched_contact.key_package_relays,
+                wn.clone(),
+            )
+            .await
+            .map_err(|e| format!("Failed to update relays: {}", e))?;
+        account
+            .save(wn.clone())
+            .await
             .map_err(|e| format!("Failed to save account: {}", e))?;
 
         app_handle
@@ -141,15 +159,31 @@ pub async fn query_enriched_contact(
     };
 
     if update_account {
-        let mut account = Account::find_by_pubkey(&pubkey, &wn)
+        let mut account = Account::find_by_pubkey(&pubkey, wn.clone())
+            .await
             .map_err(|e| format!("Failed to find account: {}", e))?;
 
         account.metadata = enriched_contact.metadata.clone();
-        account.inbox_relays = enriched_contact.inbox_relays.clone();
-        account.nostr_relays = enriched_contact.nostr_relays.clone();
-        account.key_package_relays = enriched_contact.key_package_relays.clone();
         account
-            .save(&wn)
+            .update_relays(RelayType::Nostr, &enriched_contact.nostr_relays, wn.clone())
+            .await
+            .map_err(|e| format!("Failed to update relays: {}", e))?;
+        account
+            .update_relays(RelayType::Inbox, &enriched_contact.inbox_relays, wn.clone())
+            .await
+            .map_err(|e| format!("Failed to update relays: {}", e))?;
+        account
+            .update_relays(
+                RelayType::KeyPackage,
+                &enriched_contact.key_package_relays,
+                wn.clone(),
+            )
+            .await
+            .map_err(|e| format!("Failed to update relays: {}", e))?;
+
+        account
+            .save(wn.clone())
+            .await
             .map_err(|e| format!("Failed to save account: {}", e))?;
         app_handle
             .emit("account_changed", ())
@@ -510,38 +544,24 @@ pub async fn publish_relay_list(
         .await
         .map_err(|e| e.to_string())?;
 
-    let active_account = Account::get_active(wn.inner()).map_err(|e| e.to_string())?;
+    let active_account = Account::get_active(wn.clone())
+        .await
+        .map_err(|e| e.to_string())?;
 
-    let new_enriched_contact = match kind {
-        10050 => EnrichedContact {
-            metadata: active_account.metadata,
-            nip17: true,
-            nip104: true,
-            nostr_relays: active_account.nostr_relays,
-            inbox_relays: relays.clone(),
-            key_package_relays: active_account.key_package_relays,
-        },
-        10051 => EnrichedContact {
-            metadata: active_account.metadata,
-            nip17: true,
-            nip104: true,
-            nostr_relays: active_account.nostr_relays,
-            inbox_relays: active_account.inbox_relays,
-            key_package_relays: relays.clone(),
-        },
+    match kind {
+        10050 => {
+            active_account
+                .update_relays(RelayType::Inbox, &relays, wn.clone())
+                .await
+                .map_err(|e| format!("Failed to update relays: {}", e))?;
+        }
+        10051 => {
+            active_account
+                .update_relays(RelayType::KeyPackage, &relays, wn.clone())
+                .await
+                .map_err(|e| format!("Failed to update relays: {}", e))?;
+        }
         _ => return Err("Invalid relay list kind".to_string()),
-    };
-
-    let mut account =
-        Account::get_active(wn.inner()).map_err(|e| format!("Failed to find account: {}", e))?;
-
-    account.metadata = new_enriched_contact.metadata.clone();
-    account.inbox_relays = new_enriched_contact.inbox_relays.clone();
-    account.nostr_relays = new_enriched_contact.nostr_relays.clone();
-    account.key_package_relays = new_enriched_contact.key_package_relays.clone();
-    account
-        .save(&wn)
-        .map_err(|e| format!("Failed to save account: {}", e))?;
-
+    }
     Ok(())
 }

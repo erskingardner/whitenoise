@@ -23,7 +23,9 @@ impl Whitenoise {
 
         Self {
             database: Arc::new(
-                Database::new(data_dir.join("whitenoise_lmdb")).expect("Failed to create database"),
+                Database::new(data_dir.join("whitenoise.sqlite"))
+                    .await
+                    .expect("Failed to create database"),
             ),
             nostr: NostrManager::new(data_dir.clone())
                 .await
@@ -39,7 +41,7 @@ impl Whitenoise {
 
         // Clear data first
         self.nostr.delete_all_data().await?;
-        self.database.delete_all_data()?;
+        self.database.delete_all_data().await?;
         self.nostr_mls.lock().unwrap().delete_all_data()?;
 
         // Remove logs

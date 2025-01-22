@@ -6,6 +6,7 @@ mod invites;
 mod key_packages;
 mod messages;
 mod nostr_manager;
+mod relays;
 mod secrets_store;
 mod types;
 mod utils;

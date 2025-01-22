@@ -1,5 +1,6 @@
 use crate::accounts::Account;
 use crate::key_packages::fetch_key_package_for_pubkey;
+use crate::relays::RelayType;
 use crate::Whitenoise;
 use nostr_openmls::key_packages::create_key_package_for_event;
 use nostr_sdk::event::{EventBuilder, Kind, Tag, TagKind};
@@ -24,7 +25,7 @@ pub async fn valid_key_package_exists_for_user(
     pubkey: String,
     wn: tauri::State<'_, Whitenoise>,
 ) -> Result<bool, String> {
-    let key_package = fetch_key_package_for_pubkey(pubkey, &wn)
+    let key_package = fetch_key_package_for_pubkey(pubkey, wn.clone())
         .await
         .map_err(|e| e.to_string())?;
     Ok(key_package.is_some())
@@ -69,6 +70,19 @@ pub async fn publish_key_package(wn: tauri::State<'_, Whitenoise>) -> Result<(),
 
     let event: EventBuilder;
     let key_package_relays: Vec<String>;
+
+    if cfg!(dev) {
+        key_package_relays = vec!["ws://localhost:8080".to_string()];
+    } else {
+        let active_account = Account::get_active(wn.clone())
+            .await
+            .map_err(|e| e.to_string())?;
+        key_package_relays = active_account
+            .relays(RelayType::KeyPackage, wn.clone())
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
     {
         let nostr_mls = wn.nostr_mls.lock().expect("Failed to lock nostr_mls");
         let ciphersuite = nostr_mls.ciphersuite_value().to_string();
@@ -77,15 +91,6 @@ pub async fn publish_key_package(wn: tauri::State<'_, Whitenoise>) -> Result<(),
         let serialized_key_package =
             create_key_package_for_event(pubkey.to_hex(), &nostr_mls).map_err(|e| e.to_string())?;
 
-        if cfg!(dev) {
-            key_package_relays = vec!["ws://localhost:8080".to_string()];
-        } else {
-            let active_account = Account::get_active(wn.inner()).map_err(|e| e.to_string())?;
-            key_package_relays = match active_account.key_package_relays.is_empty() {
-                true => return Err("Key package relays not set".to_string()),
-                false => active_account.key_package_relays.clone(),
-            };
-        }
         event = EventBuilder::new(Kind::MlsKeyPackage, serialized_key_package).tags([
             Tag::custom(TagKind::MlsProtocolVersion, ["1.0"]),
             Tag::custom(TagKind::MlsCiphersuite, [ciphersuite]),
@@ -115,12 +120,17 @@ pub async fn delete_all_key_packages(wn: tauri::State<'_, Whitenoise>) -> Result
         .await
         .map_err(|e| e.to_string())?;
 
-    let active_account = Account::get_active(wn.inner()).map_err(|e| e.to_string())?;
+    let active_account = Account::get_active(wn.clone())
+        .await
+        .map_err(|e| e.to_string())?;
 
     let key_package_relays: Vec<String> = if cfg!(dev) {
         vec!["ws://localhost:8080".to_string()]
     } else {
-        active_account.key_package_relays.clone()
+        active_account
+            .relays(RelayType::KeyPackage, wn.clone())
+            .await
+            .map_err(|e| e.to_string())?
     };
 
     let key_package_events = wn
