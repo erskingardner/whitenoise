@@ -1,13 +1,15 @@
 <script lang="ts">
 import { goto } from "$app/navigation";
 import Loader from "$lib/components/Loader.svelte";
-import { activeAccount, updateAccountsStore } from "$lib/stores/accounts";
+import { accounts, activeAccount, updateAccountsStore } from "$lib/stores/accounts";
 import { isValidHexPubkey } from "$lib/types/nostr";
 import { invoke } from "@tauri-apps/api/core";
 import { onMount } from "svelte";
 
 onMount(async () => {
     updateAccountsStore().then(() => {
+        console.log("outer page: accounts", $accounts);
+        console.log("outer page: activeAccount", $activeAccount);
         if ($activeAccount?.pubkey && isValidHexPubkey($activeAccount?.pubkey)) {
             console.log("init_nostr_for_current_user");
             invoke("init_nostr_for_current_user");

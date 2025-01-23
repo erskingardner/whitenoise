@@ -13,6 +13,7 @@ export type Account = {
     settings: AccountSettings;
     onboarding: AccountOnboarding;
     last_used: number;
+    active: boolean;
 };
 
 export type AccountSettings = {

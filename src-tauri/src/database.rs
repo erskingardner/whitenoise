@@ -17,7 +17,9 @@ pub enum DatabaseError {
 #[derive(Clone)]
 pub struct Database {
     pub pool: SqlitePool,
+    #[allow(unused)]
     pub path: PathBuf,
+    #[allow(unused)]
     pub last_connected: std::time::SystemTime,
 }
 
@@ -88,6 +90,14 @@ impl Database {
         sqlx::migrate::Migrator::new(migrations_path)
             .await?
             .run(&pool)
+            .await?;
+
+        // Enable foreign keys and triggers
+        sqlx::query("PRAGMA foreign_keys = ON;")
+            .execute(&pool)
+            .await?;
+        sqlx::query("PRAGMA recursive_triggers = ON;")
+            .execute(&pool)
             .await?;
 
         Ok(Self {

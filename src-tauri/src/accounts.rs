@@ -81,6 +81,7 @@ pub struct AccountRow {
     pub onboarding: String, // JSON string
     pub last_used: u64,
     pub last_synced: u64,
+    pub active: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -91,6 +92,7 @@ pub struct Account {
     pub onboarding: AccountOnboarding,
     pub last_used: Timestamp,
     pub last_synced: Timestamp,
+    pub active: bool,
 }
 
 impl Account {
@@ -104,6 +106,7 @@ impl Account {
             onboarding: AccountOnboarding::default(),
             last_used: Timestamp::now(),
             last_synced: Timestamp::zero(),
+            active: false,
         };
         let account = account.save(wn.clone()).await?;
 
@@ -187,6 +190,7 @@ impl Account {
             onboarding,
             last_used: Timestamp::now(),
             last_synced: Timestamp::zero(),
+            active: false,
         };
 
         tracing::debug!(target: "whitenoise::accounts", "Saving account to database: {:?}", account);
@@ -236,6 +240,7 @@ impl Account {
             onboarding: serde_json::from_str(&row.onboarding)?,
             last_used: Timestamp::from(row.last_used),
             last_synced: Timestamp::from(row.last_synced),
+            active: row.active,
         })
     }
 
@@ -256,6 +261,7 @@ impl Account {
                     onboarding: serde_json::from_str(&row.onboarding)?,
                     last_used: Timestamp::from(row.last_used),
                     last_synced: Timestamp::from(row.last_synced),
+                    active: row.active,
                 })
             })
             .collect::<Result<Vec<_>>>()
@@ -263,45 +269,25 @@ impl Account {
 
     /// Returns the currently active account
     pub async fn get_active(wn: tauri::State<'_, Whitenoise>) -> Result<Account> {
+        // First validate/fix the active state
+        Self::validate_active_state(wn.clone()).await?;
+
         let mut txn = wn.database.pool.begin().await?;
 
-        let active_pubkey = sqlx::query_scalar::<_, String>("SELECT pubkey FROM active_account")
+        let row = sqlx::query_as::<_, AccountRow>("SELECT * FROM accounts WHERE active = TRUE")
             .fetch_optional(&mut *txn)
             .await?;
 
-        if active_pubkey.is_none() {
-            tracing::debug!(
-                target: "whitenoise::accounts",
-                "Active pubkey is None, stack trace:\n{:?}",
-                std::backtrace::Backtrace::capture()
-            );
-        }
-
-        tracing::debug!(
-            target: "whitenoise::accounts",
-            "Active pubkey: {:?} (called from {}:{})",
-            active_pubkey,
-            file!(),
-            line!()
-        );
-
-        match active_pubkey {
-            Some(pubkey) => {
-                let row =
-                    sqlx::query_as::<_, AccountRow>("SELECT * FROM accounts WHERE pubkey = ?")
-                        .bind(&pubkey)
-                        .fetch_one(&mut *txn)
-                        .await?;
-
-                Ok(Account {
-                    pubkey: PublicKey::parse(row.pubkey.as_str())?,
-                    metadata: serde_json::from_str(&row.metadata)?,
-                    settings: serde_json::from_str(&row.settings)?,
-                    onboarding: serde_json::from_str(&row.onboarding)?,
-                    last_used: Timestamp::from(row.last_used),
-                    last_synced: Timestamp::from(row.last_synced),
-                })
-            }
+        match row {
+            Some(row) => Ok(Account {
+                pubkey: PublicKey::parse(row.pubkey.as_str())?,
+                metadata: serde_json::from_str(&row.metadata)?,
+                settings: serde_json::from_str(&row.settings)?,
+                onboarding: serde_json::from_str(&row.onboarding)?,
+                last_used: Timestamp::from(row.last_used),
+                last_synced: Timestamp::from(row.last_synced),
+                active: row.active,
+            }),
             None => Err(AccountError::NoActiveAccount),
         }
     }
@@ -320,11 +306,15 @@ impl Account {
     /// - No active account is found
     /// - Active account's public key is invalid
     pub async fn get_active_pubkey(wn: tauri::State<'_, Whitenoise>) -> Result<PublicKey> {
+        // First validate/fix the active state
+        Self::validate_active_state(wn.clone()).await?;
+
         let mut txn = wn.database.pool.begin().await?;
 
-        let active_pubkey = sqlx::query_scalar::<_, String>("SELECT pubkey FROM active_account")
-            .fetch_optional(&mut *txn)
-            .await?;
+        let active_pubkey =
+            sqlx::query_scalar::<_, String>("SELECT pubkey FROM accounts WHERE active = TRUE")
+                .fetch_optional(&mut *txn)
+                .await?;
 
         match active_pubkey {
             Some(pubkey) => Ok(PublicKey::parse(pubkey.as_str())?),
@@ -346,24 +336,29 @@ impl Account {
 
         let mut txn = wn.database.pool.begin().await?;
 
-        sqlx::query("INSERT OR REPLACE INTO active_account (pubkey) VALUES (?)")
-            .bind(self.pubkey.to_hex().as_str())
+        // First set all accounts to inactive
+        sqlx::query("UPDATE accounts SET active = FALSE")
             .execute(&mut *txn)
             .await?;
 
-        tracing::debug!(
-            target: "whitenoise::accounts::set_active",
-            "About to commit transaction setting active_account to: {}",
-            self.pubkey.to_hex()
-        );
+        // Then set this account to active
+        sqlx::query(
+            r#"
+            UPDATE accounts
+            SET active = TRUE,
+                last_used = ?
+            WHERE pubkey = ?
+        "#,
+        )
+        .bind(Timestamp::now().to_string())
+        .bind(self.pubkey.to_hex().as_str())
+        .execute(&mut *txn)
+        .await?;
 
         txn.commit().await?;
 
-        tracing::debug!(
-            target: "whitenoise::accounts::set_active",
-            "Database updated with active account: {}",
-            self.pubkey.to_hex()
-        );
+        // Validate the active state as a safeguard
+        Self::validate_active_state(wn.clone()).await?;
 
         // If the database operation is successful, update Nostr client
         wn.nostr
@@ -529,13 +524,14 @@ impl Account {
     pub async fn save(&self, wn: tauri::State<'_, Whitenoise>) -> Result<Account> {
         let mut txn = wn.database.pool.begin().await?;
 
-        sqlx::query("INSERT OR REPLACE INTO accounts (pubkey, metadata, settings, onboarding, last_used, last_synced) VALUES (?, ?, ?, ?, ?, ?)")
+        sqlx::query("INSERT OR REPLACE INTO accounts (pubkey, metadata, settings, onboarding, last_used, last_synced, active) VALUES (?, ?, ?, ?, ?, ?, ?)")
             .bind(self.pubkey.to_hex().as_str())
             .bind(&serde_json::to_string(&self.metadata)?)
             .bind(&serde_json::to_string(&self.settings)?)
             .bind(&serde_json::to_string(&self.onboarding)?)
             .bind(self.last_used.to_string())
             .bind(self.last_synced.to_string())
+            .bind(self.active)
             .execute(&mut *txn)
             .await?;
 
@@ -561,25 +557,21 @@ impl Account {
             .await?;
 
         // Get first remaining account's pubkey (if any)
-        let first_account_pubkey = sqlx::query_scalar::<_, String>("SELECT pubkey FROM accounts")
-            .fetch_optional(&mut *txn)
-            .await?;
+        let remaining_account_pubkey =
+            sqlx::query_scalar::<_, String>("SELECT pubkey FROM accounts")
+                .fetch_optional(&mut *txn)
+                .await?;
 
         tracing::debug!(
             target: "whitenoise::accounts::remove",
-            "Updating active_account table. New active pubkey: {:?}",
-            first_account_pubkey
+            "Updating active account. New active pubkey: {:?}",
+            remaining_account_pubkey
         );
 
         // Then set the next account as the active one
-        if let Some(pubkey) = first_account_pubkey.clone() {
-            sqlx::query("UPDATE active_account SET pubkey = ?")
+        if let Some(pubkey) = remaining_account_pubkey.clone() {
+            sqlx::query("UPDATE accounts SET active = TRUE WHERE pubkey = ?")
                 .bind(&pubkey)
-                .execute(&mut *txn)
-                .await?;
-        } else {
-            // If no accounts remain, clear the active_account table
-            sqlx::query("DELETE FROM active_account")
                 .execute(&mut *txn)
                 .await?;
         }
@@ -606,6 +598,55 @@ impl Account {
         }
 
         app_handle.emit("account_changed", ())?;
+        Ok(())
+    }
+
+    // Add a validation method
+    async fn validate_active_state(wn: tauri::State<'_, Whitenoise>) -> Result<()> {
+        let mut txn = wn.database.pool.begin().await?;
+
+        // Check if we have multiple active accounts
+        let active_count =
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM accounts WHERE active = TRUE")
+                .fetch_one(&mut *txn)
+                .await?;
+
+        if active_count > 1 {
+            tracing::warn!(
+                target: "whitenoise::accounts",
+                "Found {} active accounts, fixing...",
+                active_count
+            );
+
+            // Fix the issue by keeping only the most recently used account active
+            let result = sqlx::query(
+                r#"
+                WITH RankedAccounts AS (
+                    SELECT pubkey,
+                           ROW_NUMBER() OVER (ORDER BY last_used DESC) as rn
+                    FROM accounts
+                    WHERE active = TRUE
+                )
+                UPDATE accounts
+                SET active = FALSE
+                WHERE pubkey IN (
+                    SELECT pubkey
+                    FROM RankedAccounts
+                    WHERE rn > 1
+                )
+            "#,
+            )
+            .execute(&mut *txn)
+            .await?;
+
+            tracing::info!(
+                target: "whitenoise::accounts",
+                "Fixed active accounts state. Rows affected: {}",
+                result.rows_affected()
+            );
+        }
+
+        txn.commit().await?;
         Ok(())
     }
 }

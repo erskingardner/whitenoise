@@ -128,9 +128,11 @@ pub async fn set_active_account(
     let pubkey =
         PublicKey::parse(&hex_pubkey).map_err(|e| format!("Error parsing public key: {}", e))?;
 
-    let account = Account::find_by_pubkey(&pubkey, wn.clone())
+    let mut account = Account::find_by_pubkey(&pubkey, wn.clone())
         .await
         .map_err(|e| format!("Error fetching account: {}", e))?;
+
+    account.active = true;
 
     tracing::debug!(target: "whitenoise::commands::accounts", "Found account: {:?}", account);
 

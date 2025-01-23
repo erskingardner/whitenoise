@@ -5,33 +5,32 @@ CREATE TABLE accounts (
     settings TEXT NOT NULL,  -- JSON string for AccountSettings
     onboarding TEXT NOT NULL,  -- JSON string for AccountOnboarding
     last_used INTEGER NOT NULL,
-    last_synced INTEGER NOT NULL
+    last_synced INTEGER NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT FALSE
 );
 
-CREATE TABLE active_account (
-    pubkey TEXT PRIMARY KEY,
-    FOREIGN KEY (pubkey) REFERENCES accounts(pubkey) ON DELETE CASCADE
-);
+-- Create an index for faster lookups
+CREATE INDEX idx_accounts_active ON accounts(active);
 
-CREATE TRIGGER enforce_single_active_account
-BEFORE INSERT ON active_account
-WHEN (SELECT COUNT(*) FROM active_account) >= 1
+-- Create a unique partial index that only allows one TRUE value
+CREATE UNIQUE INDEX idx_accounts_single_active ON accounts(active) WHERE active = TRUE;
+
+-- Create a trigger to ensure only one active account
+CREATE TRIGGER ensure_single_active_account
+   BEFORE UPDATE ON accounts
+   WHEN NEW.active = TRUE
 BEGIN
-    SELECT RAISE(FAIL, 'Only one active account is allowed');
+    UPDATE accounts SET active = FALSE WHERE active = TRUE AND pubkey != NEW.pubkey;
 END;
 
 -- Relays table with type and ownership
 CREATE TABLE relays (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
     url TEXT NOT NULL,
-    relay_type TEXT NOT NULL CHECK (relay_type IN ('nostr', 'inbox', 'key_package', 'group')),
-    account_pubkey TEXT,  -- NULL if it belongs to a group
-    group_id BLOB,        -- NULL if it belongs to an account
-    CHECK ((account_pubkey IS NULL) != (group_id IS NULL)),  -- Exactly one must be non-NULL
+    relay_type TEXT NOT NULL,
+    account_pubkey TEXT NOT NULL,
+    group_id BLOB,
     FOREIGN KEY (account_pubkey) REFERENCES accounts(pubkey) ON DELETE CASCADE,
-    FOREIGN KEY (group_id) REFERENCES groups(mls_group_id) ON DELETE CASCADE,
-    UNIQUE(url, account_pubkey, relay_type),  -- Prevent duplicate URLs per account+type
-    UNIQUE(url, group_id, relay_type)         -- Prevent duplicate URLs per group+type
+    PRIMARY KEY (url, relay_type, account_pubkey, group_id)
 );
 
 -- Groups table matching the Group struct
@@ -63,9 +62,9 @@ CREATE TABLE invites (
     group_relays TEXT NOT NULL,         -- JSON array of strings
     inviter TEXT NOT NULL,
     member_count INTEGER NOT NULL,
+    state TEXT NOT NULL,
     outer_event_id TEXT,  -- the event_id of the 1059 event that contained the invite
-    processed BOOLEAN DEFAULT FALSE,
-    state TEXT NOT NULL CHECK (state IN ('Pending', 'Accepted', 'Declined', 'Ignored')),
+    processed BOOLEAN NOT NULL DEFAULT FALSE,
     FOREIGN KEY (account_pubkey) REFERENCES accounts(pubkey) ON DELETE CASCADE
 );
 
