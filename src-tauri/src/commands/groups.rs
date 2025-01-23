@@ -80,13 +80,28 @@ pub async fn get_group_and_messages(
 ) -> Result<(Group, Vec<UnsignedEvent>), String> {
     let mls_group_id =
         hex::decode(group_id).map_err(|e| format!("Error decoding group id: {}", e))?;
+    tracing::debug!(
+        target: "whitenoise::commands::groups::get_group_and_messages",
+        "Getting group and messages for group ID: {:?}",
+        mls_group_id
+    );
     let group = Group::find_by_mls_group_id(&mls_group_id, wn.clone())
         .await
         .map_err(|e| format!("Error fetching group: {}", e))?;
+    tracing::debug!(
+        target: "whitenoise::commands::groups::get_group_and_messages",
+        "Group: {:?}",
+        group
+    );
     let messages = group
         .messages(wn.clone())
         .await
         .map_err(|e| format!("Error fetching messages: {}", e))?;
+    tracing::debug!(
+        target: "whitenoise::commands::groups::get_group_and_messages",
+        "Messages: {:?}",
+        messages
+    );
     Ok((group, messages))
 }
 
@@ -341,7 +356,6 @@ pub async fn create_group(
     let group_id = mls_group.group_id().to_vec();
 
     // Create the group and save it to the database
-    // Also adds the group to the active account
     let nostr_group = Group::new(
         group_id.clone(),
         mls_group.epoch().as_u64(),
@@ -376,12 +390,6 @@ pub async fn create_group(
     app_handle
         .emit("group_added", nostr_group.clone())
         .map_err(|e| e.to_string())?;
-
-    tracing::debug!(
-        target: "whitenoise::groups::create_group",
-        "Added MLS group id to account manager: {:?}",
-        group_id
-    );
 
     Ok(nostr_group)
 }

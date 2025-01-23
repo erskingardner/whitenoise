@@ -22,7 +22,6 @@ $effect(() => {
             updateAccount: false,
         })
             .then((userResp) => {
-                console.log("user fetched");
                 user = userResp as EnrichedContact;
                 avatarImage = user.metadata.picture;
                 userFetched = true;

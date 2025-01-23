@@ -63,14 +63,14 @@ export async function setActiveAccount(pubkey: string): Promise<void> {
     )
         return;
     emit("account_changing", pubkey);
-    invoke("set_active_account", { hexPubkey: pubkey }).then(async (account) => {
+    return invoke("set_active_account", { hexPubkey: pubkey }).then(async (account) => {
         activeAccount.set(account as Account);
         await fetchRelays();
     });
 }
 
 export async function createAccount(): Promise<void> {
-    invoke("create_identity").then(async (account) => {
+    return invoke("create_identity").then(async (account) => {
         activeAccount.set(account as Account);
         await fetchRelays();
     });
@@ -97,16 +97,19 @@ export async function login(nsecOrHex: string): Promise<void> {
 }
 
 export async function updateAccountsStore(): Promise<void> {
-    const [accountsResp, activeAccountResp] = await Promise.all([
-        invoke("get_accounts").catch((_) => {
-            return [];
-        }),
-        invoke("get_active_account").catch((_) => {
-            return null;
-        }),
-    ]);
-    accounts.set(accountsResp as Account[]);
-    activeAccount.set(activeAccountResp as Account | null);
+    return invoke("get_accounts")
+        .then((accountsResp) => {
+            const sortedAccounts = (accountsResp as Account[]).sort((a, b) =>
+                a.pubkey.localeCompare(b.pubkey)
+            );
+            accounts.set(sortedAccounts);
+            const currentActiveAccount = sortedAccounts.find((account) => account.active) || null;
+            activeAccount.set(currentActiveAccount);
+        })
+        .catch((_) => {
+            accounts.set([]);
+            activeAccount.set(null);
+        });
 }
 
 export async function fetchRelays(): Promise<void> {

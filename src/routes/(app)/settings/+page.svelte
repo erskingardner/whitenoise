@@ -191,7 +191,7 @@ async function toggleInspectInvites() {
         acceptFn={async () => {
             invoke("delete_all_data")
                 .then(() => {
-                    toastState.add("All data deleted", "All data has been deleted.", "info");
+                    toastState.add("Data deleted", "All accounts, groups, and messages have been deleted.", "info");
                     showDeleteAlert = false;
                     goto("/login");
                 })
@@ -357,7 +357,7 @@ async function toggleInspectInvites() {
                 </button>
             </li>
 
-            <li class="section-list-item">
+            <!-- <li class="section-list-item">
                 <button onclick={toggleInspectAccounts} class="row-button">
                     <UserFocus size={24} />
                     <span>Inspect Accounts</span>
@@ -404,7 +404,7 @@ async function toggleInspectInvites() {
                         <pre class="whitespace-pre overflow-x-auto w-full">{groupsState}</pre>
                     </div>
                 {/if}
-            </li>
+            </li> -->
         </ul>
     </div>
 </main>

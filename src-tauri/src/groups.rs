@@ -62,9 +62,9 @@ pub enum GroupType {
 
 impl From<String> for GroupType {
     fn from(s: String) -> Self {
-        match s.to_lowercase().as_str() {
-            "direct_message" => GroupType::DirectMessage,
-            "group" => GroupType::Group,
+        match s.as_str() {
+            "DirectMessage" => GroupType::DirectMessage,
+            "Group" => GroupType::Group,
             _ => panic!("Invalid group type: {}", s),
         }
     }
@@ -73,8 +73,8 @@ impl From<String> for GroupType {
 impl From<GroupType> for String {
     fn from(group_type: GroupType) -> Self {
         match group_type {
-            GroupType::DirectMessage => "direct_message".to_string(),
-            GroupType::Group => "group".to_string(),
+            GroupType::DirectMessage => "DirectMessage".to_string(),
+            GroupType::Group => "Group".to_string(),
         }
     }
 }
@@ -87,9 +87,9 @@ pub enum GroupState {
 
 impl From<String> for GroupState {
     fn from(s: String) -> Self {
-        match s.to_lowercase().as_str() {
-            "active" => GroupState::Active,
-            "inactive" => GroupState::Inactive,
+        match s.as_str() {
+            "Active" => GroupState::Active,
+            "Inactive" => GroupState::Inactive,
             _ => panic!("Invalid group state: {}", s),
         }
     }
@@ -98,8 +98,8 @@ impl From<String> for GroupState {
 impl From<GroupState> for String {
     fn from(state: GroupState) -> Self {
         match state {
-            GroupState::Active => "active".to_string(),
-            GroupState::Inactive => "inactive".to_string(),
+            GroupState::Active => "Active".to_string(),
+            GroupState::Inactive => "Inactive".to_string(),
         }
     }
 }
@@ -235,7 +235,11 @@ impl Group {
         wn: tauri::State<'_, Whitenoise>,
         _app_handle: &tauri::AppHandle,
     ) -> Result<Group> {
-        tracing::debug!("Creating group with ID: {:?}", hex::encode(&mls_group_id));
+        tracing::debug!(
+            target: "whitenoise::groups::new",
+            "Creating group with mls_group_id: {:?}",
+            &mls_group_id
+        );
 
         let account = Account::get_active(wn.clone())
             .await
@@ -255,19 +259,36 @@ impl Group {
             state: GroupState::Active,
         };
 
-        group.save(wn.clone()).await?;
+        let mut txn = wn.database.pool.begin().await?;
+
+        // Save the group - not using the save method because we want relay creation in the same transaction
+        sqlx::query("INSERT INTO groups (mls_group_id, account_pubkey, nostr_group_id, name, description, admin_pubkeys, last_message_id, last_message_at, group_type, epoch, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+            .bind(group.mls_group_id.clone())
+            .bind(account.pubkey.to_hex().as_str())
+            .bind(group.nostr_group_id.clone())
+            .bind(group.name.clone())
+            .bind(group.description.clone())
+            .bind(serde_json::to_string(&group.admin_pubkeys)?)
+            .bind(group.last_message_id.clone())
+            .bind(group.last_message_at.map(|t| t.as_u64() as i64))
+            .bind(String::from(group.group_type.clone()))
+            .bind(group.epoch as i64)
+            .bind(String::from(group.state.clone()))
+            .execute(&mut *txn)
+            .await?;
 
         // Add the relays for the group
-        let mut txn = wn.database.pool.begin().await?;
         for relay in group_data.relays() {
-            sqlx::query("INSERT INTO relays (url, relay_type, account_pubkey, group_id) VALUES (?, ?, ?, ?)")
+            sqlx::query("INSERT OR REPLACE INTO group_relays (url, relay_type, account_pubkey, group_id) VALUES (?, ?, ?, ?)")
                 .bind(relay)
                 .bind("group")
-                .bind(Option::<String>::None)
+                .bind(account.pubkey.to_hex())
                 .bind(group.mls_group_id.clone())
                 .execute(&mut *txn)
                 .await?;
         }
+
+        // Commit the transaction
         txn.commit().await?;
 
         Ok(group)
@@ -275,7 +296,7 @@ impl Group {
 
     /// Find a group by their mls_group_id and the account it belongs to
     pub async fn find_by_mls_group_id(
-        mls_group_id: &[u8],
+        mls_group_id: &Vec<u8>,
         wn: tauri::State<'_, Whitenoise>,
     ) -> Result<Group> {
         let account = Account::get_active(wn.clone())
@@ -285,11 +306,17 @@ impl Group {
         let group_row = sqlx::query_as::<_, GroupRow>(
             "SELECT * FROM groups WHERE mls_group_id = ? AND account_pubkey = ?",
         )
-        .bind(hex::encode(mls_group_id))
-        .bind(account.pubkey.to_hex().as_str())
+        .bind(mls_group_id)
+        .bind(account.pubkey.to_hex())
         .fetch_optional(&wn.database.pool)
         .await?
         .ok_or_else(|| GroupError::GroupNotFound)?;
+
+        tracing::debug!(
+            target: "whitenoise::groups::find_by_mls_group_id",
+            "Found group: {:?}",
+            group_row
+        );
 
         Ok(Group {
             mls_group_id: group_row.mls_group_id,
@@ -340,15 +367,36 @@ impl Group {
 
     /// Gets all groups for a given account
     pub async fn get_all_groups(wn: tauri::State<'_, Whitenoise>) -> Result<Vec<Group>> {
+        // Test database connection
+        sqlx::query("SELECT 1").execute(&wn.database.pool).await?;
+
+        tracing::debug!(
+            target: "whitenoise::groups::get_all_groups",
+            "Database connection verified"
+        );
+
         let account = Account::get_active(wn.clone())
             .await
             .map_err(GroupError::AccountError)?;
 
+        tracing::debug!(
+            target: "whitenoise::groups::get_all_groups",
+            "Fetching groups for active account: {}",
+            account.pubkey.to_hex()
+        );
+
         let group_rows =
             sqlx::query_as::<_, GroupRow>("SELECT * FROM groups WHERE account_pubkey = ?")
-                .bind(account.pubkey.to_hex().as_str())
+                .bind(account.pubkey.to_hex())
                 .fetch_all(&wn.database.pool)
                 .await?;
+
+        tracing::debug!(
+            target: "whitenoise::groups::get_all_groups",
+            "Found {} groups: {:?}",
+            group_rows.len(),
+            group_rows
+        );
 
         group_rows
             .into_iter()
@@ -371,6 +419,7 @@ impl Group {
     }
 
     // Save the group to the database
+    #[allow(dead_code)]
     pub async fn save(&self, wn: tauri::State<'_, Whitenoise>) -> Result<Group> {
         let mut txn = wn.database.pool.begin().await?;
 
@@ -481,7 +530,7 @@ impl Group {
 
     pub async fn relays(&self, wn: tauri::State<'_, Whitenoise>) -> Result<Vec<String>> {
         Ok(sqlx::query_scalar::<_, String>(
-            "SELECT relay_url FROM relays WHERE relay_type = 'group' AND group_id = ?",
+            "SELECT url FROM group_relays WHERE relay_type = 'group' AND group_id = ?",
         )
         .bind(&self.mls_group_id)
         .fetch_all(&wn.database.pool)

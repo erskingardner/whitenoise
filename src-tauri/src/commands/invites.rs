@@ -59,16 +59,17 @@ pub async fn get_invites(
         .await
         .map_err(|e| e.to_string())?;
 
-    let stored_invite_ids: Vec<_> = stored_invites
-        .iter()
-        .map(|invite| invite.event.id.unwrap())
-        .collect();
-
     for invite in stored_invites {
         if invite.state == InviteState::Pending {
             invites.push(invite);
         }
     }
+
+    let processed_invite_ids: Vec<String> = invites
+        .iter()
+        .filter(|invite| invite.processed)
+        .map(|invite| invite.outer_event_id.clone())
+        .collect();
 
     let fetched_invite_events = wn
         .nostr
@@ -91,14 +92,12 @@ pub async fn get_invites(
 
     let mut failed_invites: Vec<(EventId, String)> = Vec::new();
 
-    for (wrap_event_id, invite_rumor) in fetched_invite_events {
-        // Skip if we have already processed this invite
-        // TODO: Need to think this through more. We're now storing the wrap event id in the invite object so we should be able to use that and the processed flag to determine if we've already processed this invite
-        if stored_invite_ids.contains(&invite_rumor.id.unwrap()) {
-            tracing::debug!(target: "whitenoise::commands::invites::get_invites", "Invite {:?} already processed", invite_rumor.id.unwrap());
-            continue;
-        }
+    let to_process_invites = fetched_invite_events
+        .iter()
+        .filter(|(wrap_event_id, _)| !processed_invite_ids.contains(&wrap_event_id.to_string()))
+        .collect::<Vec<_>>();
 
+    for (wrap_event_id, invite_rumor) in to_process_invites {
         let welcome_preview;
         {
             let nostr_mls = wn.nostr_mls.lock().expect("Failed to lock nostr_mls");

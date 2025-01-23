@@ -127,8 +127,6 @@ impl Account {
         tracing::debug!(target: "whitenoise::accounts", "Adding account for pubkey: {}", pubkey.to_hex());
 
         // Fetch metadata & relays from Nostr
-        // We only fetch the data at this point to store on the account
-        // We'll add and connect to the relays in another step
         let metadata = wn
             .nostr
             .fetch_user_metadata(pubkey)
@@ -153,12 +151,12 @@ impl Account {
             .await
             .map_err(AccountError::NostrManagerError);
         tracing::debug!(target: "whitenoise::accounts", "Fetched key package relays for pubkey: {}", pubkey.to_hex());
-        // let key_packages = wn
-        //     .nostr
-        //     .fetch_user_key_packages(pubkey)
-        //     .await
-        //     .map_err(AccountError::NostrManagerError)?;
-        // tracing::debug!(target: "whitenoise::accounts", "Fetched key packages for pubkey: {}", pubkey.to_hex());
+        let key_packages = wn
+            .nostr
+            .fetch_user_key_packages(pubkey)
+            .await
+            .map_err(AccountError::NostrManagerError)?;
+        tracing::debug!(target: "whitenoise::accounts", "Fetched key packages for pubkey: {}", pubkey.to_hex());
 
         let mut onboarding = AccountOnboarding::default();
 
@@ -177,9 +175,9 @@ impl Account {
         if !key_package_relays_unwrapped.is_empty() {
             onboarding.key_package_relays = true;
         }
-        // if !key_packages.is_empty() {
-        //     onboarding.publish_key_package = true;
-        // }
+        if !key_packages.is_empty() {
+            onboarding.publish_key_package = true;
+        }
 
         tracing::debug!(target: "whitenoise::accounts", "Creating account with metadata: {:?}", unwrapped_metadata);
 
@@ -193,15 +191,20 @@ impl Account {
             active: false,
         };
 
-        tracing::debug!(target: "whitenoise::accounts", "Saving account to database: {:?}", account);
+        tracing::debug!(target: "whitenoise::accounts", "Saving new account to database");
         account.save(wn.clone()).await?;
 
+        tracing::debug!(target: "whitenoise::accounts", "Inserting nostr relays, {:?}", nostr_relays_unwrapped);
         account
             .update_relays(RelayType::Nostr, &nostr_relays_unwrapped, wn.clone())
             .await?;
+
+        tracing::debug!(target: "whitenoise::accounts", "Inserting inbox relays, {:?}", inbox_relays_unwrapped);
         account
             .update_relays(RelayType::Inbox, &inbox_relays_unwrapped, wn.clone())
             .await?;
+
+        tracing::debug!(target: "whitenoise::accounts", "Inserting key package relays, {:?}", key_package_relays_unwrapped);
         account
             .update_relays(
                 RelayType::KeyPackage,
@@ -210,10 +213,10 @@ impl Account {
             )
             .await?;
 
+        tracing::debug!(target: "whitenoise::accounts", "Storing private key");
         secrets_store::store_private_key(keys, &wn.data_dir)?;
 
-        tracing::debug!(target: "whitenoise::accounts", "Account added from keys and secret saved");
-
+        // Set active if requested
         if set_active {
             account.set_active(wn.clone(), app_handle).await?;
         }
@@ -503,16 +506,23 @@ impl Account {
         relays: &Vec<String>,
         wn: tauri::State<'_, Whitenoise>,
     ) -> Result<Account> {
+        if relays.is_empty() {
+            return Ok(self.clone());
+        }
+
         let mut txn = wn.database.pool.begin().await?;
 
+        // Then insert the new relays
         for relay in relays {
-            sqlx::query("INSERT OR REPLACE INTO relays (url, relay_type, account_pubkey, group_id) VALUES (?, ?, ?, ?)")
-                .bind(relay)
-                .bind(String::from(relay_type))
-                .bind(self.pubkey.to_hex().as_str())
-                .bind(Option::<Vec<u8>>::None)
-                .execute(&mut *txn)
-                .await?;
+            sqlx::query(
+                "INSERT OR REPLACE INTO account_relays (url, relay_type, account_pubkey)
+                 VALUES (?, ?, ?)",
+            )
+            .bind(relay)
+            .bind(String::from(relay_type))
+            .bind(self.pubkey.to_hex())
+            .execute(&mut *txn)
+            .await?;
         }
 
         txn.commit().await?;
@@ -522,20 +532,48 @@ impl Account {
 
     /// Saves the account to the database
     pub async fn save(&self, wn: tauri::State<'_, Whitenoise>) -> Result<Account> {
+        tracing::debug!(
+            target: "whitenoise::accounts::save",
+            "Beginning save transaction for pubkey: {}",
+            self.pubkey.to_hex()
+        );
+
         let mut txn = wn.database.pool.begin().await?;
 
-        sqlx::query("INSERT OR REPLACE INTO accounts (pubkey, metadata, settings, onboarding, last_used, last_synced, active) VALUES (?, ?, ?, ?, ?, ?, ?)")
-            .bind(self.pubkey.to_hex().as_str())
-            .bind(&serde_json::to_string(&self.metadata)?)
-            .bind(&serde_json::to_string(&self.settings)?)
-            .bind(&serde_json::to_string(&self.onboarding)?)
-            .bind(self.last_used.to_string())
-            .bind(self.last_synced.to_string())
-            .bind(self.active)
-            .execute(&mut *txn)
-            .await?;
+        let result = sqlx::query(
+            "INSERT INTO accounts (pubkey, metadata, settings, onboarding, last_used, last_synced, active)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(pubkey) DO UPDATE SET
+                metadata = excluded.metadata,
+                settings = excluded.settings,
+                onboarding = excluded.onboarding,
+                last_used = excluded.last_used,
+                last_synced = excluded.last_synced,
+                active = excluded.active"
+        )
+        .bind(self.pubkey.to_hex())
+        .bind(&serde_json::to_string(&self.metadata)?)
+        .bind(&serde_json::to_string(&self.settings)?)
+        .bind(&serde_json::to_string(&self.onboarding)?)
+        .bind(self.last_used.to_string())
+        .bind(self.last_synced.to_string())
+        .bind(self.active)
+        .execute(&mut *txn)
+        .await?;
+
+        tracing::debug!(
+            target: "whitenoise::accounts::save",
+            "Query executed. Rows affected: {}",
+            result.rows_affected()
+        );
 
         txn.commit().await?;
+
+        tracing::debug!(
+            target: "whitenoise::accounts::save",
+            "Transaction committed successfully for pubkey: {}",
+            self.pubkey.to_hex()
+        );
 
         Ok(self.clone())
     }

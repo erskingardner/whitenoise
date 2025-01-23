@@ -52,7 +52,7 @@ impl Database {
         tracing::debug!("Creating connection pool...");
         let pool = SqlitePoolOptions::new()
             .acquire_timeout(Duration::from_secs(5))
-            .max_connections(2)
+            .max_connections(10)
             .after_connect(|conn, _| {
                 Box::pin(async move {
                     let conn = &mut *conn;
@@ -64,17 +64,11 @@ impl Database {
                     sqlx::query("PRAGMA busy_timeout=5000")
                         .execute(&mut *conn)
                         .await?;
-                    // Mobile-friendly settings
-                    sqlx::query("PRAGMA synchronous=NORMAL")
+                    // Enable foreign keys and triggers
+                    sqlx::query("PRAGMA foreign_keys = ON;")
                         .execute(&mut *conn)
                         .await?;
-                    sqlx::query("PRAGMA page_size=4096")
-                        .execute(&mut *conn)
-                        .await?;
-                    sqlx::query("PRAGMA cache_size=-2000") // 2MB cache
-                        .execute(&mut *conn)
-                        .await?;
-                    sqlx::query("PRAGMA temp_store=MEMORY")
+                    sqlx::query("PRAGMA recursive_triggers = ON;")
                         .execute(&mut *conn)
                         .await?;
                     Ok(())
@@ -92,14 +86,6 @@ impl Database {
             .run(&pool)
             .await?;
 
-        // Enable foreign keys and triggers
-        sqlx::query("PRAGMA foreign_keys = ON;")
-            .execute(&pool)
-            .await?;
-        sqlx::query("PRAGMA recursive_triggers = ON;")
-            .execute(&pool)
-            .await?;
-
         Ok(Self {
             pool,
             path: db_path,
@@ -109,9 +95,13 @@ impl Database {
 
     pub async fn delete_all_data(&self) -> Result<(), DatabaseError> {
         let mut txn = self.pool.begin().await?;
-        sqlx::query("DELETE FROM messages_fts")
+
+        // Disable foreign key constraints temporarily
+        sqlx::query("PRAGMA foreign_keys = OFF")
             .execute(&mut *txn)
             .await?;
+
+        // Delete data in reverse order of dependencies
         sqlx::query("DELETE FROM messages")
             .execute(&mut *txn)
             .await?;
@@ -123,9 +113,12 @@ impl Database {
             .execute(&mut *txn)
             .await?;
         sqlx::query("DELETE FROM relays").execute(&mut *txn).await?;
-        sqlx::query("DELETE FROM active_account")
+
+        // Re-enable foreign key constraints
+        sqlx::query("PRAGMA foreign_keys = ON")
             .execute(&mut *txn)
             .await?;
+
         txn.commit().await?;
         Ok(())
     }

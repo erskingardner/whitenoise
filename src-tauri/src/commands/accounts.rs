@@ -2,32 +2,6 @@ use crate::accounts::Account;
 use crate::whitenoise::Whitenoise;
 use nostr_sdk::prelude::*;
 
-/// Retrieves the currently active account.
-///
-/// # Arguments
-///
-/// * `wn` - A reference to the Whitenoise state.
-///
-/// # Returns
-///
-/// * `Ok(Option<Account>)` - The active account if it exists.
-/// * `Err(String)` - An error message if there was an issue fetching the active account.
-#[tauri::command]
-pub async fn get_active_account(wn: tauri::State<'_, Whitenoise>) -> Result<Account, String> {
-    tracing::debug!(target: "whitenoise::commands::accounts", "Getting active account");
-
-    let result = Account::get_active(wn.clone())
-        .await
-        .map_err(|e| {
-            tracing::error!(target: "whitenoise::commands::accounts", "Error getting active account: {}", e);
-            e.to_string()
-        });
-
-    tracing::debug!(target: "whitenoise::commands::accounts", "Get active account result: {:?}", result);
-
-    result
-}
-
 /// Lists all accounts.
 ///
 /// # Arguments
@@ -134,16 +108,10 @@ pub async fn set_active_account(
 
     account.active = true;
 
-    tracing::debug!(target: "whitenoise::commands::accounts", "Found account: {:?}", account);
-
-    let result = account
+    account
         .set_active(wn.clone(), &app_handle)
         .await
-        .map_err(|e| format!("Error setting active account: {}", e));
-
-    tracing::debug!(target: "whitenoise::commands::accounts", "Set active result: {:?}", result);
-
-    result
+        .map_err(|e| format!("Error setting active account: {}", e))
 }
 
 /// Logs out the specified account.

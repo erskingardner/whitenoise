@@ -78,6 +78,14 @@ impl NostrManager {
 
         let settings = NostrManagerSettings::default();
 
+        // Add the default relays
+        for relay in &settings.relays {
+            client.add_relay(relay).await?;
+        }
+
+        // Connect to the default relays
+        client.connect().await;
+
         Ok(Self {
             client,
             settings: Arc::new(Mutex::new(settings)),

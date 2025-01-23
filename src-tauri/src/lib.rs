@@ -68,7 +68,6 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             create_identity,
-            get_active_account,
             get_accounts,
             set_active_account,
             login,

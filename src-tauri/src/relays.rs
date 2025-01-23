@@ -1,3 +1,4 @@
+use nostr_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// A row in the relays table
@@ -5,7 +6,7 @@ use serde::{Deserialize, Serialize};
 pub struct RelayRow {
     pub url: String,
     pub relay_type: String,
-    pub account_pubkey: Option<String>,
+    pub account_pubkey: String,
     pub group_id: Option<Vec<u8>>,
 }
 
@@ -13,7 +14,7 @@ pub struct RelayRow {
 pub struct Relay {
     pub url: String,
     pub relay_type: RelayType,
-    pub account_pubkey: Option<String>,
+    pub account_pubkey: PublicKey,
     pub group_id: Option<Vec<u8>>,
 }
 

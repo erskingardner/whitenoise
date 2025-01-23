@@ -153,6 +153,11 @@ impl NostrManager {
 
     // Handle events
     async fn handle_event(&self, event: Event, app_handle: tauri::AppHandle) -> Result<()> {
+        tracing::debug!(
+            target: "whitenoise::nostr_client::subscriptions::handle_event",
+            "Received event: {:?}",
+            event
+        );
         match event.kind {
             Kind::GiftWrap => self.handle_giftwrap(event).await?,
             Kind::MlsGroupMessage => self.handle_mls_message(event, app_handle)?,
@@ -183,7 +188,7 @@ impl NostrManager {
     fn handle_invite(&self, rumor: UnsignedEvent) -> Result<()> {
         // TODO: We would like to be able to store these invites in the cache but since they're not signed we can't do that yet.
         // TODO: Remove the identifying info from the log
-        tracing::info!(
+        tracing::debug!(
             target: "whitenoise::nostr_client::handle_notifications",
             "Received invite: {:?}",
             rumor
@@ -194,7 +199,7 @@ impl NostrManager {
     fn handle_private_direct_message(&self, rumor: UnsignedEvent) -> Result<()> {
         // TODO: We would like to be able to store these invites in the cache but since they're not signed we can't do that yet.
         // TODO: Remove the identifying info from the log
-        tracing::info!(
+        tracing::debug!(
             target: "whitenoise::nostr_client::handle_notifications",
             "Received private direct message: {:?}",
             rumor
@@ -204,7 +209,7 @@ impl NostrManager {
 
     fn handle_mls_message(&self, event: Event, app_handle: tauri::AppHandle) -> Result<()> {
         // TODO: Remove the identifying info from the log
-        tracing::info!(
+        tracing::debug!(
             target: "whitenoise::nostr_client::handle_notifications",
             "Received MLS message: {:?}",
             event
@@ -220,11 +225,22 @@ impl NostrManager {
     // Handle other types of notifications
 
     fn handle_message(&self, relay_url: RelayUrl, message: RelayMessage) -> Result<()> {
+        let variant_name = match message {
+            RelayMessage::Event { .. } => "Event",
+            RelayMessage::Ok { .. } => "Ok",
+            RelayMessage::Notice { .. } => "Notice",
+            RelayMessage::Closed { .. } => "Closed",
+            RelayMessage::EndOfStoredEvents(_) => "EndOfStoredEvents",
+            RelayMessage::Auth { .. } => "Auth",
+            RelayMessage::Count { .. } => "Count",
+            RelayMessage::NegMsg { .. } => "NegMsg",
+            RelayMessage::NegErr { .. } => "NegErr",
+        };
         tracing::debug!(
             target: "whitenoise::nostr_client::handle_notifications",
-            "Received message from {}: {:?}",
+            "Received message from {}: {}",
             relay_url,
-            message
+            variant_name
         );
         Ok(())
     }
