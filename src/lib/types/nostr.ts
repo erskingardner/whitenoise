@@ -80,10 +80,24 @@ export type Invite = {
     state: InviteState;
 };
 
+export type ProcessedInvite = {
+    event_id: string;
+    invite_event_id: string | undefined;
+    account_pubkey: string;
+    processed_at: number;
+    state: ProcessedInviteState;
+    failure_reason: string | undefined;
+};
+
 export enum InviteState {
     Pending = "Pending",
     Accepted = "Accepted",
     Declined = "Declined",
+}
+
+export enum ProcessedInviteState {
+    Processed = "Processed",
+    Failed = "Failed",
 }
 
 export type InvitesWithFailures = {

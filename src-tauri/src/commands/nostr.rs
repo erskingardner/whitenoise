@@ -24,7 +24,7 @@ pub async fn init_nostr_for_current_user(
 
     // Then update Nostr MLS instance
     {
-        let mut nostr_mls = wn.nostr_mls.lock().expect("Failed to lock Nostr MLS");
+        let mut nostr_mls = wn.nostr_mls.lock().await;
         *nostr_mls = NostrMls::new(wn.data_dir.clone(), Some(current_account.pubkey.to_hex()));
     }
 
@@ -201,7 +201,7 @@ pub async fn fetch_enriched_contacts(
     let contact_list_pubkeys = wn
         .nostr
         .client
-        .get_contact_list_public_keys(Some(wn.nostr.timeout().map_err(|e| e.to_string())?))
+        .get_contact_list_public_keys(Some(wn.nostr.timeout().await.unwrap()))
         .await
         .expect("Failed to fetch contact list public keys");
 
@@ -257,10 +257,9 @@ pub async fn fetch_enriched_contacts(
     // Fetch all events in parallel using a single request
     let (stored_events, fetched_events) = tokio::join!(
         wn.nostr.client.database().query(filters.clone()),
-        wn.nostr.client.fetch_events(
-            filters,
-            Some(wn.nostr.timeout().map_err(|e| e.to_string())?),
-        )
+        wn.nostr
+            .client
+            .fetch_events(filters, Some(wn.nostr.timeout().await.unwrap()),)
     );
 
     let all_events = stored_events

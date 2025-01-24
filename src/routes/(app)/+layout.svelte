@@ -49,9 +49,6 @@ async function checkPreflight() {
     }
 }
 
-$inspect("activeAccount", $activeAccount);
-$inspect("accounts", $accounts);
-
 onMount(async () => {
     if (!unlistenNostrReady) {
         unlistenNostrReady = await listen<string>("nostr_ready", async (_event) => {

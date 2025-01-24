@@ -2,7 +2,9 @@ use crate::database::Database;
 use crate::nostr_manager::NostrManager;
 use nostr_openmls::NostrMls;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tauri::AppHandle;
+use tokio::sync::Mutex;
 
 #[derive(Clone)]
 pub struct Whitenoise {
@@ -14,7 +16,7 @@ pub struct Whitenoise {
 }
 
 impl Whitenoise {
-    pub async fn new(data_dir: PathBuf, logs_dir: PathBuf) -> Self {
+    pub async fn new(data_dir: PathBuf, logs_dir: PathBuf, app_handle: AppHandle) -> Self {
         tracing::debug!(
             target: "whitenoise::whitenoise::new",
             "Creating Whitenoise instance with data_dir: {:?}",
@@ -27,7 +29,7 @@ impl Whitenoise {
                     .await
                     .expect("Failed to create database"),
             ),
-            nostr: NostrManager::new(data_dir.clone())
+            nostr: NostrManager::new(data_dir.clone(), app_handle)
                 .await
                 .expect("Failed to create Nostr manager"),
             nostr_mls: Arc::new(Mutex::new(NostrMls::new(data_dir.clone(), None))),
@@ -42,7 +44,7 @@ impl Whitenoise {
         // Clear data first
         self.nostr.delete_all_data().await?;
         self.database.delete_all_data().await?;
-        self.nostr_mls.lock().unwrap().delete_all_data()?;
+        self.nostr_mls.lock().await.delete_all_data()?;
 
         // Remove logs
         if self.logs_dir.exists() {

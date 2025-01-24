@@ -3,6 +3,7 @@
 //! In almost all cases, we query for events already stored in our databsae
 //! and combine the results from our database with those from relays in the response.
 
+use crate::nostr_manager::event_processor::ProcessableEvent;
 use crate::nostr_manager::{NostrManager, NostrManagerError, Result};
 use nostr_sdk::prelude::*;
 
@@ -27,7 +28,7 @@ impl NostrManager {
     pub async fn fetch_user_metadata(&self, pubkey: PublicKey) -> Result<Option<Metadata>> {
         match self
             .client
-            .fetch_metadata(pubkey, Some(self.timeout()?))
+            .fetch_metadata(pubkey, Some(self.timeout().await?))
             .await
         {
             Ok(metadata) => Ok(Some(metadata)),
@@ -41,7 +42,7 @@ impl NostrManager {
 
         let events = self
             .client
-            .fetch_events(vec![filter], Some(self.timeout()?))
+            .fetch_events(vec![filter], Some(self.timeout().await?))
             .await
             .map_err(NostrManagerError::from)?;
 
@@ -55,7 +56,7 @@ impl NostrManager {
             .limit(1);
         let events = self
             .client
-            .fetch_events(vec![filter], Some(self.timeout()?))
+            .fetch_events(vec![filter], Some(self.timeout().await?))
             .await
             .map_err(NostrManagerError::from)?;
 
@@ -69,7 +70,7 @@ impl NostrManager {
             .limit(1);
         let events = self
             .client
-            .fetch_events(vec![filter], Some(self.timeout()?))
+            .fetch_events(vec![filter], Some(self.timeout().await?))
             .await
             .map_err(NostrManagerError::from)?;
 
@@ -80,7 +81,7 @@ impl NostrManager {
         let filter = Filter::new().author(pubkey).kind(Kind::MlsKeyPackage);
         let events = self
             .client
-            .fetch_events(vec![filter], Some(self.timeout()?))
+            .fetch_events(vec![filter], Some(self.timeout().await?))
             .await
             .map_err(NostrManagerError::from)?;
         Ok(events)
@@ -94,7 +95,7 @@ impl NostrManager {
         );
         let contacts_pubkeys = self
             .client
-            .get_contact_list_public_keys(Some(self.timeout()?))
+            .get_contact_list_public_keys(Some(self.timeout().await?))
             .await?;
 
         // If there are no contacts, return an empty vector
@@ -106,22 +107,11 @@ impl NostrManager {
         let database_contacts = self.client.database().query(vec![filter.clone()]).await?;
         let fetched_contacts = self
             .client
-            .fetch_events(vec![filter], Some(self.timeout()?))
+            .fetch_events(vec![filter], Some(self.timeout().await?))
             .await?;
 
         let contacts = database_contacts.merge(fetched_contacts);
         Ok(contacts.into_iter().collect())
-    }
-
-    /// Fetches all welcome events for a given user
-    /// Returns a vector of tuples containing the gift-wrap event id and the inner welcome event (the gift wrap rumor event)
-    pub async fn fetch_user_welcomes(
-        &self,
-        pubkey: PublicKey,
-    ) -> Result<Vec<(EventId, UnsignedEvent)>> {
-        let gw_events = self.fetch_user_giftwrapped_events(pubkey).await?;
-        let invites = self.extract_invite_events(gw_events).await;
-        Ok(invites)
     }
 
     async fn fetch_user_giftwrapped_events(&self, pubkey: PublicKey) -> Result<Vec<Event>> {
@@ -129,10 +119,17 @@ impl NostrManager {
         let stored_events = self.client.database().query(vec![filter.clone()]).await?;
         let fetched_events = self
             .client
-            .fetch_events(vec![filter], Some(self.timeout()?))
+            .fetch_events(vec![filter], Some(self.timeout().await?))
             .await?;
 
         let events = stored_events.merge(fetched_events);
+        for event in events.iter() {
+            let processor = self.event_processor.lock().await;
+            processor
+                .queue_event(ProcessableEvent::GiftWrap(event.clone()))
+                .await
+                .map_err(|e| NostrManagerError::FailedToQueueEvent(e.to_string()))?;
+        }
         Ok(events.into_iter().collect())
     }
 
@@ -150,10 +147,19 @@ impl NostrManager {
         let stored_events = self.client.database().query(vec![filter.clone()]).await?;
         let fetched_events = self
             .client
-            .fetch_events(vec![filter], Some(self.timeout()?))
+            .fetch_events(vec![filter], Some(self.timeout().await?))
             .await?;
 
         let events = stored_events.merge(fetched_events);
+
+        for event in events.iter() {
+            let processor = self.event_processor.lock().await;
+            processor
+                .queue_event(ProcessableEvent::MlsMessage(event.clone()))
+                .await
+                .map_err(|e| NostrManagerError::FailedToQueueEvent(e.to_string()))?;
+        }
+
         Ok(events.into_iter().collect())
     }
 }

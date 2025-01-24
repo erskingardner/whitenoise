@@ -1,9 +1,6 @@
 use crate::accounts::Account;
-use crate::commands::key_packages::publish_key_package;
 use crate::groups::{Group, GroupType};
-use crate::invites::{Invite, InviteState};
-use crate::key_packages::delete_key_package_from_relays;
-use crate::relays::RelayType;
+use crate::invites::{Invite, InviteState, ProcessedInvite};
 use crate::whitenoise::Whitenoise;
 use nostr_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -15,186 +12,19 @@ pub struct InvitesWithFailures {
     failures: Vec<(EventId, String)>,
 }
 
-/// Fetches and processes pending invites for the active user.
-///
-/// This command:
-/// 1. Gets stored invites from the group manager
-/// 2. Fetches new welcome messages from Nostr relays
-/// 3. Processes new welcome messages into invites
-/// 4. Cleans up used key packages
-/// 5. Generates replacement key packages
-///
-/// # Arguments
-/// * `wn` - The Whitenoise state
-///
-/// # Returns
-/// * `Ok(InvitesWithFailures)` containing:
-///   - `invites`: Vec of successfully processed Invite objects
-///   - `failures`: Vec of (EventId, error message) for failed invite processing
-///
-/// # Errors
-/// Returns `Err(String)` if:
-/// - Cannot get active account
-/// - Cannot access group manager
-/// - Cannot fetch welcome messages
-/// - Cannot process welcome messages
-/// - Cannot delete used key packages
-/// - Cannot generate new key packages
-///
-/// # Events
-/// No events are emitted by this command.
+/// Fetches invites from the database for the active user
 #[tauri::command]
-pub async fn get_invites(
-    wn: tauri::State<'_, Whitenoise>,
-    app_handle: tauri::AppHandle,
-) -> Result<InvitesWithFailures, String> {
-    let active_account = Account::get_active(wn.clone())
+pub async fn get_invites(wn: tauri::State<'_, Whitenoise>) -> Result<InvitesWithFailures, String> {
+    let pending_invites = Invite::pending(wn.clone())
         .await
         .map_err(|e| e.to_string())?;
 
-    let mut invites: Vec<Invite> = Vec::new();
-
-    let stored_invites = active_account
-        .invites(wn.clone())
+    let failed_invites: Vec<(EventId, String)> = ProcessedInvite::failed_with_reason(wn.clone())
         .await
         .map_err(|e| e.to_string())?;
 
-    for invite in stored_invites {
-        if invite.state == InviteState::Pending {
-            invites.push(invite);
-        }
-    }
-
-    let processed_invite_ids: Vec<String> = invites
-        .iter()
-        .filter(|invite| invite.processed)
-        .map(|invite| invite.outer_event_id.clone())
-        .collect();
-
-    let fetched_invite_events = wn
-        .nostr
-        .fetch_user_welcomes(
-            wn.nostr
-                .client
-                .signer()
-                .await
-                .unwrap()
-                .get_public_key()
-                .await
-                .map_err(|e| e.to_string())?,
-        )
-        .await
-        .map_err(|e| e.to_string())?;
-
-    // We need to track the key_packages that were used in procesing this batch of invites
-    // These key_packages need to be deleted from the relays and the private key material needs to be deleted from the MLS database
-    let mut used_key_package_ids: Vec<String> = Vec::new();
-
-    let mut failed_invites: Vec<(EventId, String)> = Vec::new();
-
-    let to_process_invites = fetched_invite_events
-        .iter()
-        .filter(|(wrap_event_id, _)| !processed_invite_ids.contains(&wrap_event_id.to_string()))
-        .collect::<Vec<_>>();
-
-    for (wrap_event_id, invite_rumor) in to_process_invites {
-        let welcome_preview;
-        {
-            let nostr_mls = wn.nostr_mls.lock().expect("Failed to lock nostr_mls");
-            welcome_preview =
-            match nostr_mls.preview_welcome_event(match hex::decode(&invite_rumor.content) {
-                    Ok(content) => content,
-                    Err(e) => {
-                        tracing::error!(target: "whitenoise::commands::invites::get_invites", "Error decoding welcome event {:?}: {}", invite_rumor.id.unwrap(), e);
-                        failed_invites.push((invite_rumor.id.unwrap(), e.to_string()));
-                        continue;
-                    }
-                }) {
-                Ok(invite) => invite,
-                Err(e) => {
-                    tracing::error!(target: "whitenoise::commands::invites::get_invites", "Error processing welcome event {:?}: {}", invite_rumor.id.unwrap(), e);
-                    failed_invites.push((invite_rumor.id.unwrap(), e.to_string()));
-                    continue;
-                }
-            };
-        }
-        let key_package_event_id = invite_rumor
-            .tags
-            .iter()
-            .find(|tag| {
-                tag.kind() == TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::E))
-            })
-            .and_then(|tag| tag.content());
-
-        let invite = Invite {
-            event: invite_rumor.clone(),
-            mls_group_id: welcome_preview
-                .staged_welcome
-                .group_context()
-                .group_id()
-                .to_vec(),
-            nostr_group_id: welcome_preview.nostr_group_data.nostr_group_id(),
-            group_name: welcome_preview.nostr_group_data.name(),
-            group_description: welcome_preview.nostr_group_data.description(),
-            group_admin_pubkeys: welcome_preview.nostr_group_data.admin_pubkeys(),
-            group_relays: welcome_preview.nostr_group_data.relays(),
-            inviter: invite_rumor.pubkey.to_hex(),
-            member_count: welcome_preview.staged_welcome.members().count() as u32,
-            account_pubkey: active_account.pubkey.to_hex(),
-            event_id: invite_rumor.id.unwrap().to_string(),
-            outer_event_id: wrap_event_id.to_string(),
-            processed: false,
-            state: InviteState::Pending,
-        };
-
-        invites.push(invite.clone());
-        invite.save(wn.clone()).await.map_err(|e| e.to_string())?;
-
-        if let Some(key_package_event_id) = key_package_event_id {
-            used_key_package_ids.push(key_package_event_id.to_string());
-        }
-
-        app_handle
-            .emit("invite_processed", invite)
-            .map_err(|e| e.to_string())?;
-    }
-
-    let key_package_relays: Vec<String> = if cfg!(dev) {
-        vec!["ws://localhost:8080".to_string()]
-    } else {
-        active_account
-            .relays(RelayType::KeyPackage, wn.clone())
-            .await
-            .map_err(|e| e.to_string())?
-    };
-
-    // Remove used key package ids from relays and from MLS storage
-    // We do this in bulk after we've processed all welcome events to avoid deleting
-    // the key package material while we're still processing events that might need it.
-    used_key_package_ids.sort();
-    used_key_package_ids.dedup();
-
-    // TODO: We need to handle cleaning up old key packages from MLS storage on a regular basis
-    for key_package_id in &used_key_package_ids {
-        tracing::debug!(target: "nostr_mls::invites::fetch_invites_for_user", "Deleting used key package {:?}", key_package_id);
-        delete_key_package_from_relays(
-            &EventId::parse(key_package_id).unwrap(),
-            &key_package_relays,
-            false, // For now we don't want to delete the key packages from MLS storage
-            wn.clone(),
-        )
-        .await
-        .map_err(|e| format!("Couldn't delete key package {:?}: {}", key_package_id, e))?;
-    }
-
-    // Generate and publish new key packages to replace the used key packages
-    for _ in used_key_package_ids.iter() {
-        publish_key_package(wn.clone()).await?;
-    }
-
-    // TODO: We need to filter and only show the latest welcome message for a given group if there are duplicates
     Ok(InvitesWithFailures {
-        invites,
+        invites: pending_invites,
         failures: failed_invites,
     })
 }
@@ -247,7 +77,7 @@ pub async fn accept_invite(
 
     // Scope the MutexGuard to drop it before the .await points
     let (mls_group, nostr_group_data) = {
-        let nostr_mls = wn.nostr_mls.lock().expect("Failed to lock nostr_mls");
+        let nostr_mls = wn.nostr_mls.lock().await;
         let joined_group_result = nostr_mls
             .join_group_from_welcome(
                 hex::decode(&invite.event.content)

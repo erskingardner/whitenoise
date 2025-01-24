@@ -8,7 +8,7 @@ import ContactsList from "$lib/components/Modals/Contacts/ContactsList.svelte";
 import Modal from "$lib/components/Modals/Modal.svelte";
 import { activeAccount } from "$lib/stores/accounts";
 import { getToastState } from "$lib/stores/toast-state.svelte";
-import type { Invite, InvitesWithFailures, NostrMlsGroup } from "$lib/types/nostr";
+import type { Invite, InvitesWithFailures, NostrMlsGroup, ProcessedInvite } from "$lib/types/nostr";
 import { invoke } from "@tauri-apps/api/core";
 import { type UnlistenFn, listen } from "@tauri-apps/api/event";
 import { PlusCircle, Warning } from "phosphor-svelte";
@@ -21,6 +21,7 @@ let unlistenGroupAdded: UnlistenFn;
 let unlistenInviteAccepted: UnlistenFn;
 let unlistenInviteDeclined: UnlistenFn;
 let unlistenInviteProcessed: UnlistenFn;
+let unlistenInviteFailedToProcess: UnlistenFn;
 
 let toastState = getToastState();
 
@@ -31,7 +32,7 @@ let loadingError = $state<string | null>(null);
 
 let groups = $state<NostrMlsGroup[]>([]);
 let invites = $state<Invite[]>([]);
-let failures = $state<[string, string][]>([]);
+let failures = $state<[string, string | undefined][]>([]);
 let failuresExpanded = $state(false);
 
 async function loadEvents() {
@@ -112,6 +113,17 @@ onMount(async () => {
             failures = (invitesResponse as InvitesWithFailures).failures;
         });
     }
+
+    if (!unlistenInviteFailedToProcess) {
+        unlistenInviteFailedToProcess = await listen<ProcessedInvite>(
+            "invite_failed_to_process",
+            (event) => {
+                const failedInvite = event.payload as ProcessedInvite;
+                console.log("Event received on chats page: invite_failed_to_process", failedInvite);
+                failures = [...failures, [failedInvite.event_id, failedInvite.failure_reason]];
+            }
+        );
+    }
 });
 
 onDestroy(() => {
@@ -161,7 +173,7 @@ onDestroy(() => {
                 <GroupListItem {group} />
             {/each}
             {#if failures.length > 0}
-                <div class="flex flex-col fixed bottom-0 w-full bg-gray-900 border-t border-gray-700">
+                <div class="flex flex-col fixed bottom-24 md:bottom-0 w-full bg-gray-900 border-t border-gray-700">
                     <button
                         class="flex flex-row gap-2 items-center px-4 py-3 border-b border-gray-700 hover:bg-gray-700"
                         onclick={() => failuresExpanded = !failuresExpanded}
@@ -174,7 +186,7 @@ onDestroy(() => {
                     {#if failuresExpanded}
                         {#each failures as failure}
                             <div class="flex flex-row gap-2 items-center px-4 py-3 border-b border-gray-700 hover:bg-gray-700 pl-8 bg-gray-800/50 truncate">
-                                <span>{failure[0]}: {failure[1].split(": ")[1]}</span>
+                                <span>{failure[1]}</span>
                             </div>
                         {/each}
                     {/if}

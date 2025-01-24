@@ -56,10 +56,12 @@ $effect(() => {
 async function loadGroup() {
     invoke("get_group_and_messages", { groupId: page.params.id }).then((groupResponse) => {
         [group, messages] = groupResponse as [NostrMlsGroup, NEvent[]];
-        counterpartyPubkey =
-            group.group_type === NostrMlsGroupType.DirectMessage
-                ? group.admin_pubkeys.filter((pubkey) => pubkey !== $activeAccount?.pubkey)[0]
-                : undefined;
+        if (!counterpartyPubkey) {
+            counterpartyPubkey =
+                group.group_type === NostrMlsGroupType.DirectMessage
+                    ? group.admin_pubkeys.filter((pubkey) => pubkey !== $activeAccount?.pubkey)[0]
+                    : undefined;
+        }
         if (counterpartyPubkey) {
             invoke("query_enriched_contact", {
                 pubkey: counterpartyPubkey,
@@ -69,10 +71,6 @@ async function loadGroup() {
             });
         }
     });
-}
-
-async function loadMessages() {
-    await invoke("fetch_mls_messages");
     scrollToBottom();
 }
 
@@ -108,13 +106,12 @@ onMount(async () => {
             "mls_message_received",
             ({ payload: _message }) => {
                 console.log("mls_message_received event received");
-                loadMessages();
+                loadGroup();
             }
         );
     }
 
     await loadGroup();
-    await loadMessages();
 });
 
 function handleNewMessage(message: NEvent, replaceTemp: boolean) {

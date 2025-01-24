@@ -141,6 +141,9 @@ pub enum GroupError {
 
     #[error("Serialization error: {0}")]
     SerializationError(#[from] serde_json::Error),
+
+    #[error("Event ID error: {0}")]
+    EventIdError(#[from] nostr_sdk::event::id::Error),
 }
 
 pub type Result<T> = std::result::Result<T, GroupError>;
@@ -454,26 +457,62 @@ impl Group {
 
         let mut txn = wn.database.pool.begin().await?;
 
-        let message_row = sqlx::query_as::<_, MessageRow>(
-            "INSERT INTO messages (event_id, account_pubkey, author_pubkey, mls_group_id, created_at, content, tags, event, outer_event_id, processed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        let event_json = serde_json::to_string(&message)?;
+        let tags_json = serde_json::to_string(&message.tags)?;
+
+        tracing::debug!(
+            target: "whitenoise::groups::add_message",
+            "Inserting message into database; event_id: {:?}, account_pubkey: {:?}, author_pubkey: {:?}, mls_group_id: {:?}, created_at: {:?}, content: {:?}, tags: {:?}, event: {:?}, outer_event_id: {:?}",
+            message.id.unwrap().to_string(),
+            account.pubkey.to_hex(),
+            message.pubkey.to_hex(),
+            self.mls_group_id,
+            message.created_at.to_string(),
+            message.content,
+            tags_json,
+            event_json,
+            outer_event_id.to_string(),
+        );
+
+        // First insert the message
+        let query = sqlx::query(
+            r#"
+            INSERT INTO messages (
+                event_id, account_pubkey, author_pubkey, mls_group_id,
+                created_at, content, tags, event, outer_event_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#,
         )
-        .bind(message.id.unwrap().to_string())
+        .bind(message.id.unwrap().to_hex()) // Convert EventId to hex string
         .bind(account.pubkey.to_hex())
         .bind(message.pubkey.to_hex())
-        .bind(self.mls_group_id.clone())
-        .bind(message.created_at.as_u64() as i64)
-        .bind(message.content.clone())
-        .bind(serde_json::to_string(&message.tags)?)
-        .bind(serde_json::to_string(&message)?)
-        .bind(outer_event_id.clone())
-        .bind(true)
-        .fetch_one(&mut *txn)
+        .bind(&self.mls_group_id as &[u8]) // Explicitly bind as bytes
+        .bind(message.created_at.as_u64() as i64) // Convert timestamp to i64
+        .bind(&message.content)
+        .bind(&tags_json)
+        .bind(&event_json)
+        .bind(&outer_event_id)
+        .execute(&mut *txn)
         .await?;
+
+        tracing::debug!(
+            target: "whitenoise::groups::add_message",
+            "Insert message result: {:?}",
+            query
+        );
+
+        // Then fetch the inserted row if needed
+        let message_row =
+            sqlx::query_as::<_, MessageRow>("SELECT * FROM messages WHERE event_id = ?")
+                .bind(message.id.unwrap().to_string())
+                .fetch_one(&mut *txn)
+                .await?;
 
         txn.commit().await?;
 
         Ok(Message {
-            event_id: message_row.event_id,
+            event_id: EventId::from_hex(&message_row.event_id)?,
             account_pubkey: account.pubkey,
             author_pubkey: message.pubkey,
             mls_group_id: self.mls_group_id.clone(),
@@ -481,8 +520,7 @@ impl Group {
             content: message.content.clone(),
             tags: message.tags.clone(),
             event: message,
-            outer_event_id: outer_event_id.clone(),
-            processed: message_row.processed,
+            outer_event_id: EventId::from_hex(&message_row.outer_event_id)?,
         })
     }
 
@@ -505,8 +543,8 @@ impl Group {
             .collect::<Result<Vec<_>>>()
     }
 
-    pub fn members(&self, wn: tauri::State<'_, Whitenoise>) -> Result<Vec<PublicKey>> {
-        let nostr_mls = wn.nostr_mls.lock().unwrap();
+    pub async fn members(&self, wn: tauri::State<'_, Whitenoise>) -> Result<Vec<PublicKey>> {
+        let nostr_mls = wn.nostr_mls.lock().await;
         let member_pubkeys = nostr_mls
             .member_pubkeys(self.mls_group_id.clone())
             .map_err(GroupError::MlsError)?;
@@ -543,7 +581,7 @@ impl Group {
         let new_exporter_secret_hex: String;
         let new_epoch: u64;
         {
-            let nostr_mls = wn.nostr_mls.lock().unwrap();
+            let nostr_mls = wn.nostr_mls.lock().await;
             let self_update_result = nostr_mls
                 .self_update(self.mls_group_id.clone())
                 .map_err(GroupError::MlsError)?;

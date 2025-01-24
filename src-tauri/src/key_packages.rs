@@ -1,7 +1,8 @@
-use crate::accounts::AccountError;
+use crate::accounts::{Account, AccountError};
 use crate::nostr_manager;
+use crate::relays::RelayType;
 use crate::whitenoise::Whitenoise;
-use nostr_openmls::key_packages::KeyPackage;
+use nostr_openmls::key_packages::{create_key_package_for_event, KeyPackage};
 use nostr_sdk::prelude::*;
 use thiserror::Error;
 
@@ -85,11 +86,14 @@ pub async fn fetch_key_package_for_pubkey(
     let key_package_events = wn
         .nostr
         .client
-        .fetch_events(vec![key_package_filter], Some(wn.nostr.timeout()?))
+        .fetch_events(
+            vec![key_package_filter],
+            Some(wn.nostr.timeout().await.unwrap()),
+        )
         .await
         .expect("Error fetching key_package events");
 
-    let nostr_mls = wn.nostr_mls.lock().expect("Failed to lock nostr_mls");
+    let nostr_mls = wn.nostr_mls.lock().await;
     let ciphersuite = nostr_mls.ciphersuite;
     let extensions = nostr_mls.extensions.clone();
 
@@ -184,17 +188,14 @@ pub async fn delete_key_package_from_relays(
                 .id(*event_id)
                 .kind(Kind::MlsKeyPackage)
                 .author(current_pubkey)],
-            Some(wn.nostr.timeout()?),
+            Some(wn.nostr.timeout().await.unwrap()),
         )
         .await?;
 
     if let Some(event) = key_package_events.first() {
         // Make sure we delete the private key material from MLS storage if requested
         if delete_mls_stored_keys {
-            let nostr_mls = wn.nostr_mls.lock().map_err(|_| {
-                KeyPackageError::NoValidKeyPackage("Failed to lock nostr_mls".to_string())
-            })?;
-
+            let nostr_mls = wn.nostr_mls.lock().await;
             let key_package = nostr_openmls::key_packages::parse_key_package(
                 event.content.to_string(),
                 &nostr_mls,
@@ -210,5 +211,41 @@ pub async fn delete_key_package_from_relays(
             .send_event_builder_to(key_package_relays, builder)
             .await?;
     }
+    Ok(())
+}
+
+pub async fn publish_key_package(wn: tauri::State<'_, Whitenoise>) -> Result<()> {
+    let active_account = Account::get_active(wn.clone()).await?;
+    let pubkey = active_account.pubkey;
+
+    let event: EventBuilder;
+    let key_package_relays = if cfg!(dev) {
+        vec!["ws://localhost:8080".to_string()]
+    } else {
+        active_account
+            .relays(RelayType::KeyPackage, wn.clone())
+            .await?
+    };
+
+    {
+        let nostr_mls = wn.nostr_mls.lock().await;
+        let ciphersuite = nostr_mls.ciphersuite_value().to_string();
+        let extensions = nostr_mls.extensions_value();
+
+        let serialized_key_package = create_key_package_for_event(pubkey.to_hex(), &nostr_mls)?;
+
+        event = EventBuilder::new(Kind::MlsKeyPackage, serialized_key_package).tags([
+            Tag::custom(TagKind::MlsProtocolVersion, ["1.0"]),
+            Tag::custom(TagKind::MlsCiphersuite, [ciphersuite]),
+            Tag::custom(TagKind::MlsExtensions, [extensions]),
+            Tag::custom(TagKind::Client, ["whitenoise"]),
+            Tag::custom(TagKind::Relays, key_package_relays.clone()),
+        ]);
+    }
+    wn.nostr
+        .client
+        .send_event_builder_to(key_package_relays.clone(), event)
+        .await?;
+
     Ok(())
 }

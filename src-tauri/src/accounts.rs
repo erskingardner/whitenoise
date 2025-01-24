@@ -28,9 +28,6 @@ pub enum AccountError {
     #[error("Tauri error: {0}")]
     TauriError(#[from] tauri::Error),
 
-    #[error("Failed to acquire lock")]
-    LockError,
-
     #[error("No active account found")]
     NoActiveAccount,
 
@@ -378,7 +375,7 @@ impl Account {
 
         // Then update Nostr MLS instance
         {
-            let mut nostr_mls = wn.nostr_mls.lock().map_err(|_| AccountError::LockError)?;
+            let mut nostr_mls = wn.nostr_mls.lock().await;
             *nostr_mls = NostrMls::new(wn.data_dir.clone(), Some(self.pubkey.to_hex()));
         }
 
@@ -428,6 +425,7 @@ impl Account {
     }
 
     /// Returns the invites the account has received
+    #[allow(dead_code)]
     pub async fn invites(&self, wn: tauri::State<'_, Whitenoise>) -> Result<Vec<Invite>> {
         let mut txn = wn.database.pool.begin().await?;
 
@@ -454,7 +452,6 @@ impl Account {
                     member_count: row.member_count,
                     state: row.state.into(),
                     outer_event_id: row.outer_event_id,
-                    processed: row.processed,
                 })
             })
             .collect::<Result<Vec<_>>>()
@@ -631,7 +628,7 @@ impl Account {
 
         // Then update Nostr MLS instance
         {
-            let mut nostr_mls = wn.nostr_mls.lock().map_err(|_| AccountError::LockError)?;
+            let mut nostr_mls = wn.nostr_mls.lock().await;
             *nostr_mls = NostrMls::new(wn.data_dir.clone(), Some(hex_pubkey));
         }
 

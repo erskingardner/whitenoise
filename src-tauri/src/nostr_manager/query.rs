@@ -94,6 +94,7 @@ impl NostrManager {
         Ok(events.into_iter().collect())
     }
 
+    #[allow(dead_code)]
     pub async fn query_mls_group_messages(&self, group_ids: Vec<String>) -> Result<Vec<Event>> {
         let filter = Filter::new()
             .kind(Kind::MlsGroupMessage)

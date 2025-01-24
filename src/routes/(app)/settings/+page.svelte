@@ -131,7 +131,7 @@ function deleteAllKeyPackages() {
 }
 
 function publishKeyPackage() {
-    invoke("publish_key_package", {})
+    invoke("publish_new_key_package", {})
         .then(() => {
             toastState.add(
                 "Key Package Published",
@@ -338,22 +338,22 @@ async function toggleInspectInvites() {
         <ul class="section-list">
             <li class="section-list-item">
                 <button onclick={() => goto("/settings/network/")} class="row-button">
-                    <HardDrives size={24} />
+                    <HardDrives size={24} class="shrink-0" />
                     <span>Network</span>
-                    <CaretRight size={24} class="ml-auto mr-0" />
+                    <CaretRight size={24} class="ml-auto mr-0 shrink-0" />
                 </button>
             </li>
             <li class="section-list-item">
                 <button onclick={launchKeyPackage} class="row-button">
                     <Key size={24} />
-                    <span>Publish Key Package Events</span>
+                    <span>Publish a Key Package</span>
                 </button>
             </li>
             <li class="section-list-item">
                 <button onclick={deleteAllKeyPackages} class="row-button">
-                    <Trash size={24} />
-                    <span>Delete All Key Package Events</span>
-                    <CaretRight size={24} class="ml-auto mr-0" />
+                    <Trash size={24} class="shrink-0" />
+                    <span class="truncate">Send delete requests for all key packages</span>
+                    <CaretRight size={24} class="ml-auto mr-0 shrink-0" />
                 </button>
             </li>
 

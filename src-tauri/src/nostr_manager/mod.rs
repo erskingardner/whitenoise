@@ -1,15 +1,17 @@
 use crate::accounts::Account;
+use crate::nostr_manager::event_processor::EventProcessor;
 use crate::types::NostrEncryptionMethod;
 use crate::Whitenoise;
 use nostr_sdk::prelude::*;
 use nostr_sdk::NostrLMDB;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
-use tauri::Manager;
+use tauri::{AppHandle, Manager};
 use thiserror::Error;
-use tokio::spawn;
+use tokio::{spawn, sync::Mutex};
 
+pub mod event_processor;
 pub mod fetch;
 pub mod query;
 pub mod subscriptions;
@@ -25,15 +27,14 @@ pub enum NostrManagerError {
     Database(#[from] DatabaseError),
     #[error("Signer Error: {0}")]
     Signer(#[from] nostr_sdk::signer::SignerError),
-
     #[error("Error with secrets store: {0}")]
     SecretsStoreError(String),
-
     #[error("Tauri error: {0}")]
     TauriError(#[from] tauri::Error),
-
-    #[error("Failed to acquire lock: {0}")]
-    LockError(String),
+    #[error("Failed to queue event: {0}")]
+    FailedToQueueEvent(String),
+    #[error("Failed to shutdown event processor: {0}")]
+    FailedToShutdownEventProcessor(String),
 }
 
 #[derive(Debug, Clone)]
@@ -46,6 +47,7 @@ pub struct NostrManagerSettings {
 pub struct NostrManager {
     pub client: Client,
     pub settings: Arc<Mutex<NostrManagerSettings>>,
+    event_processor: Arc<Mutex<EventProcessor>>,
 }
 
 impl Default for NostrManagerSettings {
@@ -70,7 +72,7 @@ impl Default for NostrManagerSettings {
 pub type Result<T> = std::result::Result<T, NostrManagerError>;
 
 impl NostrManager {
-    pub async fn new(db_path: PathBuf) -> Result<Self> {
+    pub async fn new(db_path: PathBuf, app_handle: AppHandle) -> Result<Self> {
         let full_path = db_path.join("nostr_lmdb");
         let db = NostrLMDB::open(full_path).expect("Failed to open Nostr database");
         let opts = Options::default();
@@ -86,27 +88,23 @@ impl NostrManager {
         // Connect to the default relays
         client.connect().await;
 
+        let event_processor = Arc::new(Mutex::new(EventProcessor::new(app_handle)));
+
         Ok(Self {
             client,
             settings: Arc::new(Mutex::new(settings)),
+            event_processor,
         })
     }
 
-    pub fn timeout(&self) -> Result<Duration> {
-        Ok(self
-            .settings
-            .lock()
-            .map_err(|e| NostrManagerError::LockError(e.to_string()))?
-            .timeout)
+    pub async fn timeout(&self) -> Result<Duration> {
+        let guard = self.settings.lock().await;
+        Ok(guard.timeout)
     }
 
-    pub fn relays(&self) -> Result<Vec<String>> {
-        Ok(self
-            .settings
-            .lock()
-            .map_err(|e| NostrManagerError::LockError(e.to_string()))?
-            .relays
-            .clone())
+    pub async fn relays(&self) -> Result<Vec<String>> {
+        let guard = self.settings.lock().await;
+        Ok(guard.relays.clone())
     }
 
     /// Extracts welcome events from a list of giftwrapped events.
@@ -152,6 +150,14 @@ impl NostrManager {
             .keys(wn.clone())
             .map_err(|e| NostrManagerError::SecretsStoreError(e.to_string()))?;
 
+        // Shutdown existing event processor
+        self.event_processor
+            .lock()
+            .await
+            .clear_queue()
+            .await
+            .map_err(|e| NostrManagerError::FailedToShutdownEventProcessor(e.to_string()))?;
+
         // Reset the client
         self.client.reset().await.map_err(NostrManagerError::from)?;
 
@@ -159,7 +165,7 @@ impl NostrManager {
         self.client.set_signer(keys.clone()).await;
 
         // Add the default relays
-        for relay in self.relays()? {
+        for relay in self.relays().await? {
             self.client.add_relay(relay).await?;
         }
 
@@ -226,6 +232,10 @@ impl NostrManager {
             "Nostr identity updated and connected to relays"
         );
 
+        // Create and store new processor
+        let new_processor = EventProcessor::new(app_handle.clone());
+        *self.event_processor.lock().await = new_processor;
+
         // Spawn two tasks in parallel:
         // 1. Setup subscriptions to catch future events
         // 2. Fetch past events
@@ -245,11 +255,7 @@ impl NostrManager {
 
             match wn_state
                 .nostr
-                .setup_subscriptions(
-                    account_clone_subs.pubkey,
-                    group_ids,
-                    app_handle_clone_subs.clone(),
-                )
+                .setup_subscriptions(account_clone_subs.pubkey, group_ids)
                 .await
             {
                 Ok(_) => {

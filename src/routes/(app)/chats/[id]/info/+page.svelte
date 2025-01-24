@@ -68,31 +68,32 @@ onMount(async () => {
 });
 
 function leaveGroup() {
-    console.log("leaveGroup");
+    console.log("leaveGroup not implemented");
 }
 
 function reportSpam() {
-    console.log("reportSpam");
+    console.log("reportSpam not implemented");
 }
 
 async function rotateKey() {
-    rotatingKey = true;
-    await invoke("rotate_key_in_group", { groupId: page.params.id })
-        .then(() => {
-            document.getElementById("rotate-key-icon")?.style.setProperty("color", "green");
-            setTimeout(() => {
-                document.getElementById("rotate-key-icon")?.style.setProperty("color", "white");
-            }, 2000);
-        })
-        .catch((e) => {
-            console.error(e);
-            toastState.add("Error rotating key", e.split(": ")[2], "error");
-            rotatingKey = false;
-            document.getElementById("rotate-key-icon")?.style.setProperty("color", "red");
-        })
-        .finally(() => {
-            rotatingKey = false;
-        });
+    console.log("rotateKey not implemented");
+    // rotatingKey = true;
+    // await invoke("rotate_key_in_group", { groupId: page.params.id })
+    //     .then(() => {
+    //         document.getElementById("rotate-key-icon")?.style.setProperty("color", "green");
+    //         setTimeout(() => {
+    //             document.getElementById("rotate-key-icon")?.style.setProperty("color", "white");
+    //         }, 2000);
+    //     })
+    //     .catch((e) => {
+    //         console.error(e);
+    //         toastState.add("Error rotating key", e.split(": ")[2], "error");
+    //         rotatingKey = false;
+    //         document.getElementById("rotate-key-icon")?.style.setProperty("color", "red");
+    //     })
+    //     .finally(() => {
+    //         rotatingKey = false;
+    //     });
 }
 
 onDestroy(() => {

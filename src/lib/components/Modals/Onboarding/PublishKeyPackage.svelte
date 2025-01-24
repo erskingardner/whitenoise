@@ -21,7 +21,7 @@ let {
 }>();
 
 async function publishKeyPackage(): Promise<void> {
-    await invoke("publish_key_package", {})
+    await invoke("publish_new_key_package", {})
         .then(async () => {
             keyPackagePublished = true;
             await invoke("update_account_onboarding", {

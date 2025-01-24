@@ -1,9 +1,9 @@
 //! Subscription functions for NostrManager
 //! This mostly handles subscribing and processing events as they come in while the user is active.
 
-use crate::nostr_manager::{NostrManager, Result};
+use crate::nostr_manager::event_processor::ProcessableEvent;
+use crate::nostr_manager::{NostrManager, NostrManagerError, Result};
 use nostr_sdk::prelude::*;
-use tauri::Emitter;
 
 const MLS_MESSAGES_SUB: &str = "mls_messages";
 
@@ -20,7 +20,7 @@ impl NostrManager {
     async fn subscribe_contacts_metadata(&self) -> Result<Output<SubscriptionId>> {
         let contact_list_pubkeys = self
             .client
-            .get_contact_list_public_keys(Some(self.timeout()?))
+            .get_contact_list_public_keys(Some(self.timeout().await?))
             .await?;
 
         let contact_metadata_filter = Filter::new()
@@ -72,7 +72,7 @@ impl NostrManager {
         // https://github.com/rust-nostr/nostr/issues/509
         let null_filter = Filter::new().kind(Kind::GiftWrap).pubkey(pubkey).limit(0);
         self.client
-            .fetch_events(vec![null_filter], Some(self.timeout()?))
+            .fetch_events(vec![null_filter], Some(self.timeout().await?))
             .await?;
 
         let giftwrap_filter = Filter::new()
@@ -100,7 +100,6 @@ impl NostrManager {
         &self,
         pubkey: PublicKey,
         nostr_group_ids: Vec<String>,
-        app_handle: tauri::AppHandle,
     ) -> Result<()> {
         self.subscribe_contact_list(pubkey).await?;
         self.subscribe_contacts_metadata().await?;
@@ -118,7 +117,7 @@ impl NostrManager {
             .handle_notifications(|notification| async {
                 match notification {
                     RelayPoolNotification::Event { event, .. } => {
-                        self.handle_event(*event, app_handle.clone()).await?;
+                        self.handle_event(*event).await?;
                         Ok(false)
                     }
                     RelayPoolNotification::Message { relay_url, message } => {
@@ -152,78 +151,35 @@ impl NostrManager {
     }
 
     // Handle events
-    async fn handle_event(&self, event: Event, app_handle: tauri::AppHandle) -> Result<()> {
+    async fn handle_event(&self, event: Event) -> Result<()> {
         tracing::debug!(
             target: "whitenoise::nostr_client::subscriptions::handle_event",
             "Received event: {:?}",
             event
         );
         match event.kind {
-            Kind::GiftWrap => self.handle_giftwrap(event).await?,
-            Kind::MlsGroupMessage => self.handle_mls_message(event, app_handle)?,
+            Kind::GiftWrap => {
+                self.event_processor
+                    .lock()
+                    .await
+                    .queue_event(ProcessableEvent::GiftWrap(event))
+                    .await
+                    .map_err(|e| NostrManagerError::FailedToQueueEvent(e.to_string()))?;
+            }
+            Kind::MlsGroupMessage => {
+                self.event_processor
+                    .lock()
+                    .await
+                    .queue_event(ProcessableEvent::MlsMessage(event))
+                    .await
+                    .map_err(|e| NostrManagerError::FailedToQueueEvent(e.to_string()))?;
+            }
             _ => {}
         }
         Ok(())
     }
 
-    async fn handle_giftwrap(&self, event: Event) -> Result<()> {
-        if let Ok(unwrapped) = extract_rumor(&self.client.signer().await?, &event).await {
-            match unwrapped.rumor.kind {
-                Kind::MlsWelcome => self.handle_invite(unwrapped.rumor)?,
-                Kind::PrivateDirectMessage => {
-                    self.handle_private_direct_message(unwrapped.rumor)?
-                }
-                _ => {
-                    tracing::info!(
-                        target: "whitenoise::nostr_client::subscriptions::handle_giftwrap",
-                        "Received unhandled giftwrap of kind {:?}",
-                        unwrapped.rumor.kind
-                    );
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn handle_invite(&self, rumor: UnsignedEvent) -> Result<()> {
-        // TODO: We would like to be able to store these invites in the cache but since they're not signed we can't do that yet.
-        // TODO: Remove the identifying info from the log
-        tracing::debug!(
-            target: "whitenoise::nostr_client::handle_notifications",
-            "Received invite: {:?}",
-            rumor
-        );
-        Ok(())
-    }
-
-    fn handle_private_direct_message(&self, rumor: UnsignedEvent) -> Result<()> {
-        // TODO: We would like to be able to store these invites in the cache but since they're not signed we can't do that yet.
-        // TODO: Remove the identifying info from the log
-        tracing::debug!(
-            target: "whitenoise::nostr_client::handle_notifications",
-            "Received private direct message: {:?}",
-            rumor
-        );
-        Ok(())
-    }
-
-    fn handle_mls_message(&self, event: Event, app_handle: tauri::AppHandle) -> Result<()> {
-        // TODO: Remove the identifying info from the log
-        tracing::debug!(
-            target: "whitenoise::nostr_client::handle_notifications",
-            "Received MLS message: {:?}",
-            event
-        );
-
-        // TODO: Process the message into an unsigned event and add to the right group transcript
-        app_handle
-            .emit("mls_message_received", event.clone())
-            .expect("Couldn't emit mls_message_received event");
-        Ok(())
-    }
-
     // Handle other types of notifications
-
     fn handle_message(&self, relay_url: RelayUrl, message: RelayMessage) -> Result<()> {
         let variant_name = match message {
             RelayMessage::Event { .. } => "Event",

@@ -61,7 +61,9 @@ pub fn run() {
             }
 
             tauri::async_runtime::block_on(async move {
-                let whitenoise = Whitenoise::new(formatted_data_dir, formatted_logs_dir).await;
+                let whitenoise =
+                    Whitenoise::new(formatted_data_dir, formatted_logs_dir, app.handle().clone())
+                        .await;
                 app.manage(whitenoise);
             });
             Ok(())
@@ -85,7 +87,7 @@ pub fn run() {
             create_group,
             get_groups,
             get_invites,
-            publish_key_package,
+            publish_new_key_package,
             delete_all_key_packages,
             valid_key_package_exists_for_user,
             publish_relay_list,
@@ -99,7 +101,6 @@ pub fn run() {
             accept_invite,
             decline_invite,
             send_mls_message,
-            fetch_mls_messages,
             delete_all_data
         ])
         .run(tauri::generate_context!())
