@@ -43,12 +43,14 @@ pub fn run() {
             } else {
                 PathBuf::from(format!("{}/release", data_dir.to_string_lossy()))
             };
+            std::fs::create_dir_all(&formatted_data_dir)?;
 
             let formatted_logs_dir = if cfg!(dev) {
                 PathBuf::from(format!("{}/dev", logs_dir.to_string_lossy()))
             } else {
                 PathBuf::from(format!("{}/release", logs_dir.to_string_lossy()))
             };
+            std::fs::create_dir_all(&formatted_logs_dir)?;
 
             setup_logging(formatted_logs_dir.clone())?;
 

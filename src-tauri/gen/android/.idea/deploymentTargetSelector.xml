@@ -2,7 +2,7 @@
 <project version="4">
   <component name="deploymentTargetSelector">
     <selectionStates>
-      <SelectionState runConfigName="app">
+      <SelectionState runConfigName="Whitenoise">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
     </selectionStates>
