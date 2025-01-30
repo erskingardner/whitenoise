@@ -1,3 +1,7 @@
+![CI](https://github.com/erskingardner/whitenoise/actions/workflows/ci.yml/badge.svg?event=push)
+![Build](https://github.com/erskingardner/whitenoise/actions/workflows/build.yml/badge.svg?event=push)
+![Release](https://github.com/erskingardner/whitenoise/actions/workflows/release.yml/badge.svg?event=push)
+
 # White Noise
 
 A secure, private, and decentralized chat app built on Nostr, using the MLS protocol under the hood.
@@ -12,7 +16,7 @@ White Noise is an implemenetation of the [NIP-104](https://github.com/nostr-prot
 
 ## Running White Noise
 
-To build the app in release mode for desktop, run `bun tauri build`. 
+To build the app in release mode for desktop, run `bun tauri build`.
 
 ### MacOS
 
@@ -21,7 +25,7 @@ To build the app in release mode for desktop, run `bun tauri build`.
 
 ### Linux
 
-- I haven't tried the app on Linux yet. Let me know how it goes! 
+- I haven't tried the app on Linux yet. Let me know how it goes!
 
 ### Windows
 
