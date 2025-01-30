@@ -24,7 +24,7 @@
     },
     "bundle": {
         "active": true,
-        "targets": ["app", "dmg", "deb", "appimage"],
+        "targets": "all",
         "category": "SocialNetworking",
         "homepage": "https://whitenoise.chat",
         "license": "GNU AGPL v3.0",
