@@ -16,6 +16,7 @@ pub type Result<T> = std::result::Result<T, MessageError>;
 
 #[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]
 pub struct MessageRow {
+    pub id: i64,
     pub event_id: String,
     pub account_pubkey: String,
     pub author_pubkey: String,
@@ -67,6 +68,7 @@ impl From<ProcessedMessageState> for String {
 
 #[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]
 pub struct ProcessedMessageRow {
+    pub id: i64,
     pub event_id: String,
     pub message_event_id: Option<String>,
     pub account_pubkey: String,
@@ -100,7 +102,8 @@ impl From<ProcessedMessageRow> for ProcessedMessage {
 
 impl From<ProcessedMessage> for ProcessedMessageRow {
     fn from(message: ProcessedMessage) -> Self {
-        ProcessedMessageRow {
+        Self {
+            id: 0, // This will be ignored during insertion since we use RETURNING id
             event_id: message.event_id.to_string(),
             message_event_id: message.message_event_id.map(|id| id.to_string()),
             account_pubkey: message.account_pubkey.to_hex(),
@@ -161,7 +164,7 @@ impl ProcessedMessage {
 
         let mut txn = wn.database.pool.begin().await?;
         let processed_at = chrono::Utc::now().timestamp() as u64;
-        sqlx::query("INSERT INTO processed_messages (event_id, message_event_id, account_pubkey, processed_at, state, failure_reason) VALUES (?, ?, ?, ?, ?, ?)")
+        sqlx::query("INSERT INTO processed_messages (event_id, message_event_id, account_pubkey, processed_at, state, failure_reason) VALUES (?, ?, ?, ?, ?, ?) RETURNING id")
             .bind(event_id.to_string())
             .bind(message_event_id.map(|id| id.to_string()))
             .bind(active_account.pubkey.to_hex())

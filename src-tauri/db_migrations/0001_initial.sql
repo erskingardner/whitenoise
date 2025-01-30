@@ -109,7 +109,8 @@ CREATE INDEX idx_processed_invites_invite_event_id ON processed_invites(invite_e
 
 -- Messages table with full-text search
 CREATE TABLE messages (
-    event_id TEXT PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id TEXT NOT NULL,
     mls_group_id BLOB NOT NULL,
     account_pubkey TEXT NOT NULL,
     author_pubkey TEXT NOT NULL,
@@ -119,7 +120,8 @@ CREATE TABLE messages (
     event TEXT NOT NULL,  -- JSON string for UnsignedEvent
     outer_event_id TEXT NOT NULL,  -- the event_id of the 445 event
     FOREIGN KEY (mls_group_id, account_pubkey) REFERENCES groups(mls_group_id, account_pubkey) ON DELETE CASCADE,
-    FOREIGN KEY (account_pubkey) REFERENCES accounts(pubkey) ON DELETE CASCADE
+    FOREIGN KEY (account_pubkey) REFERENCES accounts(pubkey) ON DELETE CASCADE,
+    UNIQUE(event_id, account_pubkey)  -- Ensure event_id is unique per account
 );
 
 CREATE INDEX idx_messages_group_time ON messages(mls_group_id, created_at);
@@ -127,37 +129,41 @@ CREATE INDEX idx_messages_account_time ON messages(account_pubkey, created_at);
 CREATE INDEX idx_messages_author_time ON messages(author_pubkey, created_at);
 CREATE INDEX idx_messages_outer_event_id ON messages(outer_event_id);
 CREATE INDEX idx_messages_event_id ON messages(event_id);
+CREATE INDEX idx_messages_event_id_account ON messages(event_id, account_pubkey);
 
+-- Update processed_messages table to reference the new messages table structure
 CREATE TABLE processed_messages (
-    event_id TEXT PRIMARY KEY, -- This is the outer event id of the 445 event
-    message_event_id TEXT, -- This is the inner UnsignedEvent's id. This is the id of the events stored in the messages table.
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id TEXT NOT NULL, -- This is the outer event id of the 445 event
+    message_event_id TEXT NOT NULL, -- This is the inner UnsignedEvent's id. This is the id of the events stored in the messages table.
     account_pubkey TEXT NOT NULL, -- This is the pubkey of the account that processed the message
     processed_at INTEGER NOT NULL, -- This is the timestamp of when the message was processed
     state TEXT NOT NULL, -- This is the state of the message processing
     failure_reason TEXT, -- This is the reason the message failed to process
-
+    UNIQUE(event_id, account_pubkey),
     FOREIGN KEY (account_pubkey) REFERENCES accounts(pubkey) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_processed_messages_message_event_id ON processed_messages(message_event_id);
+CREATE INDEX idx_processed_messages_event_id_account ON processed_messages(event_id, account_pubkey);
 
 -- Full-text search for messages
 CREATE VIRTUAL TABLE messages_fts USING fts5(
     content,
-    event_id UNINDEXED,  -- Add event_id as an unindexed column
+    id UNINDEXED,  -- Change to reference the new id column
     content='messages'
 );
 
--- FTS triggers
+-- Update FTS triggers to use id instead of event_id
 CREATE TRIGGER messages_ai AFTER INSERT ON messages BEGIN
-    INSERT INTO messages_fts(content, event_id) VALUES (new.content, new.event_id);
+    INSERT INTO messages_fts(content, id) VALUES (new.content, new.id);
 END;
 
 CREATE TRIGGER messages_ad AFTER DELETE ON messages BEGIN
-    INSERT INTO messages_fts(messages_fts, content, event_id) VALUES('delete', old.content, old.event_id);
+    INSERT INTO messages_fts(messages_fts, content, id) VALUES('delete', old.content, old.id);
 END;
 
 CREATE TRIGGER messages_au AFTER UPDATE ON messages BEGIN
-    INSERT INTO messages_fts(messages_fts, content, event_id) VALUES('delete', old.content, old.event_id);
-    INSERT INTO messages_fts(content, event_id) VALUES (new.content, new.event_id);
+    INSERT INTO messages_fts(messages_fts, content, id) VALUES('delete', old.content, old.id);
+    INSERT INTO messages_fts(content, id) VALUES (new.content, new.id);
 END;

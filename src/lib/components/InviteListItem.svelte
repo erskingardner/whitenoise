@@ -52,7 +52,7 @@ $inspect("enrichedInviter", enrichedInviter);
     />
     <div class="flex flex-col gap-1 items-start">
         <span class="text-lg font-semibold">{groupName}</span>
-        <span class="text-sm text-gray-400">Invite to join a {inviteDescription}</span>
+        <span class="text-sm text-gray-400">You're invited to join a {inviteDescription}</span>
     </div>
 </button>
 

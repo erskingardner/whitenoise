@@ -255,7 +255,7 @@ impl EventProcessor {
             group_description: unwrapped_welcome_preview.nostr_group_data.description(),
             group_admin_pubkeys: unwrapped_welcome_preview.nostr_group_data.admin_pubkeys(),
             group_relays: unwrapped_welcome_preview.nostr_group_data.relays(),
-            inviter: outer_event.pubkey.to_hex(),
+            inviter: rumor_event.pubkey.to_hex(),
             member_count: unwrapped_welcome_preview.staged_welcome.members().count() as u32,
             state: InviteState::Pending,
             outer_event_id: outer_event.id.to_string(),

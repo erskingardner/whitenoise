@@ -482,6 +482,7 @@ impl Group {
                 created_at, content, tags, event, outer_event_id
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            RETURNING id
             "#,
         )
         .bind(message.id.unwrap().to_hex()) // Convert EventId to hex string
@@ -503,11 +504,13 @@ impl Group {
         );
 
         // Then fetch the inserted row if needed
-        let message_row =
-            sqlx::query_as::<_, MessageRow>("SELECT * FROM messages WHERE event_id = ?")
-                .bind(message.id.unwrap().to_string())
-                .fetch_one(&mut *txn)
-                .await?;
+        let message_row = sqlx::query_as::<_, MessageRow>(
+            "SELECT * FROM messages WHERE event_id = ? AND account_pubkey = ?",
+        )
+        .bind(message.id.unwrap().to_string())
+        .bind(account.pubkey.to_hex())
+        .fetch_one(&mut *txn)
+        .await?;
 
         txn.commit().await?;
 
