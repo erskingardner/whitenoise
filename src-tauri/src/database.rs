@@ -2,6 +2,7 @@ use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::{migrate::MigrateDatabase, Sqlite, SqlitePool};
 use std::path::PathBuf;
 use std::time::Duration;
+use tauri::{path::BaseDirectory, AppHandle, Manager};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -12,6 +13,8 @@ pub enum DatabaseError {
     Sqlx(#[from] sqlx::Error),
     #[error("Migrate error: {0}")]
     Migrate(#[from] sqlx::migrate::MigrateError),
+    #[error("Tauri error: {0}")]
+    Tauri(#[from] tauri::Error),
 }
 
 #[derive(Clone)]
@@ -24,7 +27,7 @@ pub struct Database {
 }
 
 impl Database {
-    pub async fn new(db_path: PathBuf) -> Result<Self, DatabaseError> {
+    pub async fn new(db_path: PathBuf, app_handle: AppHandle) -> Result<Self, DatabaseError> {
         // Create parent directories if they don't exist
         if let Some(parent) = db_path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -79,8 +82,10 @@ impl Database {
 
         // Run migrations
         tracing::debug!("Running migrations...");
-        let migrations_path =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("db_migrations");
+        let migrations_path = app_handle
+            .path()
+            .resolve("db_migrations", BaseDirectory::Resource)?;
+
         sqlx::migrate::Migrator::new(migrations_path)
             .await?
             .run(&pool)

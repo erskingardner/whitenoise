@@ -25,11 +25,11 @@ impl Whitenoise {
 
         Self {
             database: Arc::new(
-                Database::new(data_dir.join("whitenoise.sqlite"))
+                Database::new(data_dir.join("whitenoise.sqlite"), app_handle.clone())
                     .await
                     .expect("Failed to create database"),
             ),
-            nostr: NostrManager::new(data_dir.clone(), app_handle)
+            nostr: NostrManager::new(data_dir.clone(), app_handle.clone())
                 .await
                 .expect("Failed to create Nostr manager"),
             nostr_mls: Arc::new(Mutex::new(NostrMls::new(data_dir.clone(), None))),

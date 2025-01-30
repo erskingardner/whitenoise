@@ -205,25 +205,35 @@ jobs:
         if: ${{ !matrix.android }}
         run: |
           if [ "${{ matrix.platform }}" = "ubuntu-22.04" ]; then
+            # Get version from Cargo.toml
+            VERSION=$(grep '^version[[:space:]]*=[[:space:]]*"' src-tauri/Cargo.toml | sed 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/')
             cd src-tauri/target/release/bundle
             # Generate hash for each Linux package
-            find . -type f \( -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" \) -exec sh -c '
-              sha256sum "$1" > "${1}.sha256"
+            find . -type f -name "*.deb" -exec sh -c '
+              sha256sum "$1" | sed "s|  .*|  whitenoise-${VERSION}-linux-amd64.deb|" > "${1}.sha256"
+            ' sh {} \;
+            find . -type f -name "*.rpm" -exec sh -c '
+              sha256sum "$1" | sed "s|  .*|  whitenoise-${VERSION}-linux-x86_64.rpm|" > "${1}.sha256"
+            ' sh {} \;
+            find . -type f -name "*.AppImage" -exec sh -c '
+              sha256sum "$1" | sed "s|  .*|  whitenoise-${VERSION}-linux-x86_64.AppImage|" > "${1}.sha256"
             ' sh {} \;
           elif [ "${{ matrix.platform }}" = "macos-latest" ]; then
+            # Get version from Cargo.toml
+            VERSION=$(grep '^version[[:space:]]*=[[:space:]]*"' ../../../../src-tauri/Cargo.toml | sed 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/')
             cd src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle
             # Generate hash for macOS app bundle
             cd macos
             find . -type f -name "*.app" -exec sh -c '
-              shasum -a 256 "$1" > "${1}.sha256"
+              shasum -a 256 "$1" | sed "s|  .*|  whitenoise-${VERSION}-macos-${{ matrix.arch }}.app|" > "${1}.sha256"
             ' sh {} \;
             find . -type f -name "*.app.tar.gz" -exec sh -c '
-              shasum -a 256 "$1" > "${1}.sha256"
+              shasum -a 256 "$1" | sed "s|  .*|  whitenoise-${VERSION}-macos-${{ matrix.arch }}.app.tar.gz|" > "${1}.sha256"
             ' sh {} \;
             # Generate hash for DMG
             cd ../dmg
             find . -type f -name "*.dmg" -exec sh -c '
-              shasum -a 256 "$1" > "${1}.sha256"
+              shasum -a 256 "$1" | sed "s|  .*|  whitenoise-${VERSION}-macos-${{ matrix.arch }}.dmg|" > "${1}.sha256"
             ' sh {} \;
           fi
 
@@ -282,8 +292,8 @@ jobs:
         if: matrix.android
         run: |
           cd android-artifacts
-          find . -type f -exec sh -c '
-            sha256sum "$1" > "${1}.sha256"
+          find . -type f -not -name "*.sha256" -exec sh -c '
+            sha256sum "$1" | sed "s|./|  |" > "${1}.sha256"
           ' sh {} \;
 
       - name: List Android artifacts

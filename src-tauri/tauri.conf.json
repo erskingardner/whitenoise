@@ -32,7 +32,8 @@
         "publisher": "White Noise",
         "iOS": {
             "developmentTeam": "8Z6Q2LZ77W"
-        }
+        },
+        "resources": ["db_migrations/*"]
     },
     "plugins": {
         "shell": {
