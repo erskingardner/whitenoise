@@ -2809,6 +2809,7 @@ dependencies = [
 [[package]]
 name = "nostr-openmls"
 version = "0.1.0"
+source = "git+https://github.com/erskingardner/nostr-openmls?branch=master#94e4612963b4c3b1f1f0332c7142620ee771ddc3"
 dependencies = [
  "bincode",
  "ed25519-dalek",
