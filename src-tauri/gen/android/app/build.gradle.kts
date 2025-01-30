@@ -18,6 +18,12 @@ val tauriProperties = Properties().apply {
 android {
     compileSdk = 34
     namespace = "com.paper_robin.whitenoise"
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
         applicationId = "com.paper_robin.whitenoise"
@@ -63,7 +69,7 @@ android {
         }
     }
     kotlinOptions {
-        jvmTarget = "1.8"
+        jvmTarget = "17"
     }
     buildFeatures {
         buildConfig = true
