@@ -155,7 +155,7 @@ jobs:
         id: verify_apple_certificate
         run: |
           security find-identity -v -p codesigning build.keychain
-          CERT_INFO=$(security find-identity -v -p codesigning build.keychain | grep -E "Apple (Development|Distribution)")
+          CERT_INFO=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application")
           CERT_ID=$(echo "$CERT_INFO" | awk -F'"' '{print $2}')
           echo "cert_id=$CERT_ID" >> "$GITHUB_OUTPUT"
           echo "Apple Developer Certificate imported."
@@ -187,7 +187,7 @@ jobs:
           # Apple signing
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ matrix.platform == 'macos-latest' && steps.verify_apple_certificate.outputs.cert_id || '' }}
+          APPLE_SIGNING_IDENTITY: ${{ matrix.platform == 'macos-latest' && 'Developer ID Application' || '' }}
           # AppImage signing
           LDAI_SIGN: ${{ matrix.platform == 'ubuntu-22.04' && !matrix.android }}
           LDAI_SIGN_KEY: ${{ matrix.platform == 'ubuntu-22.04' && !matrix.android && steps.import_gpg.outputs.keyid || '' }}

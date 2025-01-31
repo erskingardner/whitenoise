@@ -33,6 +33,9 @@
         "iOS": {
             "developmentTeam": "8Z6Q2LZ77W"
         },
+        "macOS": {
+            "frameworks": []
+        },
         "resources": ["db_migrations/*"]
     },
     "plugins": {
