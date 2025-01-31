@@ -5,7 +5,7 @@ on:
     secrets:
       APPLE_ID:
         required: true
-      APPLE_ID_PASSWORD:
+      APPLE_PASSWORD:
         required: true
       APPLE_TEAM_ID:
         required: true
@@ -55,7 +55,7 @@ jobs:
     runs-on: ${{ matrix.platform }}
     env:
       APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
     steps:
       - uses: actions/checkout@v4
