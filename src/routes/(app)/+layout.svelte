@@ -70,7 +70,7 @@ onDestroy(() => {
     {#if !page.url.pathname.match(/^\/chats\/*[a-zA-Z0-9]+\/*/)}
         <Tabbar {activeTab} />
     {/if}
-    <div class="flex flex-col grow md:w-4/5">
+    <div class="flex flex-col grow md:w-4/5 bg-gray-900">
         {@render children()}
     </div>
 </main>
