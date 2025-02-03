@@ -47,6 +47,8 @@ async function startSecureChat() {
 
 async function inviteToWhiteNoise() {
     // TODO: await invoke("invite_to_white_noise", { pubkey });
+    console.log("Invite to White Noise not implemented");
+    toastState.add("Invite to White Noise", "Not implemented", "info");
 }
 </script>
 
@@ -77,9 +79,9 @@ async function inviteToWhiteNoise() {
                 {nameFromMetadata(contact.metadata, pubkey)} is not yet set up to use secure MLS messaging.
             </p>
 
-            <!-- <button class="button-primary" onclick={inviteToWhiteNoise}>
+            <button class="button-primary" onclick={inviteToWhiteNoise}>
                 Invite {nameFromMetadata(contact.metadata, pubkey)} to White Noise
-            </button> -->
+            </button>
         {/if}
         {#if isLoading}
             <Loader size={40} fullscreen={false} />
