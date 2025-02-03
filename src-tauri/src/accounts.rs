@@ -489,7 +489,7 @@ impl Account {
         wn: tauri::State<'_, Whitenoise>,
     ) -> Result<Vec<String>> {
         Ok(sqlx::query_scalar::<_, String>(
-            "SELECT url FROM relays WHERE relay_type = ? AND account_pubkey = ?",
+            "SELECT url FROM account_relays WHERE relay_type = ? AND account_pubkey = ?",
         )
         .bind(String::from(relay_type))
         .bind(self.pubkey.to_hex().as_str())

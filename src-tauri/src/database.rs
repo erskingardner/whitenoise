@@ -47,23 +47,23 @@ impl Database {
         let db_url = format!("{}", db_path.display());
 
         // Create database if it doesn't exist
-        tracing::debug!("Checking if DB exists...{:?}", db_url);
+        tracing::info!("Checking if DB exists...{:?}", db_url);
         if Sqlite::database_exists(&db_url).await.unwrap_or(false) {
-            tracing::debug!("DB exists");
+            tracing::info!("DB exists");
         } else {
-            tracing::debug!("DB does not exist, creating...");
+            tracing::info!("DB does not exist, creating...");
             match Sqlite::create_database(&db_url).await {
                 Ok(_) => {
-                    tracing::debug!("DB created");
+                    tracing::info!("DB created");
                 }
                 Err(e) => {
-                    tracing::debug!("Error creating DB: {:?}", e);
+                    tracing::error!("Error creating DB: {:?}", e);
                 }
             }
         }
 
         // Create connection pool with refined settings
-        tracing::debug!("Creating connection pool...");
+        tracing::info!("Creating connection pool...");
         let pool = SqlitePoolOptions::new()
             .acquire_timeout(Duration::from_secs(5))
             .max_connections(10)
@@ -92,7 +92,7 @@ impl Database {
             .await?;
 
         // Run migrations
-        tracing::debug!("Running migrations...");
+        tracing::info!("Running migrations...");
 
         let migrations_path = if cfg!(target_os = "android") {
             // On Android, we need to copy migrations to a temporary directory
@@ -104,7 +104,7 @@ impl Database {
 
             // Copy all migration files from the embedded assets
             for (filename, content) in MIGRATION_FILES {
-                tracing::debug!("Writing migration file: {}", filename);
+                tracing::info!("Writing migration file: {}", filename);
                 fs::write(temp_dir.join(filename), content)?;
             }
 
@@ -115,7 +115,7 @@ impl Database {
                 .resolve("db_migrations", BaseDirectory::Resource)?
         };
 
-        tracing::debug!("Migrations path: {:?}", migrations_path);
+        tracing::info!("Migrations path: {:?}", migrations_path);
         if !migrations_path.exists() {
             tracing::error!("Migrations directory not found at {:?}", migrations_path);
             return Err(DatabaseError::FileSystem(std::io::Error::new(
@@ -127,6 +127,7 @@ impl Database {
         match sqlx::migrate::Migrator::new(migrations_path).await {
             Ok(migrator) => {
                 migrator.run(&pool).await?;
+                tracing::info!("Migrations applied successfully");
                 // Clean up temp directory on Android after successful migration
                 if cfg!(target_os = "android") {
                     if let Ok(temp_dir) = app_handle.path().app_data_dir() {

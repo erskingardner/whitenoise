@@ -17,7 +17,7 @@ pub struct Whitenoise {
 
 impl Whitenoise {
     pub async fn new(data_dir: PathBuf, logs_dir: PathBuf, app_handle: AppHandle) -> Self {
-        tracing::debug!(
+        tracing::info!(
             target: "whitenoise::whitenoise::new",
             "Creating Whitenoise instance with data_dir: {:?}",
             &data_dir
