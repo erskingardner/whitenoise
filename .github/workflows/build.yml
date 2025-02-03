@@ -210,31 +210,43 @@ jobs:
             cd src-tauri/target/release/bundle
             # Generate hash for each Linux package
             find . -type f -name "*.deb" -exec sh -c '
-              sha256sum "$1" | sed "s|  .*|  whitenoise-${VERSION}-linux-amd64.deb|" > "${1}.sha256"
-            ' sh {} \;
+              VERSION="$1"
+              FILE="$2"
+              sha256sum "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-linux-amd64.deb|" > "${FILE}.sha256"
+            ' sh "$VERSION" {} \;
             find . -type f -name "*.rpm" -exec sh -c '
-              sha256sum "$1" | sed "s|  .*|  whitenoise-${VERSION}-linux-x86_64.rpm|" > "${1}.sha256"
-            ' sh {} \;
+              VERSION="$1"
+              FILE="$2"
+              sha256sum "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-linux-x86_64.rpm|" > "${FILE}.sha256"
+            ' sh "$VERSION" {} \;
             find . -type f -name "*.AppImage" -exec sh -c '
-              sha256sum "$1" | sed "s|  .*|  whitenoise-${VERSION}-linux-x86_64.AppImage|" > "${1}.sha256"
-            ' sh {} \;
+              VERSION="$1"
+              FILE="$2"
+              sha256sum "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-linux-x86_64.AppImage|" > "${FILE}.sha256"
+            ' sh "$VERSION" {} \;
           elif [ "${{ matrix.platform }}" = "macos-latest" ]; then
             # Get version from Cargo.toml
-            VERSION=$(grep '^version[[:space:]]*=[[:space:]]*"' ../../../../src-tauri/Cargo.toml | sed 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/')
+            VERSION=$(grep '^version[[:space:]]*=[[:space:]]*"' src-tauri/Cargo.toml | sed 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/')
             cd src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle
             # Generate hash for macOS app bundle
             cd macos
             find . -type f -name "*.app" -exec sh -c '
-              shasum -a 256 "$1" | sed "s|  .*|  whitenoise-${VERSION}-macos-${{ matrix.arch }}.app|" > "${1}.sha256"
-            ' sh {} \;
+              VERSION="$1"
+              FILE="$2"
+              shasum -a 256 "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-macos-${{ matrix.arch }}.app|" > "${FILE}.sha256"
+            ' sh "$VERSION" {} \;
             find . -type f -name "*.app.tar.gz" -exec sh -c '
-              shasum -a 256 "$1" | sed "s|  .*|  whitenoise-${VERSION}-macos-${{ matrix.arch }}.app.tar.gz|" > "${1}.sha256"
-            ' sh {} \;
+              VERSION="$1"
+              FILE="$2"
+              shasum -a 256 "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-macos-${{ matrix.arch }}.app.tar.gz|" > "${FILE}.sha256"
+            ' sh "$VERSION" {} \;
             # Generate hash for DMG
             cd ../dmg
             find . -type f -name "*.dmg" -exec sh -c '
-              shasum -a 256 "$1" | sed "s|  .*|  whitenoise-${VERSION}-macos-${{ matrix.arch }}.dmg|" > "${1}.sha256"
-            ' sh {} \;
+              VERSION="$1"
+              FILE="$2"
+              shasum -a 256 "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-macos-${{ matrix.arch }}.dmg|" > "${FILE}.sha256"
+            ' sh "$VERSION" {} \;
           fi
 
       - name: Build Android universal binary
