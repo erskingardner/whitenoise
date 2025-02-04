@@ -40,10 +40,11 @@ onMount(async () => {
         });
     }
 
-    updateAccountsStore().then(() => {
+    updateAccountsStore().then(async () => {
         loading = false;
         if ($activeAccount?.pubkey && isValidHexPubkey($activeAccount?.pubkey)) {
-            invoke("init_nostr_for_current_user");
+            await invoke("init_nostr_for_current_user");
+            console.log("Initialized Nostr for current user");
         }
     });
 });
