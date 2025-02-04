@@ -25,8 +25,6 @@ let groupAvatarColor: string = $derived(
         .padStart(6, "5")
         .slice(0, 6)
 );
-
-$inspect("enrichedCounterparty", enrichedCounterparty);
 </script>
 
 {#if groupType === NostrMlsGroupType.DirectMessage && counterpartyPubkey && enrichedCounterparty}

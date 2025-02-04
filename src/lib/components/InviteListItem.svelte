@@ -35,8 +35,6 @@ $effect(() => {
         groupName = invite.group_name;
     }
 });
-
-$inspect("enrichedInviter", enrichedInviter);
 </script>
 
 <button
