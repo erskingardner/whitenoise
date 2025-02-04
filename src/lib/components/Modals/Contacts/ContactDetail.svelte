@@ -55,7 +55,7 @@ async function inviteToWhiteNoise() {
 <div>
     <div class="flex flex-col items-center justify-start gap-2">
         <Avatar {pubkey} picture={contact.metadata.picture} pxSize={80} />
-        <div class="text-4xl font-bold mt-6 w-full truncate">
+        <div class="text-4xl font-bold mt-6 w-full truncate text-center">
             <Name {pubkey} metadata={contact.metadata} unstyled={false} extraClasses="text-[2rem] text-center" />
         </div>
         <p class="text-gray-500 text-center">
@@ -74,7 +74,7 @@ async function inviteToWhiteNoise() {
             </p>
             <button class="button-primary" onclick={startSecureChat}> Start secure chat </button>
         {:else}
-            <p class="flex flex-row items-center gap-2">
+            <p class="flex flex-col md:flex-row items-center gap-2">
                 <Warning class="text-red-500" weight="bold" size={24} />
                 {nameFromMetadata(contact.metadata, pubkey)} is not yet set up to use secure MLS messaging.
             </p>

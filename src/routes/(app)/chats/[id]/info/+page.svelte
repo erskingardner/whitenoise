@@ -1,4 +1,5 @@
 <script lang="ts">
+import { goto } from "$app/navigation";
 import { page } from "$app/state";
 import Avatar from "$lib/components/Avatar.svelte";
 import GroupAvatar from "$lib/components/GroupAvatar.svelte";
@@ -104,7 +105,7 @@ onDestroy(() => {
 {#if group}
     <HeaderToolbar>
         {#snippet left()}
-            <button onclick={() => window.history.back()} class="p-2 -mr-2">
+            <button onclick={() => goto(`/chats/${page.params.id}`)} class="p-2 -mr-2">
                 <CaretLeft size={30} />
             </button>
         {/snippet}

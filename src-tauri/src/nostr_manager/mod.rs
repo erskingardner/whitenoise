@@ -56,7 +56,7 @@ impl Default for NostrManagerSettings {
         if cfg!(dev) {
             relays.push("ws://localhost:8080".to_string());
             relays.push("wss://purplepag.es".to_string());
-            // relays.push("wss://relay.nostr.net".to_string());
+            // relays.push("wss://nos.lol".to_string());
         } else {
             relays.push("wss://relay.damus.io".to_string());
             relays.push("wss://purplepag.es".to_string());
