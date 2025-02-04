@@ -59,12 +59,13 @@ impl Default for NostrManagerSettings {
             // relays.push("wss://relay.nostr.net".to_string());
         } else {
             relays.push("wss://relay.damus.io".to_string());
+            relays.push("wss://purplepag.es".to_string());
             relays.push("wss://relay.primal.net".to_string());
             relays.push("wss://nostr.oxtr.dev".to_string());
         }
 
         Self {
-            timeout: Duration::from_secs(5),
+            timeout: Duration::from_secs(10),
             relays,
         }
     }
