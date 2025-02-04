@@ -24,7 +24,7 @@ import {
     PencilSimple,
     TrashSimple,
 } from "phosphor-svelte";
-import { onDestroy, onMount } from "svelte";
+import { onDestroy, onMount, tick } from "svelte";
 import { type PressCustomEvent, press } from "svelte-gestures";
 
 let unlistenMlsMessageReceived: UnlistenFn;
@@ -54,7 +54,7 @@ $effect(() => {
 });
 
 async function loadGroup() {
-    invoke("get_group_and_messages", { groupId: page.params.id }).then((groupResponse) => {
+    invoke("get_group_and_messages", { groupId: page.params.id }).then(async (groupResponse) => {
         [group, messages] = groupResponse as [NostrMlsGroup, NEvent[]];
         if (!counterpartyPubkey) {
             counterpartyPubkey =
@@ -70,13 +70,17 @@ async function loadGroup() {
                 enrichedCounterparty = value as EnrichedContact;
             });
         }
+        console.log("loading group about to scroll to bottom");
+        await scrollToBottom();
     });
-    scrollToBottom();
 }
 
-function scrollToBottom() {
+async function scrollToBottom() {
+    await tick();
     const messagesContainer = document.getElementById("messagesContainer");
     const screenHeight = window.innerHeight;
+    console.log("screenHeight", screenHeight);
+    console.log("messagesContainer", messagesContainer);
     if (messagesContainer && screenHeight < messagesContainer.scrollHeight) {
         const lastMessage = messagesContainer.lastElementChild;
         lastMessage?.scrollIntoView({ behavior: "instant" });
