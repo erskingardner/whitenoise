@@ -270,15 +270,15 @@ onDestroy(() => {
                         data-is-current-user={message.pubkey === $activeAccount?.pubkey}
                         class={`max-w-[70%] rounded-lg ${message.pubkey === $activeAccount?.pubkey ? "bg-chat-bg-me text-gray-50 rounded-br" : "bg-chat-bg-other text-gray-50 rounded-bl"} p-3 ${showMessageMenu && message.id === selectedMessageId ? 'relative z-20' : ''}`}
                     >
-                        <div class="flex flex-col gap-2 ${message.content.length < 50 ? "flex-shrink-0 !flex-row gap-6 items-end" : "justify-end w-full"} lg:flex-row lg:gap-6 lg:items-end">
-                            <span class="break-words">
-                                {#if message.content.length > 0}
+                        <div class="flex {message.content.trim().length < 50 ? "flex-row gap-6" : "flex-col gap-2 justify-end w-full"} items-end">
+                            <div class="break-words">
+                                {#if message.content.trim().length > 0}
                                     {message.content}
                                 {:else}
                                     <span class="italic opacity-60">No message content</span>
                                 {/if}
-                            </span>
-                            <div class={`flex flex-row gap-2 items-center ${message.pubkey === $activeAccount?.pubkey ? "text-gray-300" : "text-gray-400"} ${message.content.length < 50 ? "flex-shrink-0" : "justify-end w-full"}`}>
+                            </div>
+                            <div class={`flex flex-row gap-2 items-center ${message.pubkey === $activeAccount?.pubkey ? "text-gray-300" : "text-gray-400"} ${message.content.trim().length < 50 ? "flex-shrink-0" : "justify-end w-full shrink"}`}>
                                 {#if message.id !== "temp"}
                                     <span><CheckCircle size={18} weight="light" /></span>
                                 {:else}

@@ -130,6 +130,11 @@ onDestroy(() => {
     unlistenAccountChanging?.();
     unlistenAccountChanged?.();
     unlistenNostrReady?.();
+    unlistenGroupAdded?.();
+    unlistenInviteAccepted?.();
+    unlistenInviteDeclined?.();
+    unlistenInviteProcessed?.();
+    unlistenInviteFailedToProcess?.();
     toastState.cleanup();
 });
 </script>
