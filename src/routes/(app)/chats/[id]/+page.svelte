@@ -227,6 +227,14 @@ function deleteMessage() {
     console.log("deleting message");
 }
 
+function isSingleEmoji(str: string) {
+    const trimmed = str.trim();
+    // This regex matches a single emoji (including compound emojis like 👨‍👩‍👧‍👦 or 👨🏻‍💻)
+    const emojiRegex =
+        /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F)\p{Emoji_Modifier}*(?:\u200D(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F)\p{Emoji_Modifier}*)*$/u;
+    return emojiRegex.test(trimmed);
+}
+
 onDestroy(() => {
     unlistenMlsMessageProcessed();
     unlistenMlsMessageReceived();
@@ -269,10 +277,10 @@ onDestroy(() => {
                         data-message-container
                         data-message-id={message.id}
                         data-is-current-user={message.pubkey === $activeAccount?.pubkey}
-                        class={`max-w-[70%] rounded-lg ${message.pubkey === $activeAccount?.pubkey ? "bg-chat-bg-me text-gray-50 rounded-br" : "bg-chat-bg-other text-gray-50 rounded-bl"} p-3 ${showMessageMenu && message.id === selectedMessageId ? 'relative z-20' : ''}`}
+                        class={`max-w-[70%] ${!isSingleEmoji(message.content) ? `rounded-lg ${message.pubkey === $activeAccount?.pubkey ? "bg-chat-bg-me text-gray-50 rounded-br" : "bg-chat-bg-other text-gray-50 rounded-bl"} p-3` : ''} ${showMessageMenu && message.id === selectedMessageId ? 'relative z-20' : ''}`}
                     >
-                        <div class="flex {message.content.trim().length < 50 ? "flex-row gap-6" : "flex-col gap-2 justify-end w-full"} items-end">
-                            <div class="break-words">
+                        <div class="flex {message.content.trim().length < 50 && !isSingleEmoji(message.content) ? "flex-row gap-6" : "flex-col gap-2 justify-end w-full"} items-end {isSingleEmoji(message.content) ? 'mb-4 my-6' : ''}">
+                            <div class="break-words {isSingleEmoji(message.content) ? 'text-7xl leading-none' : ''}">
                                 {#if message.content.trim().length > 0}
                                     {message.content}
                                 {:else}
