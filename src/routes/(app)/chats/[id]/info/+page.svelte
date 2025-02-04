@@ -5,18 +5,25 @@ import Avatar from "$lib/components/Avatar.svelte";
 import GroupAvatar from "$lib/components/GroupAvatar.svelte";
 import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
 import Name from "$lib/components/Name.svelte";
-import { activeAccount } from "$lib/stores/accounts";
+import { activeAccount, colorForRelayStatus, relays } from "$lib/stores/accounts";
 import { getToastState } from "$lib/stores/toast-state.svelte";
-import { type NostrMlsGroup, NostrMlsGroupType } from "$lib/types/nostr";
+import {
+    type NostrMlsGroup,
+    NostrMlsGroupType,
+    type NostrMlsGroupWithRelays,
+} from "$lib/types/nostr";
 import type { EnrichedContact, NEvent } from "$lib/types/nostr";
 import { nameFromMetadata } from "$lib/utils/nostr";
 import { invoke } from "@tauri-apps/api/core";
-import { CaretLeft, Key, LockKey, SignOut, WarningOctagon } from "phosphor-svelte";
+import { CaretLeft, HardDrives, Key, LockKey, SignOut, WarningOctagon } from "phosphor-svelte";
 import { onDestroy, onMount } from "svelte";
 
 let toastState = getToastState();
 
+let groupWithRelays: NostrMlsGroupWithRelays | undefined = $state(undefined);
 let group: NostrMlsGroup | undefined = $state(undefined);
+let groupRelays: string[] = $state([]);
+let groupRelaysWithStatus: Record<string, string> = $state({});
 let counterpartyPubkey: string | undefined = $state(undefined);
 let enrichedCounterparty: EnrichedContact | undefined = $state(undefined);
 let groupName = $state("");
@@ -59,7 +66,15 @@ async function loadGroup() {
         invoke("get_group_admins", { groupId: page.params.id }),
     ]);
     let [groupResponse, membersResponse, adminsResponse] = await groupResponses;
-    group = groupResponse as NostrMlsGroup;
+    groupWithRelays = groupResponse as NostrMlsGroupWithRelays;
+    group = groupWithRelays.group;
+    groupRelays = groupWithRelays.relays;
+
+    // Extract matching relays and their status
+    groupRelaysWithStatus = Object.fromEntries(
+        groupRelays.filter((relay) => relay in $relays).map((relay) => [relay, $relays[relay]])
+    );
+
     members = membersResponse as string[];
     admins = adminsResponse as string[];
 }
@@ -100,6 +115,8 @@ async function rotateKey() {
 onDestroy(() => {
     toastState.cleanup();
 });
+
+$inspect(group);
 </script>
 
 {#if group}
@@ -118,8 +135,9 @@ onDestroy(() => {
             {group.description || "A secure chat"}
         </p>
     </div>
-    <div class="section mx-6">
-        <h2 class="section-title">{members.length} Members</h2>
+    <div class="mx-4">
+    <h2 class="section-title">{members.length} Members</h2>
+    <div class="section">
         <ul class="flex flex-col">
             {#each members as member}
                 <li class="flex flex-row items-center gap-4 border-b border-gray-700 py-2 last:border-b-0">
@@ -132,12 +150,28 @@ onDestroy(() => {
             {/each}
         </ul>
     </div>
-    <div class="section mx-6">
+    <h2 class="section-title">Group Relays</h2>
+    <div class="section">
+        <ul class="flex flex-col items-center gap-0">
+            {#each Object.entries($relays) as [url, status]}
+                <li class="flex flex-row items-center gap-4 py-3 w-full border-b border-gray-700 last:border-b-0">
+                    <HardDrives size={24} class={colorForRelayStatus(status)} />
+                    <span>
+                        {url} -
+                        <span class="text-sm font-light">{status}</span>
+                    </span>
+                </li>
+            {/each}
+        </ul>
+    </div>
+    <h2 class="section-title">Actions</h2>
+    <div class="section">
         <div class="flex flex-col items-center gap-0">
             <button class="flex flex-row items-center gap-4 py-3 w-full border-b border-gray-700 last:border-b-0" onclick={rotateKey}><Key size={24} class="transition-all duration-300 ease-in-out {rotatingKey ? 'animate-spin': ''}" id="rotate-key-icon" />Rotate Your Key</button>
             <button class="text-red-500 flex flex-row items-center gap-4 py-3 w-full border-b border-gray-700 last:border-b-0" onclick={leaveGroup}><SignOut size={24} />Leave Group</button>
             <button class="text-red-500 flex flex-row items-center gap-4 py-3 w-full border-b border-gray-700 last:border-b-0" onclick={reportSpam}><WarningOctagon size={24} />Report Spam</button>
         </div>
     </div>
+</div>
 {/if}
 

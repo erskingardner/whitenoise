@@ -27,6 +27,12 @@ pub struct GroupRow {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GroupWithRelays {
+    pub group: Group,
+    pub relays: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Group {
     /// This is the MLS group ID, this will serve as the PK in the DB and doesn't change
     pub mls_group_id: Vec<u8>,
@@ -570,10 +576,15 @@ impl Group {
     }
 
     pub async fn relays(&self, wn: tauri::State<'_, Whitenoise>) -> Result<Vec<String>> {
+        let account = Account::get_active(wn.clone())
+            .await
+            .map_err(GroupError::AccountError)?;
+
         Ok(sqlx::query_scalar::<_, String>(
-            "SELECT url FROM group_relays WHERE relay_type = 'group' AND group_id = ?",
+            "SELECT url FROM group_relays WHERE relay_type = 'group' AND group_id = ? AND account_pubkey = ?",
         )
         .bind(&self.mls_group_id)
+        .bind(account.pubkey.to_hex())
         .fetch_all(&wn.database.pool)
         .await?)
     }

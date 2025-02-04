@@ -1,6 +1,6 @@
 use crate::accounts::Account;
 use crate::fetch_enriched_contact;
-use crate::groups::{Group, GroupType};
+use crate::groups::{Group, GroupType, GroupWithRelays};
 use crate::key_packages::fetch_key_packages_for_members;
 use crate::secrets_store;
 use crate::whitenoise::Whitenoise;
@@ -45,12 +45,22 @@ pub async fn get_groups(wn: tauri::State<'_, Whitenoise>) -> Result<Vec<Group>, 
 /// - Group not found in database
 /// - Database error occurs
 #[tauri::command]
-pub async fn get_group(group_id: &str, wn: tauri::State<'_, Whitenoise>) -> Result<Group, String> {
+pub async fn get_group(
+    group_id: &str,
+    wn: tauri::State<'_, Whitenoise>,
+) -> Result<GroupWithRelays, String> {
     let mls_group_id =
         hex::decode(group_id).map_err(|e| format!("Error decoding group id: {}", e))?;
-    Group::find_by_mls_group_id(&mls_group_id, wn.clone())
+    let group = Group::find_by_mls_group_id(&mls_group_id, wn.clone())
         .await
-        .map_err(|e| format!("Error fetching group: {}", e))
+        .map_err(|e| format!("Error fetching group: {}", e))?;
+    let relays = group.relays(wn.clone()).await.map_err(|e| e.to_string())?;
+    tracing::debug!(
+        target: "whitenoise::commands::groups::get_group",
+        "Group Relays: {:?}",
+        relays
+    );
+    Ok(GroupWithRelays { group, relays })
 }
 
 /// Gets a single MLS group and its messages by group ID

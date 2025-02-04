@@ -125,6 +125,11 @@ export type NostrMlsGroup = {
     group_type: NostrMlsGroupType;
 };
 
+export type NostrMlsGroupWithRelays = {
+    group: NostrMlsGroup;
+    relays: string[];
+};
+
 export enum NostrMlsGroupType {
     DirectMessage = "DirectMessage",
     Group = "Group",
