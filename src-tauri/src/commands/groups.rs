@@ -406,6 +406,8 @@ pub async fn create_group(
 pub async fn send_mls_message(
     group: Group,
     message: String,
+    kind: u16,
+    tags: Option<Vec<Tag>>,
     wn: tauri::State<'_, Whitenoise>,
     app_handle: tauri::AppHandle,
 ) -> Result<UnsignedEvent, String> {
@@ -418,8 +420,8 @@ pub async fn send_mls_message(
             .await
             .map_err(|e| e.to_string())?,
         Timestamp::now(),
-        Kind::Custom(9),
-        Vec::new(),
+        kind.into(),
+        tags.unwrap_or_default(),
         message,
     );
     inner_event.ensure_id();

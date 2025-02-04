@@ -5,7 +5,7 @@ import Avatar from "$lib/components/Avatar.svelte";
 import GroupAvatar from "$lib/components/GroupAvatar.svelte";
 import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
 import Name from "$lib/components/Name.svelte";
-import { activeAccount, colorForRelayStatus, relays } from "$lib/stores/accounts";
+import { activeAccount, colorForRelayStatus, fetchRelays, relays } from "$lib/stores/accounts";
 import { getToastState } from "$lib/stores/toast-state.svelte";
 import {
     type NostrMlsGroup,
@@ -70,10 +70,12 @@ async function loadGroup() {
     group = groupWithRelays.group;
     groupRelays = groupWithRelays.relays;
 
-    // Extract matching relays and their status
-    groupRelaysWithStatus = Object.fromEntries(
-        groupRelays.filter((relay) => relay in $relays).map((relay) => [relay, $relays[relay]])
-    );
+    fetchRelays().then(() => {
+        // Extract matching relays and their status
+        groupRelaysWithStatus = Object.fromEntries(
+            groupRelays.filter((relay) => relay in $relays).map((relay) => [relay, $relays[relay]])
+        );
+    });
 
     members = membersResponse as string[];
     admins = adminsResponse as string[];
@@ -115,8 +117,6 @@ async function rotateKey() {
 onDestroy(() => {
     toastState.cleanup();
 });
-
-$inspect(group);
 </script>
 
 {#if group}
@@ -153,7 +153,7 @@ $inspect(group);
     <h2 class="section-title">Group Relays</h2>
     <div class="section">
         <ul class="flex flex-col items-center gap-0">
-            {#each Object.entries($relays) as [url, status]}
+            {#each Object.entries(groupRelaysWithStatus) as [url, status]}
                 <li class="flex flex-row items-center gap-4 py-3 w-full border-b border-gray-700 last:border-b-0">
                     <HardDrives size={24} class={colorForRelayStatus(status)} />
                     <span>

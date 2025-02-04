@@ -40,6 +40,7 @@ async function sendMessage() {
     await invoke("send_mls_message", {
         group,
         message: message,
+        kind: 9,
     })
         .then((messageEvent) => {
             handleNewMessage(messageEvent as NEvent, true);

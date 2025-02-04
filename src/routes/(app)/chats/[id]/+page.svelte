@@ -194,12 +194,35 @@ function handleOutsideClick() {
     selectedMessageId = undefined;
 }
 
-async function sendReaction(reaction: string) {
-    console.log("sending reaction", reaction);
-    const reactionResp = await invoke("send_reaction", {
-        groupId: page.params.id,
-        reaction: reaction,
-        messageId: selectedMessageId,
+async function sendReaction(reaction: string, messageId: string | null | undefined) {
+    if (!group) {
+        console.error("no group found");
+        return;
+    }
+    if (!messageId) {
+        console.error("no message selected");
+        return;
+    }
+    const message = messages.find((m) => m.id === messageId);
+    if (!message) {
+        console.error("message not found");
+        return;
+    }
+
+    // Filter out tags that are not "e" or "p" (or invalid)
+    let tags = message.tags.filter((t) => t.length >= 2 && (t[0] === "e" || t[0] === "p"));
+    // Now add our own tags for the reaction
+    tags = [...tags, ["e", messageId], ["p", message.pubkey], ["k", message.kind.toString()]];
+
+    console.log("Sending reaction", reaction);
+    invoke("send_mls_message", {
+        group,
+        message: reaction,
+        kind: 7,
+        tags: tags,
+    }).then((reactionEvent) => {
+        console.log("reaction sent", reactionEvent);
+        handleNewMessage(reactionEvent as NEvent, false);
     });
 }
 
@@ -235,6 +258,24 @@ function isSingleEmoji(str: string) {
     return emojiRegex.test(trimmed);
 }
 
+function reactionsForMessage(message: NEvent): { content: string; count: number }[] {
+    const reactions = messages.filter(
+        (m) => m.kind === 7 && m.tags.some((t) => t[0] === "e" && t[1] === message.id)
+    );
+    return reactions.reduce(
+        (acc, reaction) => {
+            const existingReaction = acc.find((r) => r.content === reaction.content);
+            if (existingReaction) {
+                existingReaction.count++;
+            } else {
+                acc.push({ content: reaction.content, count: 1 });
+            }
+            return acc;
+        },
+        [] as { content: string; count: number }[]
+    );
+}
+
 onDestroy(() => {
     unlistenMlsMessageProcessed();
     unlistenMlsMessageReceived();
@@ -268,38 +309,50 @@ onDestroy(() => {
             class="flex-1 px-8 flex flex-col gap-2 pt-10 pb-40 overflow-y-auto opacity-100 transition-opacity ease-in-out duration-50"
         >
             {#each messages as message (message.id)}
-                <div
-                    class={`flex ${message.pubkey === $activeAccount?.pubkey ? "justify-end" : "justify-start"}`}
-                >
+                {#if message.kind === 9}
                     <div
-                        use:press={()=>({ triggerBeforeFinished: true, timeframe: 300 })}
-                        onpress={handlePress}
-                        data-message-container
-                        data-message-id={message.id}
-                        data-is-current-user={message.pubkey === $activeAccount?.pubkey}
-                        class={`max-w-[70%] ${!isSingleEmoji(message.content) ? `rounded-lg ${message.pubkey === $activeAccount?.pubkey ? "bg-chat-bg-me text-gray-50 rounded-br" : "bg-chat-bg-other text-gray-50 rounded-bl"} p-3` : ''} ${showMessageMenu && message.id === selectedMessageId ? 'relative z-20' : ''}`}
+                        class={`flex ${message.pubkey === $activeAccount?.pubkey ? "justify-end" : "justify-start"}`}
                     >
-                        <div class="flex {message.content.trim().length < 50 && !isSingleEmoji(message.content) ? "flex-row gap-6" : "flex-col gap-2 justify-end w-full"} items-end {isSingleEmoji(message.content) ? 'mb-4 my-6' : ''}">
-                            <div class="break-words {isSingleEmoji(message.content) ? 'text-7xl leading-none' : ''}">
-                                {#if message.content.trim().length > 0}
-                                    {message.content}
-                                {:else}
-                                    <span class="italic opacity-60">No message content</span>
-                                {/if}
+                        <div
+                            use:press={()=>({ triggerBeforeFinished: true, timeframe: 300 })}
+                            onpress={handlePress}
+                            data-message-container
+                            data-message-id={message.id}
+                            data-is-current-user={message.pubkey === $activeAccount?.pubkey}
+                            class={`relative max-w-[70%] ${!isSingleEmoji(message.content) ? `rounded-lg ${message.pubkey === $activeAccount?.pubkey ? "bg-chat-bg-me text-gray-50 rounded-br" : "bg-chat-bg-other text-gray-50 rounded-bl"} p-3` : ''} ${showMessageMenu && message.id === selectedMessageId ? 'relative z-20' : ''}`}
+                        >
+                            <div class="flex {message.content.trim().length < 50 && !isSingleEmoji(message.content) ? "flex-row gap-6" : "flex-col gap-2 justify-end w-full"} items-end {isSingleEmoji(message.content) ? 'mb-4 my-6' : ''}">
+                                <div class="break-words {isSingleEmoji(message.content) ? 'text-7xl leading-none' : ''}">
+                                    {#if message.content.trim().length > 0}
+                                        {message.content}
+                                    {:else}
+                                        <span class="italic opacity-60">No message content</span>
+                                    {/if}
+                                </div>
+                                <div class={`flex flex-row gap-2 items-center ${message.pubkey === $activeAccount?.pubkey ? "text-gray-300" : "text-gray-400"} ${message.content.trim().length < 50 ? "flex-shrink-0" : "justify-end w-full shrink"}`}>
+                                    {#if message.id !== "temp"}
+                                        <span><CheckCircle size={18} weight="light" /></span>
+                                    {:else}
+                                        <span><CircleDashed size={18} weight="light" class="animate-spin-slow"/></span>
+                                    {/if}
+                                    <span class="text-sm opacity-60 whitespace-nowrap">
+                                        {formatMessageTime(message.created_at)}
+                                    </span>
+                                </div>
                             </div>
-                            <div class={`flex flex-row gap-2 items-center ${message.pubkey === $activeAccount?.pubkey ? "text-gray-300" : "text-gray-400"} ${message.content.trim().length < 50 ? "flex-shrink-0" : "justify-end w-full shrink"}`}>
-                                {#if message.id !== "temp"}
-                                    <span><CheckCircle size={18} weight="light" /></span>
-                                {:else}
-                                    <span><CircleDashed size={18} weight="light" class="animate-spin-slow"/></span>
-                                {/if}
-                                <span class="text-sm opacity-60 whitespace-nowrap">
-                                    {formatMessageTime(message.created_at)}
-                                </span>
+                            <div class="reactions flex flex-row gap-2 absolute -bottom-6 right-0">
+                                {#each reactionsForMessage(message) as reaction}
+                                    <button onclick={() => sendReaction(reaction.content, message.id)} class="py-1 px-2 bg-gray-900 rounded-full flex flex-row gap-1 items-center">
+                                        {reaction.content}
+                                        {#if reaction.count > 1}
+                                            <span class="text-sm opacity-60">{reaction.count}</span>
+                                        {/if}
+                                    </button>
+                                {/each}
                             </div>
                         </div>
                     </div>
-                </div>
+                {/if}
             {/each}
         </div>
         <MessageBar {group} {handleNewMessage} />
@@ -323,13 +376,13 @@ onDestroy(() => {
     role="menu"
 >
     <div class="flex flex-row gap-3 text-xl">
-        <button onclick={() => sendReaction("❤️")} class="p-3">❤️</button>
-        <button onclick={() => sendReaction("👍")} class="p-3">👍</button>
-        <button onclick={() => sendReaction("👎")} class="p-3">👎</button>
-        <button onclick={() => sendReaction("😂")} class="p-3">😂</button>
-        <button onclick={() => sendReaction("🤔")} class="p-3">🤔</button>
-        <button onclick={() => sendReaction("🤙")} class="p-3">🤙</button>
-        <button onclick={() => sendReaction("😥")} class="p-3">😥</button>
+        <button onclick={() => sendReaction("❤️", selectedMessageId)} class="p-3">❤️</button>
+        <button onclick={() => sendReaction("👍", selectedMessageId)} class="p-3">👍</button>
+        <button onclick={() => sendReaction("👎", selectedMessageId)} class="p-3">👎</button>
+        <button onclick={() => sendReaction("😂", selectedMessageId)} class="p-3">😂</button>
+        <button onclick={() => sendReaction("🤔", selectedMessageId)} class="p-3">🤔</button>
+        <button onclick={() => sendReaction("🤙", selectedMessageId)} class="p-3">🤙</button>
+        <button onclick={() => sendReaction("😥", selectedMessageId)} class="p-3">😥</button>
     </div>
 </div>
 

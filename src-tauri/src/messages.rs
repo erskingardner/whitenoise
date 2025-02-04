@@ -28,6 +28,9 @@ pub struct MessageRow {
     pub outer_event_id: String,
 }
 
+/// This is the processed rumor message that represents a private chat message
+/// We store the deserialized messages but also the UnsignedEvent.
+/// The content is indexed for full-text search.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Message {
     pub event_id: EventId,
