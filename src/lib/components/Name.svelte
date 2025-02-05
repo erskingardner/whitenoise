@@ -13,7 +13,9 @@ interface Props {
 let { pubkey, metadata, extraClasses, unstyled = false }: Props = $props();
 
 let user: EnrichedContact | undefined = $state(undefined);
-let userMetadata: NMetadata | undefined = $derived.by(() => user?.metadata ?? undefined);
+let userMetadata: NMetadata | undefined = $derived.by(
+    () => metadata ?? user?.metadata ?? undefined
+);
 let name = $derived(userMetadata?.display_name || userMetadata?.name || npubFromPubkey(pubkey));
 let isNpub = $derived(!userMetadata?.display_name && !userMetadata?.name);
 let userFetched: boolean = $state(false);
@@ -25,7 +27,6 @@ $effect(() => {
             updateAccount: false,
         })
             .then((userResp) => {
-                console.log("user fetched");
                 user = userResp as EnrichedContact;
                 userFetched = true;
             })

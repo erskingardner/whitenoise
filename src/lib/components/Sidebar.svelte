@@ -31,7 +31,7 @@ function handleAccountChange(pubkey: string) {
             </a>
         </div>
         <div class="flex flex-col gap-4 justify-between items-center mt-auto mb-0">
-            {#each $accounts as account}
+            {#each $accounts as account (account.pubkey)}
                 <button onclick={() => handleAccountChange(account.pubkey)}>
                     <Avatar
                         pubkey={account.pubkey}

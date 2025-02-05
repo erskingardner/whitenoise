@@ -38,6 +38,11 @@ async function loadContacts() {
             ([_keyA, contactA], [_keyB, contactB]) => {
                 const nameA = contactA.metadata.display_name || contactA.metadata.name || "";
                 const nameB = contactB.metadata.display_name || contactB.metadata.name || "";
+                // If either name is empty, sort it to the bottom
+                if (!nameA && !nameB) return 0;
+                if (!nameA) return 1;
+                if (!nameB) return -1;
+                // Otherwise do normal string comparison
                 return nameA.localeCompare(nameB);
             }
         )
@@ -85,7 +90,8 @@ $effect(() => {
                 ([pubkey, contact]) =>
                     contact.metadata.name?.toLowerCase().includes(search.toLowerCase()) ||
                     contact.metadata.display_name?.toLowerCase().includes(search.toLowerCase()) ||
-                    pubkey.toLowerCase().includes(search.toLowerCase())
+                    pubkey.toLowerCase().includes(search.toLowerCase()) ||
+                    npubFromPubkey(pubkey).toLowerCase().includes(search.toLowerCase())
             )
         );
     }
@@ -93,6 +99,10 @@ $effect(() => {
 
 function viewContact(pubkey: string, contact: EnrichedContact): void {
     pushView(ContactDetail, { pubkey, contact });
+}
+
+function searchRelays(): void {
+    console.log(`Searching relays for "${search}"...`);
 }
 </script>
 
@@ -105,20 +115,26 @@ function viewContact(pubkey: string, contact: EnrichedContact): void {
 <div class="flex flex-col mt-10">
     {#if isLoading}
         <Loader size={40} fullscreen={false} />
-    {/if}
-    {#if filteredContacts && Object.keys(filteredContacts).length > 0}
-        {#each Object.entries(filteredContacts) as [pubkey, contact]}
-            <button
-                onclick={() => viewContact(pubkey, contact)}
-                class="flex flex-row gap-2 items-center px-2 py-3 border-b border-gray-700 hover:bg-gray-700"
-            >
-                <Avatar {pubkey} picture={contact.metadata.picture} pxSize={40} />
-                <div class="flex flex-col items-start justify-start truncate">
-                    <Name {pubkey} metadata={contact.metadata} />
-                    <span class="text-gray-400 text-sm font-mono">{npubFromPubkey(pubkey)}</span>
-                </div>
-                <CaretRight size={20} class="ml-auto" />
-            </button>
-        {/each}
+    {:else}
+        {#if filteredContacts && Object.keys(filteredContacts).length > 0}
+            {#each Object.entries(filteredContacts) as [pubkey, contact] (pubkey)}
+                <button
+                    onclick={() => viewContact(pubkey, contact)}
+                    class="flex flex-row gap-2 items-center px-2 py-3 border-b border-gray-700 hover:bg-gray-700"
+                >
+                    <Avatar {pubkey} picture={contact.metadata.picture} pxSize={40} />
+                    <div class="flex flex-col items-start justify-start truncate">
+                        <Name {pubkey} metadata={contact.metadata} />
+                        <span class="text-gray-400 text-sm font-mono">{npubFromPubkey(pubkey)}</span>
+                    </div>
+                    <CaretRight size={20} class="ml-auto" />
+                </button>
+            {/each}
+        {:else}
+            <div class="flex flex-col gap-6 items-center justify-center h-full">
+                <span class="text-gray-400">No contacts found</span>
+                <button class="button-primary" onclick={searchRelays}>Search all of Nostr?</button>
+            </div>
+        {/if}
     {/if}
 </div>
