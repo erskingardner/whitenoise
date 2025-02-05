@@ -157,17 +157,31 @@ impl Database {
             .await?;
 
         // Delete data in reverse order of dependencies
+        sqlx::query("DELETE FROM messages_fts")
+            .execute(&mut *txn)
+            .await?;
+        sqlx::query("DELETE FROM processed_messages")
+            .execute(&mut *txn)
+            .await?;
         sqlx::query("DELETE FROM messages")
+            .execute(&mut *txn)
+            .await?;
+        sqlx::query("DELETE FROM processed_invites")
             .execute(&mut *txn)
             .await?;
         sqlx::query("DELETE FROM invites")
             .execute(&mut *txn)
             .await?;
+        sqlx::query("DELETE FROM group_relays")
+            .execute(&mut *txn)
+            .await?;
         sqlx::query("DELETE FROM groups").execute(&mut *txn).await?;
+        sqlx::query("DELETE FROM account_relays")
+            .execute(&mut *txn)
+            .await?;
         sqlx::query("DELETE FROM accounts")
             .execute(&mut *txn)
             .await?;
-        sqlx::query("DELETE FROM relays").execute(&mut *txn).await?;
 
         // Re-enable foreign key constraints
         sqlx::query("PRAGMA foreign_keys = ON")

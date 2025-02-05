@@ -581,7 +581,7 @@ impl Group {
             .map_err(GroupError::AccountError)?;
 
         Ok(sqlx::query_scalar::<_, String>(
-            "SELECT url FROM group_relays WHERE relay_type = 'group' AND group_id = ? AND account_pubkey = ?",
+            "SELECT url FROM group_relays WHERE group_id = ? AND account_pubkey = ?",
         )
         .bind(&self.mls_group_id)
         .bind(account.pubkey.to_hex())
@@ -633,15 +633,9 @@ impl Group {
             "Publishing MLS commit message event to group relays"
         );
 
-        let relays =
-            sqlx::query_scalar::<_, String>("SELECT relay_url FROM relays WHERE group_id = ?")
-                .bind(&self.mls_group_id)
-                .fetch_all(&wn.database.pool)
-                .await?;
-
         wn.nostr
             .client
-            .send_event_to(relays, commit_message_event)
+            .send_event_to(self.relays(wn.clone()).await?, commit_message_event)
             .await
             .map_err(GroupError::NostrError)?;
 
