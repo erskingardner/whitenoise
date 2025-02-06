@@ -25,7 +25,7 @@ To build the app in release mode for desktop, run `bun tauri build`.
 
 ### Linux
 
-- I haven't tried the app on Linux yet. Let me know how it goes!
+- Testing..
 
 ### Windows
 
