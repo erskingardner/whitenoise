@@ -14,6 +14,7 @@ use tokio::{spawn, sync::Mutex};
 pub mod event_processor;
 pub mod fetch;
 pub mod query;
+pub mod search;
 pub mod subscriptions;
 pub mod sync;
 
@@ -65,7 +66,7 @@ impl Default for NostrManagerSettings {
         }
 
         Self {
-            timeout: Duration::from_secs(10),
+            timeout: Duration::from_secs(5),
             relays,
         }
     }

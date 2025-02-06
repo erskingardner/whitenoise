@@ -235,31 +235,23 @@ pub async fn fetch_enriched_contacts(
         );
     }
 
-    // Prepare all filters
-    let filters = vec![
-        Filter::new()
-            .kind(Kind::Metadata)
-            .authors(contact_list_pubkeys.clone()),
-        Filter::new()
-            .kind(Kind::RelayList)
-            .authors(contact_list_pubkeys.clone()),
-        Filter::new()
-            .kind(Kind::InboxRelays)
-            .authors(contact_list_pubkeys.clone()),
-        Filter::new()
-            .kind(Kind::MlsKeyPackage)
-            .authors(contact_list_pubkeys.clone()),
-        Filter::new()
-            .kind(Kind::MlsKeyPackageRelays)
-            .authors(contact_list_pubkeys.clone()),
-    ];
+    let filter = Filter::new()
+        .kinds(vec![
+            Kind::Metadata,
+            Kind::RelayList,
+            Kind::InboxRelays,
+            Kind::MlsKeyPackage,
+            Kind::MlsKeyPackageRelays,
+        ])
+        .authors(contact_list_pubkeys.clone());
 
     // Fetch all events in parallel using a single request
     let (stored_events, fetched_events) = tokio::join!(
-        wn.nostr.client.database().query(filters.clone()),
-        wn.nostr
-            .client
-            .fetch_events(filters, Some(wn.nostr.timeout().await.unwrap()),)
+        wn.nostr.client.database().query(vec![filter.clone()]),
+        wn.nostr.client.fetch_events(
+            vec![filter.clone()],
+            Some(wn.nostr.timeout().await.unwrap()),
+        )
     );
 
     let all_events = stored_events
@@ -358,30 +350,21 @@ pub async fn query_enriched_contacts(
         );
     }
 
-    // Prepare all filters
-    let filters = vec![
-        Filter::new()
-            .kind(Kind::Metadata)
-            .authors(contact_list_pubkeys.clone()),
-        Filter::new()
-            .kind(Kind::RelayList)
-            .authors(contact_list_pubkeys.clone()),
-        Filter::new()
-            .kind(Kind::InboxRelays)
-            .authors(contact_list_pubkeys.clone()),
-        Filter::new()
-            .kind(Kind::MlsKeyPackage)
-            .authors(contact_list_pubkeys.clone()),
-        Filter::new()
-            .kind(Kind::MlsKeyPackageRelays)
-            .authors(contact_list_pubkeys.clone()),
-    ];
+    let filter = Filter::new()
+        .kinds(vec![
+            Kind::Metadata,
+            Kind::RelayList,
+            Kind::InboxRelays,
+            Kind::MlsKeyPackage,
+            Kind::MlsKeyPackageRelays,
+        ])
+        .authors(contact_list_pubkeys.clone());
 
     let stored_events = wn
         .nostr
         .client
         .database()
-        .query(filters.clone())
+        .query(vec![filter.clone()])
         .await
         .map_err(|e| e.to_string())?;
 
@@ -563,4 +546,18 @@ pub async fn publish_relay_list(
         _ => return Err("Invalid relay list kind".to_string()),
     }
     Ok(())
+}
+
+#[tauri::command]
+pub async fn search_for_enriched_contacts(
+    query: String,
+    wn: tauri::State<'_, Whitenoise>,
+) -> Result<HashMap<String, EnrichedContact>, String> {
+    let enriched_users = wn
+        .nostr
+        .search_users(query, wn.clone())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(enriched_users)
 }

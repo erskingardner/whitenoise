@@ -103,7 +103,8 @@ pub fn run() {
             accept_invite,
             decline_invite,
             send_mls_message,
-            delete_all_data
+            delete_all_data,
+            search_for_enriched_contacts,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -26,6 +26,9 @@ let isLoading = $state(true);
 // TODO: create a load error state
 let loadingError = $state<string | null>(null);
 
+let isSearching = $state(false);
+let searchResults = $state<EnrichedContactsMap>({});
+
 let contacts = $state<EnrichedContactsMap>({});
 let search = $state("");
 let filteredContacts = $state<EnrichedContactsMap>({});
@@ -101,40 +104,81 @@ function viewContact(pubkey: string, contact: EnrichedContact): void {
     pushView(ContactDetail, { pubkey, contact });
 }
 
-function searchRelays(): void {
+async function searchRelays(): Promise<void> {
+    isSearching = true;
     console.log(`Searching relays for "${search}"...`);
+    invoke("search_for_enriched_contacts", { query: search }).then((contact_map) => {
+        searchResults = contact_map as EnrichedContactsMap;
+        isSearching = false;
+    });
 }
 </script>
 
-<input
-    type="search"
-    placeholder="Search..."
-    bind:value={search}
-    class="bg-transparent ring-1 ring-gray-700 rounded-md px-3 py-2 w-full"
-/>
+<div class="flex flex-row gap-4">
+    <form onsubmit={searchRelays} class="flex flex-row gap-2 items-center w-full" >
+        <input
+            type="search"
+            placeholder="Search..."
+            bind:value={search}
+            class="bg-transparent ring-1 ring-gray-700 rounded-md px-3 py-1.5 w-full"
+        />
+        <button type="submit" class="button-primary">Search</button>
+    </form>
+</div>
 <div class="flex flex-col mt-10">
-    {#if isLoading}
+
+    {#if isLoading }
         <Loader size={40} fullscreen={false} />
     {:else}
-        {#if filteredContacts && Object.keys(filteredContacts).length > 0}
-            {#each Object.entries(filteredContacts) as [pubkey, contact] (pubkey)}
-                <button
-                    onclick={() => viewContact(pubkey, contact)}
-                    class="flex flex-row gap-2 items-center px-2 py-3 border-b border-gray-700 hover:bg-gray-700"
-                >
-                    <Avatar {pubkey} picture={contact.metadata.picture} pxSize={40} />
-                    <div class="flex flex-col items-start justify-start truncate">
-                        <Name {pubkey} metadata={contact.metadata} />
-                        <span class="text-gray-400 text-sm font-mono">{npubFromPubkey(pubkey)}</span>
-                    </div>
-                    <CaretRight size={20} class="ml-auto" />
-                </button>
-            {/each}
-        {:else}
-            <div class="flex flex-col gap-6 items-center justify-center h-full">
-                <span class="text-gray-400">No contacts found</span>
-                <button class="button-primary" onclick={searchRelays}>Search all of Nostr?</button>
-            </div>
-        {/if}
+        <h2 class="section-title">Your contacts</h2>
+        <div class="section !p-0 divide-y divide-gray-700">
+            {#if filteredContacts && Object.keys(filteredContacts).length > 0}
+                {#each Object.entries(filteredContacts) as [pubkey, contact] (pubkey)}
+                    <button
+                        onclick={() => viewContact(pubkey, contact)}
+                        class="flex flex-row gap-2 items-center px-2 py-3 hover:bg-gray-700 w-full"
+                    >
+                        <Avatar {pubkey} picture={contact.metadata.picture} pxSize={40} />
+                        <div class="flex flex-col items-start justify-start truncate">
+                            <Name {pubkey} metadata={contact.metadata} />
+                            <span class="text-gray-400 text-sm font-mono">{npubFromPubkey(pubkey)}</span>
+                        </div>
+                        <CaretRight size={20} class="ml-auto" />
+                    </button>
+                {/each}
+            {:else}
+                <div class="flex flex-col gap-6 items-center justify-center h-full">
+                    <span class="text-gray-400">No contacts found</span>
+
+                </div>
+            {/if}
+        </div>
+        <h2 class="section-title">Other people</h2>
+        <div class="section !p-0 divide-y divide-gray-700">
+            {#if isSearching }
+                <div class="my-4">
+                    <Loader size={40} fullscreen={false} />
+                </div>
+            {:else if searchResults && Object.keys(searchResults).length > 0}
+                {#each Object.entries(searchResults) as [pubkey, contact] (pubkey)}
+                    <button
+                        onclick={() => viewContact(pubkey, contact)}
+                        class="flex flex-row gap-2 items-center px-2 py-3 hover:bg-gray-700 w-full"
+                    >
+                        <Avatar {pubkey} picture={contact.metadata.picture} pxSize={40} />
+                        <div class="flex flex-col items-start justify-start truncate">
+                            <Name {pubkey} metadata={contact.metadata} />
+                            <span class="text-gray-400 text-sm font-mono">{npubFromPubkey(pubkey)}</span>
+                        </div>
+                        <CaretRight size={20} class="ml-auto" />
+                    </button>
+                {/each}
+            {:else}
+                <div class="flex flex-col gap-6 items-center justify-center h-full">
+                    <span class="text-gray-400 my-4">Submit a search to find other people</span>
+                </div>
+            {/if}
+        </div>
     {/if}
+
 </div>
