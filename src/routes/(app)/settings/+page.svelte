@@ -187,7 +187,7 @@ async function toggleInspectInvites() {
 {#if showDeleteAlert}
     <Alert
         title="Delete everything?"
-        body="Are you sure you want to delete all data? This cannot be undone."
+        body="This will delete all group and message data, and sign you out of all accounts. This will not delete your nostr keys or any other events you've published to relays. Are you sure you want to delete all data from White Noise? This cannot be undone."
         acceptFn={async () => {
             invoke("delete_all_data")
                 .then(() => {
