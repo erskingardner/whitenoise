@@ -39,8 +39,16 @@ async function loadContacts() {
     contacts = Object.fromEntries(
         Object.entries(contactsResponse as EnrichedContactsMap).sort(
             ([_keyA, contactA], [_keyB, contactB]) => {
-                const nameA = contactA.metadata.display_name || contactA.metadata.name || "";
-                const nameB = contactB.metadata.display_name || contactB.metadata.name || "";
+                const nameA =
+                    contactA.metadata.display_name ||
+                    contactA.metadata.name ||
+                    contactA.metadata.nip05 ||
+                    "";
+                const nameB =
+                    contactB.metadata.display_name ||
+                    contactB.metadata.name ||
+                    contactB.metadata.nip05 ||
+                    "";
                 // If either name is empty, sort it to the bottom
                 if (!nameA && !nameB) return 0;
                 if (!nameA) return 1;
@@ -91,10 +99,23 @@ $effect(() => {
         filteredContacts = Object.fromEntries(
             Object.entries(contacts as EnrichedContactsMap).filter(
                 ([pubkey, contact]) =>
-                    contact.metadata.name?.toLowerCase().includes(search.toLowerCase()) ||
-                    contact.metadata.display_name?.toLowerCase().includes(search.toLowerCase()) ||
-                    pubkey.toLowerCase().includes(search.toLowerCase()) ||
-                    npubFromPubkey(pubkey).toLowerCase().includes(search.toLowerCase())
+                    contact.metadata.name
+                        ?.toLowerCase()
+                        .trim()
+                        .includes(search.toLowerCase().trim()) ||
+                    contact.metadata.display_name
+                        ?.toLowerCase()
+                        .trim()
+                        .includes(search.toLowerCase().trim()) ||
+                    contact.metadata.nip05
+                        ?.toLowerCase()
+                        .trim()
+                        .includes(search.toLowerCase().trim()) ||
+                    pubkey.toLowerCase().trim().includes(search.toLowerCase().trim()) ||
+                    npubFromPubkey(pubkey)
+                        .toLowerCase()
+                        .trim()
+                        .includes(search.toLowerCase().trim())
             )
         );
     }
