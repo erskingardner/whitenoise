@@ -17,6 +17,7 @@ use crate::commands::delete_all_data;
 use crate::commands::groups::*;
 use crate::commands::invites::*;
 use crate::commands::key_packages::*;
+use crate::commands::messages::*;
 use crate::commands::nostr::*;
 use crate::whitenoise::Whitenoise;
 use once_cell::sync::Lazy;
@@ -105,6 +106,7 @@ pub fn run() {
             send_mls_message,
             delete_all_data,
             search_for_enriched_contacts,
+            query_message,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

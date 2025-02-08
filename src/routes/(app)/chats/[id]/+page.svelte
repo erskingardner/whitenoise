@@ -3,6 +3,7 @@ import { page } from "$app/state";
 import GroupAvatar from "$lib/components/GroupAvatar.svelte";
 import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
 import MessageBar from "$lib/components/MessageBar.svelte";
+import RepliedTo from "$lib/components/RepliedTo.svelte";
 import { activeAccount } from "$lib/stores/accounts";
 import {
     type EnrichedContact,
@@ -21,6 +22,7 @@ import {
     CheckCircle,
     CircleDashed,
     CopySimple,
+    DotsThree,
     PencilSimple,
     TrashSimple,
 } from "phosphor-svelte";
@@ -39,6 +41,7 @@ let showMessageMenu = $state(false);
 let selectedMessageId: string | null | undefined = $state(undefined);
 let messageMenuPosition = $state({ x: 0, y: 0 });
 let messageMenuExtendedPosition = $state({ x: 0, y: 0 });
+let replyToMessageEvent: NEvent | undefined = $state(undefined);
 
 $effect(() => {
     if (
@@ -123,13 +126,17 @@ function handleNewMessage(message: NEvent, replaceTemp: boolean) {
     scrollToBottom();
 }
 
-function handlePress(event: PressCustomEvent) {
+function handlePress(event: PressCustomEvent | MouseEvent) {
     const target = event.target as HTMLElement;
     const messageContainer = target.closest("[data-message-container]");
     const messageId = messageContainer?.getAttribute("data-message-id");
     const isCurrentUser = messageContainer?.getAttribute("data-is-current-user") === "true";
     selectedMessageId = messageId;
-    const rect = target.getBoundingClientRect();
+
+    const messageBubble = messageContainer?.parentElement?.querySelector(
+        "[data-message-container]:not(button)"
+    );
+    const rect = messageBubble?.getBoundingClientRect() || target.getBoundingClientRect();
 
     // Temporarily make menus visible but with measuring class
     const reactionMenu = document.getElementById("messageMenu");
@@ -150,42 +157,40 @@ function handlePress(event: PressCustomEvent) {
         if (reactionMenu) reactionMenu.classList.remove("measuring");
         if (extendedMenu) extendedMenu.classList.remove("measuring");
 
-        // Calculate positions relative to the message's right edge for current user
-        // or left edge for other users
-        const messageRight = rect.right;
-        const messageLeft = rect.left;
-        const messageTop = rect.top;
-        const messageBottom = rect.bottom;
+        // Calculate viewport-relative positions
+        const viewportX = isCurrentUser ? rect.right - reactionMenuWidth : rect.left;
+        const viewportY = rect.top - 60;
 
         messageMenuPosition = {
-            x: isCurrentUser ? messageRight - reactionMenuWidth : messageLeft,
-            y: messageTop - 60,
+            x: viewportX,
+            y: viewportY,
         };
 
         messageMenuExtendedPosition = {
-            x: isCurrentUser ? messageRight - extendedMenuWidth : messageLeft,
-            y: messageBottom + 10,
+            x: isCurrentUser ? rect.right - extendedMenuWidth : rect.left,
+            y: rect.bottom + 10,
         };
 
-        // Show the menu
         showMessageMenu = true;
 
-        // Existing animation code
-        target.style.transform = "scale(1.10)";
-        target.style.transformOrigin = "right";
-        target.style.transition = "transform 0.10s ease-out";
+        // Apply animation to the message bubble
+        if (messageBubble instanceof HTMLElement) {
+            messageBubble.style.transform = "scale(1.10)";
+            messageBubble.style.transformOrigin = isCurrentUser ? "right" : "left";
+            messageBubble.style.transition = "transform 0.10s ease-out";
 
-        setTimeout(() => {
-            target.style.transform = "scale(1)";
-        }, 100);
+            setTimeout(() => {
+                messageBubble.style.transform = "scale(1)";
+            }, 100);
 
-        target.addEventListener(
-            "pointerup",
-            () => {
-                target.style.transform = "scale(1)";
-            },
-            { once: true }
-        );
+            messageBubble.addEventListener(
+                "pointerup",
+                () => {
+                    messageBubble.style.transform = "scale(1)";
+                },
+                { once: true }
+            );
+        }
     }, 0);
 }
 
@@ -220,10 +225,14 @@ async function sendReaction(reaction: string, messageId: string | null | undefin
         message: reaction,
         kind: 7,
         tags: tags,
-    }).then((reactionEvent) => {
-        console.log("reaction sent", reactionEvent);
-        handleNewMessage(reactionEvent as NEvent, false);
-    });
+    })
+        .then((reactionEvent) => {
+            console.log("reaction sent", reactionEvent);
+            handleNewMessage(reactionEvent as NEvent, false);
+        })
+        .finally(() => {
+            showMessageMenu = false;
+        });
 }
 
 function copyMessage() {
@@ -234,12 +243,15 @@ function copyMessage() {
         button?.classList.add("copy-success");
         setTimeout(() => {
             button?.classList.remove("copy-success");
+            showMessageMenu = false;
         }, 1000);
     }
 }
 
 function replyToMessage() {
-    console.log("replying to message");
+    replyToMessageEvent = messages.find((m) => m.id === selectedMessageId);
+    document.getElementById("newMessageInput")?.focus();
+    showMessageMenu = false;
 }
 
 function editMessage() {
@@ -311,8 +323,17 @@ onDestroy(() => {
             {#each messages as message (message.id)}
                 {#if message.kind === 9}
                     <div
-                        class={`flex ${message.pubkey === $activeAccount?.pubkey ? "justify-end" : "justify-start"}`}
+                        class={`flex justify-end ${message.pubkey === $activeAccount?.pubkey ? "" : "flex-row-reverse"} items-center gap-4 group ${reactionsForMessage(message).length > 0 ? "mb-6" : ""}`}
                     >
+                        <button
+                            onclick={handlePress}
+                            data-message-container
+                            data-message-id={message.id}
+                            data-is-current-user={message.pubkey === $activeAccount?.pubkey}
+                            class="p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                        >
+                            <DotsThree size="24" weight="bold" />
+                        </button>
                         <div
                             use:press={()=>({ triggerBeforeFinished: true, timeframe: 300 })}
                             onpress={handlePress}
@@ -321,6 +342,9 @@ onDestroy(() => {
                             data-is-current-user={message.pubkey === $activeAccount?.pubkey}
                             class={`relative max-w-[70%] ${!isSingleEmoji(message.content) ? `rounded-lg ${message.pubkey === $activeAccount?.pubkey ? "bg-chat-bg-me text-gray-50 rounded-br" : "bg-chat-bg-other text-gray-50 rounded-bl"} p-3` : ''} ${showMessageMenu && message.id === selectedMessageId ? 'relative z-20' : ''}`}
                         >
+                            {#if message.tags.find((t) => t[0] === "q")?.[1]}
+                                <RepliedTo messageId={message.tags.find((t) => t[0] === "q")?.[1]} />
+                            {/if}
                             <div class="flex {message.content.trim().length < 50 && !isSingleEmoji(message.content) ? "flex-row gap-6" : "flex-col gap-2 justify-end w-full"} items-end {isSingleEmoji(message.content) ? 'mb-4 my-6' : ''}">
                                 <div class="break-words {isSingleEmoji(message.content) ? 'text-7xl leading-none' : ''}">
                                     {#if message.content.trim().length > 0}
@@ -355,7 +379,7 @@ onDestroy(() => {
                 {/if}
             {/each}
         </div>
-        <MessageBar {group} {handleNewMessage} />
+        <MessageBar {group} bind:replyToMessageEvent={replyToMessageEvent} {handleNewMessage} />
     </main>
 {/if}
 
@@ -371,7 +395,7 @@ onDestroy(() => {
 
 <div
     id="messageMenu"
-    class="{showMessageMenu ? 'visible' : 'invisible'} fixed bg-gray-800/60 backdrop-blur-sm drop-shadow-md drop-shadow-black py-1 px-2 rounded-full ring-1 ring-gray-700 z-30 translate-x-0"
+    class="{showMessageMenu ? 'visible' : 'invisible'} fixed bg-gray-900/90 backdrop-blur-sm drop-shadow-md drop-shadow-black py-1 px-2 rounded-full ring-1 ring-gray-700 z-30 translate-x-0"
     style="left: {messageMenuPosition.x}px; top: {messageMenuPosition.y}px;"
     role="menu"
 >
@@ -388,14 +412,14 @@ onDestroy(() => {
 
 <div
     id="messageMenuExtended"
-    class="{showMessageMenu ? 'visible' : 'invisible'} fixed bg-gray-800/60 backdrop-blur-sm drop-shadow-md drop-shadow-black rounded-md ring-1 ring-gray-700 z-30 translate-x-0"
+    class="{showMessageMenu ? 'visible' : 'invisible'} fixed bg-gray-900/90 backdrop-blur-sm drop-shadow-md drop-shadow-black rounded-md ring-1 ring-gray-700 z-30 translate-x-0"
     style="left: {messageMenuExtendedPosition.x}px; top: {messageMenuExtendedPosition.y}px;"
     role="menu"
 >
-    <div class="flex flex-col gap-2 justify-start items-between divide-y divide-gray-800">
-        <button data-copy-button onclick={copyMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between">Copy <CopySimple size={20} /></button>
-        <!-- <button onclick={replyToMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between">Reply <ArrowBendUpLeft size={20} /></button>
-        <button onclick={editMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between">Edit <PencilSimple size={20} /></button>
+    <div class="flex flex-col justify-start items-between divide-y divide-gray-800">
+        <button data-copy-button onclick={copyMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Copy <CopySimple size={20} /></button>
+        <button onclick={replyToMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Reply <ArrowBendUpLeft size={20} /></button>
+        <!-- <button onclick={editMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between">Edit <PencilSimple size={20} /></button>
         <button onclick={deleteMessage} class="text-red-500 px-4 py-2 flex flex-row gap-20 items-center justify-between">Delete <TrashSimple size={20} /></button> -->
     </div>
 </div>

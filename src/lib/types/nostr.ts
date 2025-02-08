@@ -121,7 +121,6 @@ export type NostrMlsGroup = {
     admin_pubkeys: string[];
     last_message_at: number;
     last_message_id: string;
-    relay_urls: string[];
     group_type: NostrMlsGroupType;
 };
 

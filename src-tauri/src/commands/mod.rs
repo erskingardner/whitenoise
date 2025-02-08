@@ -4,6 +4,7 @@ pub mod accounts;
 pub mod groups;
 pub mod invites;
 pub mod key_packages;
+pub mod messages;
 pub mod nostr;
 
 #[tauri::command]

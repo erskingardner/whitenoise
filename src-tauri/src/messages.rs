@@ -10,6 +10,8 @@ pub enum MessageError {
     Sqlx(#[from] sqlx::Error),
     #[error("Account error: {0}")]
     Account(#[from] crate::accounts::AccountError),
+    #[error("Message not found")]
+    NotFound,
 }
 
 pub type Result<T> = std::result::Result<T, MessageError>;
@@ -186,5 +188,43 @@ impl ProcessedMessage {
             state,
             failure_reason: reason,
         })
+    }
+}
+
+impl Message {
+    pub async fn find_by_event_id(
+        event_id: EventId,
+        wn: tauri::State<'_, Whitenoise>,
+    ) -> Result<Message> {
+        let active_account = Account::get_active(wn.clone()).await?;
+
+        let message_row = sqlx::query_as::<_, MessageRow>(
+            "SELECT * FROM messages WHERE event_id = ? AND account_pubkey = ?",
+        )
+        .bind(event_id.to_string())
+        .bind(active_account.pubkey.to_hex())
+        .fetch_optional(&wn.database.pool)
+        .await?;
+
+        match message_row {
+            Some(row) => Ok(row.into()),
+            None => Err(MessageError::NotFound),
+        }
+    }
+}
+
+impl From<MessageRow> for Message {
+    fn from(row: MessageRow) -> Self {
+        Message {
+            event_id: EventId::parse(&row.event_id).unwrap(),
+            account_pubkey: PublicKey::from_hex(&row.account_pubkey).unwrap(),
+            author_pubkey: PublicKey::from_hex(&row.author_pubkey).unwrap(),
+            mls_group_id: row.mls_group_id,
+            created_at: Timestamp::from(row.created_at),
+            content: row.content,
+            tags: serde_json::from_str(&row.tags).unwrap(),
+            event: serde_json::from_str(&row.event).unwrap(),
+            outer_event_id: EventId::parse(&row.outer_event_id).unwrap(),
+        }
     }
 }
