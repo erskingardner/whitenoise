@@ -11,7 +11,7 @@ export class ToastState {
     toasts = $state<Toast[]>([]);
     toastTimeoutMap = new Map<string, number>();
 
-    add(title: string, message: string, type: "error" | "success" | "info", durationMs = 5000) {
+    add(title: string, message: string, type: "error" | "success" | "info", durationMs = 10_000) {
         const id = crypto.randomUUID();
         this.toasts.push({ id, title, message, type });
 
