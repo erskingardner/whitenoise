@@ -14,9 +14,10 @@ let { invite }: { invite: Invite } = $props<{
 let showModal = $state(false);
 let enrichedInviter: EnrichedContact | undefined = $state(undefined);
 let groupName = $state("");
-let groupType = $derived(
+let groupType = $state(
     invite.member_count === 2 ? NostrMlsGroupType.DirectMessage : NostrMlsGroupType.Group
 );
+
 let inviteDescription = $derived(
     invite.member_count === 2 ? "private chat" : `group with ${invite.member_count} members`
 );
@@ -35,6 +36,10 @@ $effect(() => {
         groupName = invite.group_name;
     }
 });
+
+function closeInviteModal() {
+    showModal = false;
+}
 </script>
 
 <button
@@ -42,10 +47,10 @@ $effect(() => {
     class="flex flex-row gap-2 items-center px-4 py-3 border-b border-gray-700 hover:bg-gray-700"
 >
     <GroupAvatar
-        {groupType}
-        {groupName}
-        counterpartyPubkey={invite.inviter}
-        enrichedCounterparty={enrichedInviter}
+        bind:groupType
+        bind:groupName
+        bind:counterpartyPubkey={invite.inviter}
+        bind:enrichedCounterparty={enrichedInviter}
         pxSize={40}
     />
     <div class="flex flex-col gap-1 items-start">

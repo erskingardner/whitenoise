@@ -4,7 +4,6 @@ import { type NostrMlsGroup, NostrMlsGroupType } from "$lib/types/nostr";
 import type { EnrichedContact } from "$lib/types/nostr";
 import { hexMlsGroupId } from "$lib/utils/group";
 import { invoke } from "@tauri-apps/api/core";
-import { Checks, LockKey } from "phosphor-svelte";
 import { nameFromMetadata } from "../utils/nostr";
 import GroupAvatar from "./GroupAvatar.svelte";
 
@@ -12,27 +11,52 @@ let { group } = $props<{
     group: NostrMlsGroup;
 }>();
 
-let counterpartyPubkey: string | undefined = $derived(
-    group.group_type === NostrMlsGroupType.DirectMessage
-        ? group.admin_pubkeys.filter((pubkey: string) => pubkey !== $activeAccount?.pubkey)[0]
-        : undefined
-);
-
+let counterpartyPubkey: string | undefined = $state(undefined);
 let enrichedCounterparty: EnrichedContact | undefined = $state(undefined);
-let groupName = $state("");
+let picture: string | undefined = $state(undefined);
+let groupName: string | undefined = $state(undefined);
+let counterpartyQueried: boolean = $state(false);
+let counterpartyFetched: boolean = $state(false);
 
 $effect(() => {
-    if (counterpartyPubkey) {
+    if (!counterpartyPubkey) {
+        counterpartyPubkey =
+            group.group_type === NostrMlsGroupType.DirectMessage
+                ? group.admin_pubkeys.filter(
+                      (pubkey: string) => pubkey !== $activeAccount?.pubkey
+                  )[0]
+                : undefined;
+    }
+
+    if (counterpartyPubkey && !counterpartyQueried) {
         invoke("query_enriched_contact", {
             pubkey: counterpartyPubkey,
             updateAccount: false,
-        }).then((value) => {
-            enrichedCounterparty = value as EnrichedContact;
+        }).then((userResponse) => {
+            enrichedCounterparty = userResponse as EnrichedContact;
+            picture = enrichedCounterparty?.metadata?.picture;
+            counterpartyQueried = true;
         });
     }
-});
 
-$effect(() => {
+    if (
+        counterpartyPubkey &&
+        counterpartyQueried &&
+        (!enrichedCounterparty?.metadata.picture ||
+            !enrichedCounterparty?.metadata.display_name ||
+            !enrichedCounterparty?.metadata.name) &&
+        !counterpartyFetched
+    ) {
+        invoke("fetch_enriched_contact", {
+            pubkey: counterpartyPubkey,
+            updateAccount: false,
+        }).then((userResponse) => {
+            enrichedCounterparty = userResponse as EnrichedContact;
+            picture = enrichedCounterparty?.metadata?.picture;
+            counterpartyFetched = true;
+        });
+    }
+
     if (
         group.group_type === NostrMlsGroupType.DirectMessage &&
         counterpartyPubkey &&
@@ -52,7 +76,7 @@ $effect(() => {
     href={`/chats/${hexMlsGroupId(group.mls_group_id)}/`}
     class="flex flex-row gap-2 items-center px-4 py-3 border-b border-gray-700 hover:bg-gray-700"
 >
-    <GroupAvatar groupType={group.group_type} {groupName} {counterpartyPubkey} {enrichedCounterparty} pxSize={40} />
+    <GroupAvatar bind:groupType={group.group_type} bind:groupName bind:counterpartyPubkey bind:enrichedCounterparty pxSize={40} />
     <div class="flex flex-col gap-1">
         <span class="text-lg font-semibold">{groupName}</span>
     </div>

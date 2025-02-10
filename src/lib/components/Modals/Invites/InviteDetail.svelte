@@ -3,6 +3,7 @@ import Avatar from "$lib/components/Avatar.svelte";
 import Name from "$lib/components/Name.svelte";
 import { getToastState } from "$lib/stores/toast-state.svelte";
 import type { EnrichedContact, Invite } from "$lib/types/nostr";
+import { nameFromMetadata } from "$lib/utils/nostr";
 import { invoke } from "@tauri-apps/api/core";
 import { onDestroy } from "svelte";
 
@@ -16,7 +17,7 @@ let toastState = getToastState();
 
 let subhead = $derived(
     invite.member_count === 2
-        ? "has invited you to join a secure private chat."
+        ? "has invited you to join a secure chat."
         : `has invited you to join ${invite.group_name}, a group with ${invite.member_count} members.`
 );
 
@@ -25,6 +26,11 @@ async function acceptInvite() {
         .then(() => {
             const event = new CustomEvent("inviteAccepted", { detail: invite.mls_group_id });
             window.dispatchEvent(event);
+            toastState.add(
+                "Accepted Invite",
+                `You've accpeted an invite to join a secure chat with ${nameFromMetadata(enrichedInviter.metadata)}`,
+                "success"
+            );
         })
         .catch((e) => {
             toastState.add("Error accepting invite", e.split(": ")[2], "error");
@@ -36,7 +42,17 @@ async function acceptInvite() {
 }
 
 async function declineInvite() {
-    await invoke("decline_invite", { invite });
+    invoke("decline_invite", { invite })
+        .then(() => {
+            toastState.add(
+                "Invite declined",
+                `You've declined an invite to join a secure chat with ${nameFromMetadata(enrichedInviter.metadata)}`,
+                "info"
+            );
+        })
+        .finally(() => {
+            closeModal();
+        });
 }
 
 onDestroy(() => {

@@ -11,7 +11,7 @@ let {
     pxSize,
 }: {
     groupType: NostrMlsGroupType;
-    groupName: string;
+    groupName: string | undefined;
     counterpartyPubkey: string | undefined;
     enrichedCounterparty: EnrichedContact | undefined;
     pxSize: number;
@@ -19,11 +19,13 @@ let {
 
 let groupAvatarColor: string = $derived(
     groupName
-        .split("")
-        .reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0)
-        .toString(16)
-        .padStart(6, "5")
-        .slice(0, 6)
+        ? groupName
+              .split("")
+              .reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0)
+              .toString(16)
+              .padStart(6, "5")
+              .slice(0, 6)
+        : "555555"
 );
 </script>
 
@@ -38,7 +40,7 @@ let groupAvatarColor: string = $derived(
             class="w-full h-full rounded-full font-semibold text-xl font-mono shrink-0 flex flex-col justify-center text-center"
             style="background-color: #{groupAvatarColor};"
         >
-            {groupName.slice(0, 2)}
+            {groupName?.slice(0, 2)}
         </div>
     </div>
 {/if}

@@ -95,6 +95,7 @@ onMount(async () => {
             const acceptedInvite = event.payload as Invite;
             console.log("Event received on chats page: invite_accepted", acceptedInvite);
             invites = invites.filter((invite) => invite.event.id !== acceptedInvite.event.id);
+            toastState.add("Invite accepted", "You've accepted an invite to join a group", "info");
         });
     }
 
@@ -103,6 +104,7 @@ onMount(async () => {
             const declinedInvite = event.payload as Invite;
             console.log("Event received on chats page: invite_declined", declinedInvite);
             invites = invites.filter((invite) => invite.event.id !== declinedInvite.event.id);
+            toastState.add("Invite declined", "You've declined an invite to join a group", "info");
         });
     }
 

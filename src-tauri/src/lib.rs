@@ -127,7 +127,7 @@ fn setup_logging(logs_dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     *GUARD.lock().unwrap() = Some(guard);
 
     Registry::default()
-        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug")))
         .with(Layer::new().with_writer(std::io::stdout))
         .with(Layer::new().with_writer(non_blocking))
         .init();
