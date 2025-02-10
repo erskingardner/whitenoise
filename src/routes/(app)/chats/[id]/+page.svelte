@@ -17,6 +17,7 @@ import { nameFromMetadata } from "$lib/utils/nostr";
 import { formatMessageTime } from "$lib/utils/time";
 import { invoke } from "@tauri-apps/api/core";
 import { type UnlistenFn, listen } from "@tauri-apps/api/event";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import {
     ArrowBendUpLeft,
     CaretLeft,
@@ -24,8 +25,6 @@ import {
     CircleDashed,
     CopySimple,
     DotsThree,
-    PencilSimple,
-    TrashSimple,
 } from "phosphor-svelte";
 import { onDestroy, onMount, tick } from "svelte";
 import { type PressCustomEvent, press } from "svelte-gestures";
@@ -236,10 +235,10 @@ async function sendReaction(reaction: string, messageId: string | null | undefin
         });
 }
 
-function copyMessage() {
+async function copyMessage() {
     const message = messages.find((m) => m.id === selectedMessageId);
     if (message) {
-        navigator.clipboard.writeText(message.content);
+        await writeText(message.content);
         const button = document.querySelector("[data-copy-button]");
         button?.classList.add("copy-success");
         setTimeout(() => {

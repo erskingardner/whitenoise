@@ -5,6 +5,7 @@ import Avatar from "$lib/components/Avatar.svelte";
 import Header from "$lib/components/Header.svelte";
 import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
 import {
+    type Account,
     LogoutError,
     accounts,
     activeAccount,
@@ -15,25 +16,21 @@ import {
     setActiveAccount,
     updateAccountsStore,
 } from "$lib/stores/accounts";
-import { getToastState } from "$lib/stores/toast-state.svelte";
+import { ToastState, getToastState } from "$lib/stores/toast-state.svelte";
 import { isValidHexPubkey, isValidNsec } from "$lib/types/nostr";
 import { nameFromMetadata, npubFromPubkey } from "$lib/utils/nostr";
 import { invoke } from "@tauri-apps/api/core";
 import { type UnlistenFn, listen } from "@tauri-apps/api/event";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import {
-    CaretDown,
     CaretRight,
-    Envelope,
     HardDrives,
     Key,
-    Lock,
     PlusCircle,
     SignIn,
     Skull,
     Trash,
-    UserFocus,
     UserPlus,
-    Users,
 } from "phosphor-svelte";
 import { onDestroy, onMount } from "svelte";
 
@@ -182,6 +179,36 @@ async function toggleInspectInvites() {
         });
     }
 }
+
+async function copyNsec(account: Account) {
+    invoke("export_nsec", { pubkey: account.pubkey })
+        .then(async (nsec) => {
+            await writeText(nsec as string)
+                .then(() => {
+                    const button = document.querySelector(`[data-pubkey="${account.pubkey}"]`);
+                    button?.classList.add("text-green-500");
+                    setTimeout(() => {
+                        button?.classList.remove("text-green-500");
+                    }, 1000);
+                })
+                .catch((e) => {
+                    console.error(e);
+                    toastState.add(
+                        "Error copying nsec",
+                        "There was an error copying your nsec, please try again.",
+                        "error"
+                    );
+                });
+        })
+        .catch((e) => {
+            console.error(e);
+            toastState.add(
+                "Error exporting nsec",
+                "There was an error exporting your nsec, please try again.",
+                "error"
+            );
+        });
+}
 </script>
 
 {#if showDeleteAlert}
@@ -273,7 +300,8 @@ async function toggleInspectInvites() {
                         </div>
                     </div>
                 </button>
-                <button class="min-w-fit button-outline shrink-0" onclick={() => handleLogout(account.pubkey)}>
+                <button class="export-nsec-button min-w-fit text-sm button-outline shrink-0 transition-colors duration-200" data-pubkey={account.pubkey} onclick={() => copyNsec(account)}>Copy nsec</button>
+                <button class="min-w-fit text-sm button-outline shrink-0" onclick={() => handleLogout(account.pubkey)}>
                     Log out
                 </button>
             </div>
@@ -281,13 +309,13 @@ async function toggleInspectInvites() {
         <div class="section-list-item !mt-6">
             <button onclick={() => (showLogin = !showLogin)} class="button-primary">
                 <UserPlus size={24} />
-                Log in or create new account
+                Add another account
             </button>
         </div>
-        <div class="{showLogin ? 'flex' : 'hidden'} flex-col gap-8 items-start w-full mt-4 p-4">
+        <div class="{showLogin ? 'flex' : 'hidden'} flex-col gap-8 items-start w-full mt-4 py-4">
             <div class="flex flex-col gap-4 items-start w-full">
                 <label for="nsec" class="flex flex-col gap-2 text-lg items-start font-medium w-full">
-                    Log in with your nsec
+                    Add another account?
                     <input
                         type="password"
                         id="nsec"

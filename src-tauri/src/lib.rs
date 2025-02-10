@@ -30,6 +30,7 @@ use tracing_subscriber::{filter::EnvFilter, fmt::Layer, prelude::*, registry::Re
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             let data_dir = app
                 .handle()
@@ -108,6 +109,7 @@ pub fn run() {
             search_for_enriched_contacts,
             invite_to_white_noise,
             query_message,
+            export_nsec
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
