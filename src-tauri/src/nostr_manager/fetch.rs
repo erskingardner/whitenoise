@@ -98,11 +98,6 @@ impl NostrManager {
             .get_contact_list_public_keys(Some(self.timeout().await?))
             .await?;
 
-        // If there are no contacts, return an empty vector
-        if contacts_pubkeys.is_empty() {
-            return Ok(vec![]);
-        }
-
         let filter = Filter::new().kind(Kind::Metadata).authors(contacts_pubkeys);
         let database_contacts = self.client.database().query(vec![filter.clone()]).await?;
         let fetched_contacts = self

@@ -206,7 +206,7 @@ pub async fn fetch_enriched_contacts(
         .expect("Failed to fetch contact list public keys");
 
     tracing::debug!(
-        "contact_list_pubkeys length: {:?}",
+        "fetch_enriched_contacts contact_list_pubkeys length: {:?}",
         contact_list_pubkeys.len()
     );
 
@@ -324,7 +324,7 @@ pub async fn query_enriched_contacts(
         .map_err(|e| e.to_string())?;
 
     tracing::debug!(
-        "contact_list_pubkeys length: {:?}",
+        "query_enriched_contacts contact_list_pubkeys length: {:?}",
         contact_list_pubkeys.len()
     );
 
