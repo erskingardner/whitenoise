@@ -164,14 +164,14 @@ onDestroy(() => {
             {/each}
         </ul>
     </div>
-    <h2 class="section-title">Actions</h2>
+    <!-- <h2 class="section-title">Actions</h2>
     <div class="section">
         <div class="flex flex-col items-center gap-0">
             <button class="flex flex-row items-center gap-4 py-3 w-full border-b border-gray-700 last:border-b-0" onclick={rotateKey}><Key size={24} class="transition-all duration-300 ease-in-out {rotatingKey ? 'animate-spin': ''}" id="rotate-key-icon" />Rotate Your Key</button>
             <button class="text-red-500 flex flex-row items-center gap-4 py-3 w-full border-b border-gray-700 last:border-b-0" onclick={leaveGroup}><SignOut size={24} />Leave Group</button>
             <button class="text-red-500 flex flex-row items-center gap-4 py-3 w-full border-b border-gray-700 last:border-b-0" onclick={reportSpam}><WarningOctagon size={24} />Report Spam</button>
         </div>
-    </div>
+    </div> -->
 </div>
 {/if}
 
