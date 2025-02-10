@@ -4,6 +4,7 @@ import type { NEvent, NostrMlsGroup, NostrMlsGroupWithRelays } from "$lib/types/
 import { hexMlsGroupId } from "$lib/utils/group";
 import { invoke } from "@tauri-apps/api/core";
 import { PaperPlaneTilt, X } from "phosphor-svelte";
+import { onMount } from "svelte";
 import Loader from "./Loader.svelte";
 
 let {
@@ -81,9 +82,23 @@ function handleKeydown(event: KeyboardEvent) {
         sendMessage();
     }
 }
+
+// Add keyboard visibility detection
+onMount(() => {
+    const visualViewport = window.visualViewport;
+    if (visualViewport) {
+        const onResize = () => {
+            const isKeyboardVisible = visualViewport.height < window.innerHeight;
+            console.log("isKeyboardVisible", isKeyboardVisible);
+            document.body.classList.toggle("keyboard-visible", isKeyboardVisible);
+        };
+        visualViewport.addEventListener("resize", onResize);
+        return () => visualViewport.removeEventListener("resize", onResize);
+    }
+});
 </script>
 
-<div class="sticky bottom-0 left-0 right-0 bg-gray-900 drop-shadow-message-bar">
+<div class="messagebar sticky bottom-0 left-0 right-0 bg-gray-900 drop-shadow-message-bar">
     {#if replyToMessageEvent}
         <div class="w-full py-4 px-6 pl-8 bg-blue-700/50 text-white backdrop-blur-sm border-t border-gray-700 border-l-4 border-l-blue-500 flex flex-row gap-2 items-start justify-between rounded-t-xl">
             <span>{replyToMessageEvent.content}</span>
@@ -117,3 +132,11 @@ function handleKeydown(event: KeyboardEvent) {
         </div>
     </div>
 </div>
+
+<style>
+    :global(body.keyboard-visible) .messagebar {
+        position: fixed;
+        bottom: 0;
+        width: 100%;
+    }
+</style>
