@@ -1,4 +1,5 @@
 <script lang="ts">
+import { goto } from "$app/navigation";
 import { page } from "$app/state";
 import GroupAvatar from "$lib/components/GroupAvatar.svelte";
 import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
@@ -309,7 +310,7 @@ onDestroy(() => {
             </a>
         {/snippet}
         {#snippet left()}
-            <button onclick={() => window.history.back()} class="p-2 -mr-2">
+            <button onclick={() => goto(`/chats`)} class="p-2 -mr-2">
                 <CaretLeft size={30} />
             </button>
         {/snippet}
