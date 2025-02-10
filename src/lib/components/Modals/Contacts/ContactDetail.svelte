@@ -7,6 +7,7 @@ import type { EnrichedContact } from "$lib/types/nostr";
 import { nameFromMetadata } from "$lib/utils/nostr";
 import { invoke } from "@tauri-apps/api/core";
 import { Warning } from "phosphor-svelte";
+import Alert from "../../Alert.svelte";
 import Avatar from "../../Avatar.svelte";
 import Name from "../../Name.svelte";
 
@@ -19,6 +20,7 @@ let { pubkey, contact, closeModal } = $props<{
 }>();
 
 let isLoading = $state(false);
+let showInviteAlert = $state(false);
 
 async function startSecureChat() {
     isLoading = true;
@@ -52,6 +54,28 @@ async function inviteToWhiteNoise() {
 }
 </script>
 
+{#if showInviteAlert}
+    <Alert
+        title="Invite {nameFromMetadata(contact.metadata, pubkey)} to White Noise?"
+        body="We'll send a legacy-style direct message to {nameFromMetadata(contact.metadata, pubkey)} to invite them to White Noise. The message will say, 'Hi, I'm using White Noise to chat securely on Nostr. Join me!' and contain a link to download the app."
+        acceptFn={async () => {
+            invoke("invite_to_white_noise", { pubkey })
+                .then(() => {
+                    toastState.add("Message sent", `Invite sent to ${nameFromMetadata(contact.metadata, pubkey)}.`, "success");
+                    showInviteAlert = false;
+                })
+                .catch((e) => {
+                    toastState.add("Error sending message", `Failed to send message: ${e.toString()}`, "error");
+                    console.error(e);
+                });
+        }}
+        acceptText="Yes, send invite"
+        acceptStyle="primary"
+        cancelText="Cancel"
+        bind:showAlert={showInviteAlert}
+    />
+{/if}
+
 <div>
     <div class="flex flex-col items-center justify-start gap-2">
         <Avatar {pubkey} picture={contact.metadata.picture} pxSize={80} />
@@ -72,14 +96,14 @@ async function inviteToWhiteNoise() {
             <p class="mt-4">
                 Ready to invite {nameFromMetadata(contact.metadata, pubkey)} to start a secure chat?
             </p>
-            <button class="button-primary" onclick={startSecureChat}> Start secure chat </button>
+            <button class="button-primary {isLoading ? 'opacity-50 cursor-not-allowed' : ''}" disabled={isLoading} onclick={startSecureChat}> Start secure chat </button>
         {:else}
             <p class="flex flex-col md:flex-row items-center gap-2">
                 <Warning class="text-red-500" weight="bold" size={24} />
                 {nameFromMetadata(contact.metadata, pubkey)} is not yet set up to use secure MLS messaging.
             </p>
 
-            <button class="button-primary" onclick={inviteToWhiteNoise}>
+            <button class="button-primary" onclick={() => showInviteAlert = true}>
                 Invite {nameFromMetadata(contact.metadata, pubkey)} to White Noise
             </button>
         {/if}

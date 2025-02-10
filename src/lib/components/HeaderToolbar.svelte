@@ -1,11 +1,12 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
 
-let { left, center, right, alwaysShowCenter } = $props<{
+let { left, center, right, alwaysShowCenter, bgColor } = $props<{
     left?: () => Snippet;
     center?: () => Snippet;
     right?: () => Snippet;
     alwaysShowCenter?: boolean;
+    bgColor?: string;
 }>();
 
 // Fade the center text in when scrolling down
@@ -21,7 +22,7 @@ let headerBorderOpacity = $derived(Math.min(headerOpacity * 3, 1));
 </script>
 
 <div
-    class="flex flex-row justify-between items-center p-4 sticky h-16 top-0 left-0 right-0 backdrop-blur-sm z-10"
+    class="flex flex-row justify-between items-center p-4 sticky h-16 top-0 left-0 right-0 backdrop-blur-sm z-10 {bgColor}"
     style="border-bottom: 1px solid rgba(55, 65, 81, {headerBorderOpacity}); background-color: rgba(3, 7, 18, {headerOpacity})"
 >
     {#if left}

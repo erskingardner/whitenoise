@@ -63,7 +63,7 @@ onDestroy(() => {
         class="flex flex-col gap-4 bg-gray-800 ring-2 ring-gray-700 rounded-t-xl w-full h-[90vh] z-30 pb-40 overflow-y-scroll"
         transition:fly={{ y: 800, duration: 300 }}
     >
-        <HeaderToolbar>
+        <HeaderToolbar bgColor="bg-gray-800">
             {#snippet left()}
                 {#if viewStack.length > 1}
                     <button class="flex flex-row gap-0.5 items-end" onclick={popView}>

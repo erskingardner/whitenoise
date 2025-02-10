@@ -106,6 +106,7 @@ pub fn run() {
             send_mls_message,
             delete_all_data,
             search_for_enriched_contacts,
+            invite_to_white_noise,
             query_message,
         ])
         .run(tauri::generate_context!())

@@ -30,7 +30,7 @@ function toggleAlert(e: MouseEvent) {
     transition:fade={{ duration: 100 }}
 >
     <div
-        class="ring-1 ring-gray-700 bg-gray-900 flex flex-col gap-4 p-6 rounded-lg shadow-xl w-3/4 z-50"
+        class="ring-1 ring-gray-700 bg-gray-800 flex flex-col gap-4 p-6 rounded-lg shadow-xl w-3/4 z-50"
         transition:fly={{ y: 200, duration: 300 }}
     >
         <h2 class="text-2xl font-bold">{title}</h2>
