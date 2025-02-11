@@ -11,12 +11,9 @@ RUN apt-get update && apt-get install -y \
     libayatana-appindicator3-dev \
     librsvg2-dev \
     javascriptcoregtk-4.1 \
-    #libsoup-3.0 \
     webkit2gtk-4.1 \
     xdg-utils \
     file
-    #nodejs \
-    #npm
 
 # Install nodejs
 RUN curl -sL https://deb.nodesource.com/setup_20.x -o /tmp/nodesource_setup.sh
@@ -30,14 +27,12 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 # Install Tauri CLI
 RUN cargo install tauri-cli
 
-# Copy the application code into the container
-COPY . /app
-WORKDIR /app
-
 # Install frontend dependencies
+WORKDIR /app
+COPY package.json ./
 RUN npm install
-
 RUN npm install -g bun
+COPY . .
 
 # Build the Tauri application
-RUN cargo tauri build --verbose
+CMD ["bash", "./linux_build.sh"]
