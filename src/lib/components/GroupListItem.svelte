@@ -3,8 +3,9 @@ import { activeAccount } from "$lib/stores/accounts";
 import { type NostrMlsGroup, NostrMlsGroupType } from "$lib/types/nostr";
 import type { EnrichedContact } from "$lib/types/nostr";
 import { hexMlsGroupId } from "$lib/utils/group";
+import { formatMessageTime } from "$lib/utils/time";
 import { invoke } from "@tauri-apps/api/core";
-import { nameFromMetadata } from "../utils/nostr";
+import { latestMessagePreview, nameFromMetadata } from "../utils/nostr";
 import GroupAvatar from "./GroupAvatar.svelte";
 
 let { group } = $props<{
@@ -17,8 +18,14 @@ let picture: string | undefined = $state(undefined);
 let groupName: string | undefined = $state(undefined);
 let counterpartyQueried: boolean = $state(false);
 let counterpartyFetched: boolean = $state(false);
+let messagePreview: string = $state("");
 
+$inspect(messagePreview);
 $effect(() => {
+    latestMessagePreview(group.last_message_id).then((preview: string) => {
+        messagePreview = preview;
+    });
+
     if (!counterpartyPubkey) {
         counterpartyPubkey =
             group.group_type === NostrMlsGroupType.DirectMessage
@@ -74,10 +81,14 @@ $effect(() => {
 
 <a
     href={`/chats/${hexMlsGroupId(group.mls_group_id)}/`}
-    class="flex flex-row gap-2 items-center px-4 py-3 border-b border-gray-700 hover:bg-gray-700"
+    class="flex flex-row gap-2 items-center justify-between px-4 py-3 border-b border-gray-700 hover:bg-gray-700"
 >
-    <GroupAvatar bind:groupType={group.group_type} bind:groupName bind:counterpartyPubkey bind:enrichedCounterparty pxSize={40} />
-    <div class="flex flex-col gap-1">
-        <span class="text-lg font-semibold">{groupName}</span>
+    <div class="flex flex-row gap-2 items-center">
+        <GroupAvatar bind:groupType={group.group_type} bind:groupName bind:counterpartyPubkey bind:enrichedCounterparty pxSize={40} />
+        <div class="flex flex-col gap-0">
+            <span class="text-lg font-semibold">{groupName}</span>
+            <span class="text-sm text-gray-400 {group.last_message_id ? "" : "text-gray-500"}">{group.last_message_id ? messagePreview : "New chat"}</span>
+        </div>
     </div>
+    <span class="">{group.last_message_at ? formatMessageTime(group.last_message_at) : ""}</span>
 </a>

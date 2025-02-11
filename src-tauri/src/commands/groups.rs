@@ -489,6 +489,7 @@ pub async fn send_mls_message(
             outer_event_id.id().to_string(),
             inner_event.clone(),
             wn.clone(),
+            app_handle.clone(),
         )
         .await
         .map_err(|e| e.to_string())?;

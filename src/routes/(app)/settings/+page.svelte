@@ -16,13 +16,19 @@ import {
     setActiveAccount,
     updateAccountsStore,
 } from "$lib/stores/accounts";
-import { ToastState, getToastState } from "$lib/stores/toast-state.svelte";
+import { getToastState } from "$lib/stores/toast-state.svelte";
 import { isValidHexPubkey, isValidNsec } from "$lib/types/nostr";
 import { nameFromMetadata, npubFromPubkey } from "$lib/utils/nostr";
 import { invoke } from "@tauri-apps/api/core";
 import { type UnlistenFn, listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import {
+    isPermissionGranted,
+    requestPermission,
+    sendNotification,
+} from "@tauri-apps/plugin-notification";
+import {
+    Bell,
     CaretRight,
     HardDrives,
     Key,
@@ -113,6 +119,20 @@ async function handleLogout(pubkey: string): Promise<void> {
                 console.error(e);
             }
         });
+}
+
+async function testNotification() {
+    let permissionGranted = await isPermissionGranted();
+
+    if (!permissionGranted) {
+        permissionGranted = "granted" === (await requestPermission());
+    }
+    if (permissionGranted) {
+        sendNotification({
+            title: "White Noise",
+            body: "Notification test successful!",
+        });
+    }
 }
 
 async function deleteAll() {
@@ -381,7 +401,13 @@ async function copyNsec(account: Account) {
                 <button onclick={deleteAllKeyPackages} class="row-button">
                     <Trash size={24} class="shrink-0" />
                     <span class="truncate">Send delete requests for all key packages</span>
-                    <CaretRight size={24} class="ml-auto mr-0 shrink-0" />
+                </button>
+            </li>
+
+            <li class="section-list-item">
+                <button onclick={testNotification} class="row-button">
+                    <Bell size={24} class="shrink-0" />
+                    <span class="truncate">Test Notification</span>
                 </button>
             </li>
 

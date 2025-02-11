@@ -5,9 +5,10 @@ import Modal from "$lib/components/Modals/Modal.svelte";
 import PreOnboard from "$lib/components/Modals/Onboarding/PreOnboard.svelte";
 import Sidebar from "$lib/components/Sidebar.svelte";
 import Tabbar from "$lib/components/Tabbar.svelte";
-import { accounts, activeAccount, updateAccountsStore } from "$lib/stores/accounts";
+import { activeAccount, updateAccountsStore } from "$lib/stores/accounts";
 import { invoke } from "@tauri-apps/api/core";
 import { type UnlistenFn, listen } from "@tauri-apps/api/event";
+import { isPermissionGranted, requestPermission } from "@tauri-apps/plugin-notification";
 import { onDestroy, onMount } from "svelte";
 
 let { children } = $props();
@@ -58,6 +59,16 @@ onMount(async () => {
     }
 
     checkPreflight();
+
+    // Do you have permission to send a notification?
+    let permissionGranted = await isPermissionGranted();
+
+    // If not we need to request it
+    if (!permissionGranted) {
+        console.log("Requesting permission");
+        const permission = await requestPermission();
+        permissionGranted = permission === "granted";
+    }
 });
 
 onDestroy(() => {

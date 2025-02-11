@@ -464,7 +464,12 @@ impl EventProcessor {
                 }
 
                 group
-                    .add_message(event.id.to_string(), json_event.clone(), wn.clone())
+                    .add_message(
+                        event.id.to_string(),
+                        json_event.clone(),
+                        wn.clone(),
+                        app_handle.clone(),
+                    )
                     .await?;
 
                 app_handle

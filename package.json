@@ -17,6 +17,7 @@
     "dependencies": {
         "@tauri-apps/api": "^2.2.0",
         "@tauri-apps/plugin-clipboard-manager": "^2.2.1",
+        "@tauri-apps/plugin-notification": "^2.2.1",
         "@tauri-apps/plugin-shell": "^2.2.0",
         "nostr-tools": "^2.10.4",
         "svelte-gestures": "^5.1.3"

@@ -8,6 +8,7 @@ use nostr_openmls::groups::GroupError as NostrMlsError;
 use nostr_openmls::nostr_group_data_extension::NostrGroupDataExtension;
 use nostr_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
+use tauri_plugin_notification::NotificationExt;
 use thiserror::Error;
 
 /// This is an intermediate struct representing a group in the database
@@ -150,6 +151,9 @@ pub enum GroupError {
 
     #[error("Event ID error: {0}")]
     EventIdError(#[from] nostr_sdk::event::id::Error),
+
+    #[error("Notification error: {0}")]
+    NotificationError(#[from] tauri_plugin_notification::Error),
 }
 
 pub type Result<T> = std::result::Result<T, GroupError>;
@@ -456,6 +460,7 @@ impl Group {
         outer_event_id: String,
         message: UnsignedEvent,
         wn: tauri::State<'_, Whitenoise>,
+        app_handle: tauri::AppHandle,
     ) -> Result<Message> {
         let account = Account::get_active(wn.clone())
             .await
@@ -509,6 +514,16 @@ impl Group {
             query
         );
 
+        // Update the last message id and last message at
+        sqlx::query(
+            "UPDATE groups SET last_message_id = ?, last_message_at = ? WHERE mls_group_id = ?",
+        )
+        .bind(message.id.unwrap().to_string())
+        .bind(message.created_at.as_u64() as i64)
+        .bind(&self.mls_group_id)
+        .execute(&mut *txn)
+        .await?;
+
         // Then fetch the inserted row if needed
         let message_row = sqlx::query_as::<_, MessageRow>(
             "SELECT * FROM messages WHERE event_id = ? AND account_pubkey = ?",
@@ -519,6 +534,31 @@ impl Group {
         .await?;
 
         txn.commit().await?;
+
+        // Send notification
+        if account.pubkey.to_hex() != message.pubkey.to_hex() {
+            let message_author = wn
+                .nostr
+                .client
+                .database()
+                .metadata(message.pubkey)
+                .await
+                .map_err(|e| GroupError::NostrError(nostr_sdk::client::Error::Database(e)))?;
+
+            if let Some(author) = message_author {
+                app_handle
+                    .notification()
+                    .builder()
+                    .title(
+                        author
+                            .display_name
+                            .unwrap_or(author.name.unwrap_or("Unknown".to_string())),
+                    )
+                    .body(message.content.clone())
+                    .show()
+                    .map_err(GroupError::NotificationError)?;
+            }
+        }
 
         Ok(Message {
             event_id: EventId::from_hex(&message_row.event_id)?,

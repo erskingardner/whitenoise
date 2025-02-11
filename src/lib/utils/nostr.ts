@@ -1,5 +1,8 @@
+import { activeAccount } from "$lib/stores/accounts";
+import { invoke } from "@tauri-apps/api/core";
 import { npubEncode } from "nostr-tools/nip19";
-import type { NEvent, NMetadata } from "../types/nostr";
+import { get } from "svelte/store";
+import type { EnrichedContact, NEvent, NMetadata } from "../types/nostr";
 
 /**
  * Retrieves the display name from the given NMetadata object.
@@ -15,7 +18,7 @@ export function nameFromMetadata(metadata: NMetadata, pubkey?: string, truncate 
         metadata.display_name ||
         metadata.name ||
         (pubkey ? (truncate ? truncatedNpub(pubkey) : npubFromPubkey(pubkey)) : "")
-    );
+    ).trim();
 }
 
 /**
@@ -61,4 +64,26 @@ export function isValidWebSocketURL(url: string): boolean {
     } catch {
         return false;
     }
+}
+
+export async function latestMessagePreview(messageId: number | undefined): Promise<string> {
+    if (!messageId) {
+        return "New chat";
+    }
+
+    const event = (await invoke("query_message", { messageId })) as NEvent;
+    if (!event) {
+        return "";
+    }
+
+    if (event.pubkey === get(activeAccount)?.pubkey) {
+        return `You: ${event.content}`;
+    }
+
+    const user: EnrichedContact = await invoke("query_enriched_contact", {
+        pubkey: event.pubkey,
+        updateAccount: false,
+    });
+    const otherAuthorMetadata = user.metadata;
+    return `${nameFromMetadata(otherAuthorMetadata)}: ${event.content}`;
 }
