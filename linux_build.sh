@@ -1,3 +1,3 @@
 #!/bin/bash
-npm install
-cargo tauri build
+bun install
+bun tauri build

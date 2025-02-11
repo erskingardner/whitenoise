@@ -30,8 +30,8 @@ RUN cargo install tauri-cli
 # Install frontend dependencies
 WORKDIR /app
 COPY package.json ./
-RUN npm install
 RUN npm install -g bun
+RUN bun install
 COPY . .
 
 # Build the Tauri application
