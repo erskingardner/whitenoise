@@ -24,6 +24,7 @@ use once_cell::sync::Lazy;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::Manager;
+use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{filter::EnvFilter, fmt::Layer, prelude::*, registry::Registry};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -123,16 +124,17 @@ fn setup_logging(logs_dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
         .filename_suffix("log")
         .build(logs_dir)?;
 
-    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+    // Create non-blocking writers for both stdout and file
+    let (non_blocking_file, file_guard) = tracing_appender::non_blocking(file_appender);
+    let (non_blocking_stdout, stdout_guard) = tracing_appender::non_blocking(std::io::stdout());
 
-    static GUARD: Lazy<Mutex<Option<tracing_appender::non_blocking::WorkerGuard>>> =
-        Lazy::new(|| Mutex::new(None));
-    *GUARD.lock().unwrap() = Some(guard);
+    static GUARDS: Lazy<Mutex<Option<(WorkerGuard, WorkerGuard)>>> = Lazy::new(|| Mutex::new(None));
+    *GUARDS.lock().unwrap() = Some((file_guard, stdout_guard));
 
     Registry::default()
         .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug")))
-        .with(Layer::new().with_writer(std::io::stdout))
-        .with(Layer::new().with_writer(non_blocking))
+        .with(Layer::new().with_writer(non_blocking_stdout))
+        .with(Layer::new().with_writer(non_blocking_file))
         .init();
 
     Ok(())
