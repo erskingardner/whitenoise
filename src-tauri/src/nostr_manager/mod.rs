@@ -3,7 +3,6 @@ use crate::nostr_manager::event_processor::EventProcessor;
 use crate::types::NostrEncryptionMethod;
 use crate::Whitenoise;
 use nostr_sdk::prelude::*;
-use nostr_sdk::NostrLMDB;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -75,9 +74,26 @@ pub type Result<T> = std::result::Result<T, NostrManagerError>;
 
 impl NostrManager {
     pub async fn new(db_path: PathBuf, app_handle: AppHandle) -> Result<Self> {
-        let full_path = db_path.join("nostr_lmdb");
-        let db = NostrLMDB::open(full_path).expect("Failed to open Nostr database");
         let opts = Options::default();
+
+        #[cfg(all(feature = "ndb", feature = "lmdb"))]
+        compile_error!("Cannot enable both 'ndb' and 'lmdb' features simultaneously");
+
+        let db = {
+            #[cfg(all(feature = "ndb", not(feature = "lmdb")))]
+            {
+                let full_path = db_path.join("nostr_ndb");
+                NdbDatabase::open(full_path.to_str().expect("Invalid path"))
+                    .expect("Failed to open Nostr database")
+            }
+
+            #[cfg(all(feature = "lmdb", not(feature = "ndb")))]
+            {
+                let full_path = db_path.join("nostr_lmdb");
+                NostrLMDB::open(full_path).expect("Failed to open Nostr database")
+            }
+        };
+
         let client = Client::builder().database(db).opts(opts).build();
 
         let settings = NostrManagerSettings::default();
