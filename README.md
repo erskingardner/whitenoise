@@ -25,7 +25,12 @@ To build the app in release mode for desktop, run `bun tauri build`.
 
 ### Linux
 
-- I haven't tried the app on Linux yet. Let me know how it goes!
+- To provide a stable and reproducible build environment for Linux, the provided Dockerfile can be used:
+```
+docker build -t tauri-app -f Dockerfile.linux_build .
+docker run --rm -v $(pwd):/app tauri-app
+```
+The resulting build artifacts (`.deb`, `.rpm` and `.AppImage` packages) will be created in the `src-tauri/target/release/bundle` directory.
 
 ### Windows
 
