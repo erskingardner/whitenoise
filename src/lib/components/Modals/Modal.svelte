@@ -60,7 +60,7 @@ onDestroy(() => {
     transition:fade={{ duration: 100 }}
 >
     <div
-        class="flex flex-col gap-4 bg-gray-800 ring-2 ring-gray-700 rounded-t-xl w-full h-[90vh] z-30 pb-40 overflow-y-scroll"
+        class="flex flex-col gap-4 bg-gray-800 ring-2 ring-gray-700 rounded-t-xl w-full h-full lg:h-[90vh] z-30 pb-40 overflow-y-scroll"
         transition:fly={{ y: 800, duration: 300 }}
     >
         <HeaderToolbar bgColor="bg-gray-800">

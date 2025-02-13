@@ -4,21 +4,22 @@
 
 :root {
     font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-    font-size: 14px;
     font-feature-settings: "liga" 1, "calt" 1; /* fix for Chrome */
-
     font-synthesis: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     -webkit-text-size-adjust: 100%;
+    --sat: env(safe-area-inset-top);
+    --sab: env(safe-area-inset-bottom);
+    --sal: env(safe-area-inset-left);
+    --sar: env(safe-area-inset-right);
 }
 
 :root,
 html,
-body,
-#app {
-    @apply text-gray-50 bg-gray-900;
+body {
+    @apply text-gray-50 bg-gray-900 text-[16px] md:text-[14px];
 }
 
 @supports (font-variation-settings: normal) {
@@ -31,9 +32,8 @@ body,
 @media (prefers-color-scheme: dark) {
     :root,
     html,
-    body,
-    #app {
-        @apply text-gray-50 bg-gray-900;
+    body {
+        @apply text-gray-50 bg-gray-900 text-[16px] md:text-[14px];
     }
 }
 
@@ -86,4 +86,15 @@ html {
 
 .section-list-item > .row-button {
     @apply flex flex-row gap-2 items-center font-medium text-lg p-2 w-full hover:bg-gray-600/30;
+}
+
+@supports not (-webkit-touch-callout: none) {
+    /* Android specific styles */
+    .pt-safe-top {
+        padding-top: max(16px, var(--sat, 16px));
+        margin-top: max(8px, var(--sat, 8px));
+    }
+    .pb-safe-bottom {
+        padding-bottom: max(8px, var(--sab, 8px));
+    }
 }

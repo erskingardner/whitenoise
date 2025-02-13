@@ -20,6 +20,12 @@ export default {
     ],
     theme: {
         extend: {
+            padding: {
+                "safe-top": "calc(env(safe-area-inset-top) + 16px)",
+                "safe-bottom": "env(safe-area-inset-bottom)",
+                "safe-left": "env(safe-area-inset-left)",
+                "safe-right": "env(safe-area-inset-right)",
+            },
             fontFamily: {
                 mono: [
                     "Inconsolata",

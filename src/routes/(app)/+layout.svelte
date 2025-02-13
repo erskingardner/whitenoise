@@ -76,7 +76,7 @@ onDestroy(() => {
 });
 </script>
 
-<main class="flex flex-col md:flex-row">
+<main class="flex flex-col md:flex-row min-h-screen">
     <Sidebar {activeTab} />
     {#if !page.url.pathname.match(/^\/chats\/*[a-zA-Z0-9]+\/*/)}
         <Tabbar {activeTab} />

@@ -56,11 +56,11 @@ onDestroy(() => {
 
 async function handleLogin(e: Event) {
     e.preventDefault();
-    console.log("handleLogin");
     if (loading) return;
     loading = true;
     login(nsecOrHex).catch((error) => {
         loginError = error;
+        loading = false;
     });
 }
 
@@ -69,14 +69,15 @@ async function handleCreateAccount() {
     loading = true;
     createAccount().catch((error) => {
         loginError = error;
+        loading = false;
     });
 }
 </script>
 
 <div class="flex flex-col items-center justify-center w-screen h-dvh bg-gray-800" transition:fly={flyParams}>
     <div class="bg-gray-800 w-full h-2/3 flex flex-col items-center justify-center gap-6 py-12 px-6">
-        <img src="whitenoise-login-logo2.png" alt="logo" class="w-64" />
-        <h2 class="text-3xl font-medium text-center">Secure. Distributed. Uncensorable.</h2>
+        <img src="whitenoise-login-logo2.png" alt="logo" class="w-32 lg:w-40" />
+        <h2 class="text-xl lg:text-2xl font-medium text-center">Secure. Distributed. Uncensorable.</h2>
         <div class="h-[40px]">
             {#if loading}
                 <Loader size={40} fullscreen={false} />

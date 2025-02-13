@@ -55,7 +55,6 @@ async function loadEvents() {
         isLoading = false;
     }
 }
-$inspect(groups);
 
 onMount(async () => {
     if ($activeAccount) {

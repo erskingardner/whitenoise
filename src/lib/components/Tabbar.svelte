@@ -5,7 +5,7 @@ let { activeTab = $bindable("chats") }: { activeTab: string } = $props();
 </script>
 
 <nav
-    class="fixed bottom-0 left-0 right-0 border-t border-gray-700 py-4 min-w-96 overflow-hidden md:hidden bg-gray-950/80 backdrop-blur-sm z-10"
+    class="fixed inset-x-0 bottom-0 border-t border-gray-700 py-4 min-w-96 overflow-hidden md:hidden bg-gray-950/80 backdrop-blur-sm z-10 pb-safe-bottom"
 >
     <div class="max-w-screen-xl mx-auto px-4 flex justify-around items-center">
         <a href="/chats">
@@ -31,7 +31,7 @@ let { activeTab = $bindable("chats") }: { activeTab: string } = $props();
 
 <style lang="postcss">
     .tabbar-link {
-        @apply flex flex-col items-center font-medium  gap-2;
+        @apply flex flex-col items-center font-medium  gap-2 text-sm;
     }
     .tabbar-link.active {
         @apply text-blue-500;

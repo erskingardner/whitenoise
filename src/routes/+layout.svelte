@@ -10,6 +10,4 @@ setToastState();
 </script>
 
 <Toaster />
-<div>
-    {@render children()}
-</div>
+{@render children()}

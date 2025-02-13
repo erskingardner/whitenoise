@@ -295,7 +295,7 @@ async function copyNsec(account: Account) {
 </HeaderToolbar>
 
 <Header title="Settings" />
-<main class="px-4 flex flex-col pb-40">
+<main class="px-4 flex flex-col">
     <h2 class="section-title">Accounts</h2>
     <div class="section w-full">
         {#each $accounts as account (account.pubkey)}

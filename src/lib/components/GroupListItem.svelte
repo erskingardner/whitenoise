@@ -20,7 +20,6 @@ let counterpartyQueried: boolean = $state(false);
 let counterpartyFetched: boolean = $state(false);
 let messagePreview: string = $state("");
 
-$inspect(messagePreview);
 $effect(() => {
     latestMessagePreview(group.last_message_id).then((preview: string) => {
         messagePreview = preview;
@@ -87,8 +86,8 @@ $effect(() => {
         <GroupAvatar bind:groupType={group.group_type} bind:groupName bind:counterpartyPubkey bind:enrichedCounterparty pxSize={40} />
         <div class="flex flex-col gap-0">
             <span class="text-lg font-semibold">{groupName}</span>
-            <span class="text-sm text-gray-400 {group.last_message_id ? "" : "text-gray-500"}">{group.last_message_id ? messagePreview : "New chat"}</span>
+            <span class="text-sm text-gray-400 {group.last_message_id ? "" : "text-gray-500"} line-clamp-2">{group.last_message_id ? messagePreview : "New chat"}</span>
         </div>
     </div>
-    <span class="">{group.last_message_at ? formatMessageTime(group.last_message_at) : ""}</span>
+    <span class="whitespace-nowrap">{group.last_message_at ? formatMessageTime(group.last_message_at) : ""}</span>
 </a>

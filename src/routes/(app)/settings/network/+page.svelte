@@ -13,9 +13,9 @@ function goBack() {
 
 <HeaderToolbar>
     {#snippet left()}
-        <button class="flex flex-row gap-0.5 items-end" onclick={goBack}>
-            <CaretLeft size={24} />
-            <span class="text-xl font-medium">Back</span>
+        <button class="flex flex-row gap-0.5 items-center" onclick={goBack}>
+            <CaretLeft size={24} weight="bold" />
+            <span class="font-medium text-lg">Back</span>
         </button>
     {/snippet}
     {#snippet center()}
