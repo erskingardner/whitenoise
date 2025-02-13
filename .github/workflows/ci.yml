@@ -7,7 +7,28 @@ on:
 
 jobs:
   check:
-    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS desktop builds
+          - name: "macOS (Apple Silicon)"
+            platform: "macos-latest"
+            args: "--target aarch64-apple-darwin"
+            arch: "aarch64"
+            features: "ndb"
+          - name: "macOS (Intel)"
+            platform: "macos-latest"
+            args: "--target x86_64-apple-darwin"
+            arch: "x86_64"
+            features: "ndb"
+          # Linux desktop builds
+          - name: "Linux Desktop"
+            platform: "ubuntu-22.04"
+            args: ""
+            features: "lmdb"
+
+    runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
 
@@ -20,9 +41,14 @@ jobs:
           cache-directories: |
             ~/.cargo/registry
             ~/.cargo/git
+          # Add a suffix to distinguish between different platforms and architectures
+          key: ${{ matrix.platform }}${{ matrix.arch && '-' }}${{ matrix.arch }}
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: >-
+            ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Cache bun dependencies
         uses: actions/cache@v4
@@ -39,7 +65,8 @@ jobs:
         with:
           bun-version: 1.1.39
 
-      - name: Install system dependencies
+      - name: Install system dependencies (ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
@@ -48,7 +75,7 @@ jobs:
         run: bun install
 
       - name: Run tests
-        run: cd src-tauri && cargo test --all-features
+        run: cd src-tauri && cargo test ${{ matrix.args }} --features ${{ matrix.features }}
 
       - name: Run clippy
-        run: cd src-tauri && cargo clippy -- -D warnings 
+        run: cd src-tauri && cargo clippy ${{ matrix.args }} --features ${{ matrix.features }} -- -D warnings

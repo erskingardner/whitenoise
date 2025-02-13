@@ -199,7 +199,7 @@ jobs:
           RPM_SIGNING_KEY: ${{ matrix.platform == 'ubuntu-22.04' && !matrix.android && steps.import_gpg.outputs.keyid || '' }}
           RPM_SIGNING_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         with:
-          args: ${{ matrix.args }}
+          args: ${{ matrix.args }} --features ${{ matrix.platform == 'macos-latest' && 'ndb' || 'lmdb' }}
 
       - name: Generate desktop artifact hashes
         if: ${{ !matrix.android }}
@@ -252,12 +252,12 @@ jobs:
       - name: Build Android universal binary
         if: matrix.android
         run: |
-          bun tauri android build
+          bun tauri android build --features lmdb
 
       - name: Build Android arch specific binaries
         if: matrix.android
         run: |
-          bun tauri android build --apk --split-per-abi
+          bun tauri android build --apk --split-per-abi --features lmdb
 
       - name: List Android build outputs
         if: matrix.android
