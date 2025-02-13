@@ -86,10 +86,7 @@ pub async fn fetch_key_package_for_pubkey(
     let key_package_events = wn
         .nostr
         .client
-        .fetch_events(
-            vec![key_package_filter],
-            Some(wn.nostr.timeout().await.unwrap()),
-        )
+        .fetch_events(vec![key_package_filter], wn.nostr.timeout().await.unwrap())
         .await
         .expect("Error fetching key_package events");
 
@@ -188,7 +185,7 @@ pub async fn delete_key_package_from_relays(
                 .id(*event_id)
                 .kind(Kind::MlsKeyPackage)
                 .author(current_pubkey)],
-            Some(wn.nostr.timeout().await.unwrap()),
+            wn.nostr.timeout().await.unwrap(),
         )
         .await?;
 

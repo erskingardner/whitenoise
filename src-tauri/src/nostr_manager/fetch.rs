@@ -28,7 +28,7 @@ impl NostrManager {
     pub async fn fetch_user_metadata(&self, pubkey: PublicKey) -> Result<Option<Metadata>> {
         match self
             .client
-            .fetch_metadata(pubkey, Some(self.timeout().await?))
+            .fetch_metadata(pubkey, self.timeout().await?)
             .await
         {
             Ok(metadata) => Ok(Some(metadata)),
@@ -42,7 +42,7 @@ impl NostrManager {
 
         let events = self
             .client
-            .fetch_events(vec![filter], Some(self.timeout().await?))
+            .fetch_events(vec![filter], self.timeout().await?)
             .await
             .map_err(NostrManagerError::from)?;
 
@@ -56,7 +56,7 @@ impl NostrManager {
             .limit(1);
         let events = self
             .client
-            .fetch_events(vec![filter], Some(self.timeout().await?))
+            .fetch_events(vec![filter], self.timeout().await?)
             .await
             .map_err(NostrManagerError::from)?;
 
@@ -70,7 +70,7 @@ impl NostrManager {
             .limit(1);
         let events = self
             .client
-            .fetch_events(vec![filter], Some(self.timeout().await?))
+            .fetch_events(vec![filter], self.timeout().await?)
             .await
             .map_err(NostrManagerError::from)?;
 
@@ -81,7 +81,7 @@ impl NostrManager {
         let filter = Filter::new().author(pubkey).kind(Kind::MlsKeyPackage);
         let events = self
             .client
-            .fetch_events(vec![filter], Some(self.timeout().await?))
+            .fetch_events(vec![filter], self.timeout().await?)
             .await
             .map_err(NostrManagerError::from)?;
         Ok(events)
@@ -95,14 +95,14 @@ impl NostrManager {
         );
         let contacts_pubkeys = self
             .client
-            .get_contact_list_public_keys(Some(self.timeout().await?))
+            .get_contact_list_public_keys(self.timeout().await?)
             .await?;
 
         let filter = Filter::new().kind(Kind::Metadata).authors(contacts_pubkeys);
         let database_contacts = self.client.database().query(vec![filter.clone()]).await?;
         let fetched_contacts = self
             .client
-            .fetch_events(vec![filter], Some(self.timeout().await?))
+            .fetch_events(vec![filter], self.timeout().await?)
             .await?;
 
         let contacts = database_contacts.merge(fetched_contacts);
@@ -114,7 +114,7 @@ impl NostrManager {
         let stored_events = self.client.database().query(vec![filter.clone()]).await?;
         let fetched_events = self
             .client
-            .fetch_events(vec![filter], Some(self.timeout().await?))
+            .fetch_events(vec![filter], self.timeout().await?)
             .await?;
 
         let events = stored_events.merge(fetched_events);
@@ -142,7 +142,7 @@ impl NostrManager {
         let stored_events = self.client.database().query(vec![filter.clone()]).await?;
         let fetched_events = self
             .client
-            .fetch_events(vec![filter], Some(self.timeout().await?))
+            .fetch_events(vec![filter], self.timeout().await?)
             .await?;
 
         let events = stored_events.merge(fetched_events);

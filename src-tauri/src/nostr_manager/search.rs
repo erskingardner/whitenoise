@@ -24,7 +24,7 @@ impl NostrManager {
         let fetched_events = wn
             .nostr
             .client
-            .fetch_events(vec![filter.clone()], Some(wn.nostr.timeout().await?))
+            .fetch_events(vec![filter.clone()], wn.nostr.timeout().await.unwrap())
             .await
             .map_err(NostrManagerError::from)?;
 
@@ -44,7 +44,7 @@ impl NostrManager {
                     Kind::InboxRelays,
                     Kind::MlsKeyPackage,
                 ])],
-                Some(wn.nostr.timeout().await?),
+                wn.nostr.timeout().await.unwrap(),
             )
             .await
             .map_err(NostrManagerError::from)?;

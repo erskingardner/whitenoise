@@ -20,7 +20,7 @@ impl NostrManager {
     async fn subscribe_contacts_metadata(&self) -> Result<Output<SubscriptionId>> {
         let contact_list_pubkeys = self
             .client
-            .get_contact_list_public_keys(Some(self.timeout().await?))
+            .get_contact_list_public_keys(self.timeout().await?)
             .await?;
 
         let contact_metadata_filter = Filter::new()
@@ -72,7 +72,7 @@ impl NostrManager {
         // https://github.com/rust-nostr/nostr/issues/509
         let null_filter = Filter::new().kind(Kind::GiftWrap).pubkey(pubkey).limit(0);
         self.client
-            .fetch_events(vec![null_filter], Some(self.timeout().await?))
+            .fetch_events(vec![null_filter], self.timeout().await?)
             .await?;
 
         let giftwrap_filter = Filter::new()

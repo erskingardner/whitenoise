@@ -202,7 +202,7 @@ pub async fn fetch_enriched_contacts(
     let contact_list_pubkeys = wn
         .nostr
         .client
-        .get_contact_list_public_keys(Some(wn.nostr.timeout().await.unwrap()))
+        .get_contact_list_public_keys(wn.nostr.timeout().await.unwrap())
         .await
         .expect("Failed to fetch contact list public keys");
 
@@ -249,10 +249,9 @@ pub async fn fetch_enriched_contacts(
     // Fetch all events in parallel using a single request
     let (stored_events, fetched_events) = tokio::join!(
         wn.nostr.client.database().query(vec![filter.clone()]),
-        wn.nostr.client.fetch_events(
-            vec![filter.clone()],
-            Some(wn.nostr.timeout().await.unwrap()),
-        )
+        wn.nostr
+            .client
+            .fetch_events(vec![filter.clone()], wn.nostr.timeout().await.unwrap())
     );
 
     let all_events = stored_events
@@ -510,8 +509,8 @@ pub async fn publish_relay_list(
     }
 
     let event_kind = match kind {
-        10050 => Kind::Replaceable(10050),
-        10051 => Kind::Replaceable(10051),
+        10050 => Kind::InboxRelays,
+        10051 => Kind::MlsKeyPackageRelays,
         _ => return Err("Invalid relay list kind".to_string()),
     };
 
