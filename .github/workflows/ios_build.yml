@@ -9,11 +9,11 @@ on:
         required: true
       APPLE_TEAM_ID:
         required: true
-      APPLE_DISTRIBUTION_CERTIFICATE:
+      APPLE_API_ISSUER:
         required: true
-      APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD:
+      APPLE_API_KEY:
         required: true
-      APPLE_PROVISIONING_PROFILE:
+      APPLE_API_KEY_PATH:
         required: true
       KEYCHAIN_PASSWORD:
         required: true
@@ -83,30 +83,6 @@ jobs:
 
       - name: Install frontend dependencies
         run: bun install
-
-      - name: Import Distribution Certificate
-        env:
-          APPLE_DISTRIBUTION_CERTIFICATE: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE }}
-          APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-        run: |
-          echo $APPLE_DISTRIBUTION_CERTIFICATE | base64 --decode > distribution_certificate.p12
-          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          security import distribution_certificate.p12 -k build.keychain -P "$APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-          security set-keychain-settings -t 3600 -l build.keychain
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
-          rm distribution_certificate.p12
-
-      - name: Install Provisioning Profile
-        env:
-          APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
-        run: |
-          echo $APPLE_PROVISIONING_PROFILE | base64 --decode > "White Noise App Store Profile.mobileprovision"
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp "White Noise App Store Profile.mobileprovision" ~/Library/MobileDevice/Provisioning\ Profiles/"White Noise App Store Profile.mobileprovision"
-          rm "White Noise App Store Profile.mobileprovision"
 
       - name: Build iOS App
         run: |
