@@ -52,6 +52,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
       - name: Cache bun dependencies
         uses: actions/cache@v4
         with:
@@ -103,10 +114,10 @@ jobs:
         env:
           APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
         run: |
-          echo $APPLE_PROVISIONING_PROFILE | base64 --decode > whitenoise_appstore.mobileprovision
+          echo $APPLE_PROVISIONING_PROFILE | base64 --decode > "White Noise App Store Profile.mobileprovision"
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp whitenoise_appstore.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/whitenoise_appstore.mobileprovision
-          rm whitenoise_appstore.mobileprovision
+          cp "White Noise App Store Profile.mobileprovision" ~/Library/MobileDevice/Provisioning\ Profiles/"White Noise App Store Profile.mobileprovision"
+          rm "White Noise App Store Profile.mobileprovision"
 
       - name: Build iOS App
         run: |

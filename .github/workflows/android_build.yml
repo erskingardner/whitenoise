@@ -39,10 +39,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Check disk space before cleanup
-        run: |
-          echo "Available disk space before cleanup:"
-          df -h
+      - uses: actions/checkout@v4
 
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@main
@@ -54,8 +51,6 @@ jobs:
           large-packages: true
           docker-images: true
           swap-storage: true
-
-      - uses: actions/checkout@v4
 
       - name: Cache bun dependencies
         uses: actions/cache@v4
