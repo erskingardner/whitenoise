@@ -78,7 +78,7 @@ async function sendMessage() {
 }
 
 function handleKeydown(event: KeyboardEvent) {
-    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+    if (event.key === "Enter") {
         sendMessage();
     }
 }
