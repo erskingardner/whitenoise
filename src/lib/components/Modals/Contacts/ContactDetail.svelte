@@ -98,7 +98,7 @@ async function inviteToWhiteNoise() {
             </p>
             <button class="button-primary {isLoading ? 'opacity-50 cursor-not-allowed' : ''}" disabled={isLoading} onclick={startSecureChat}> Start secure chat </button>
         {:else}
-            <p class="flex flex-col md:flex-row items-center gap-2">
+            <p class="flex flex-col md:flex-row items-center gap-2 text-center w-4/5 md:w-full">
                 <Warning class="text-red-500" weight="bold" size={24} />
                 {nameFromMetadata(contact.metadata, pubkey)} is not yet set up to use secure MLS messaging.
             </p>
