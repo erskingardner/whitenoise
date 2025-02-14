@@ -19,14 +19,30 @@ on:
         required: true
       GPG_PASSPHRASE:
         required: true
-      ANDROID_KEY_ALIAS:
-        required: true
-      ANDROID_KEY_PASSWORD:
-        required: true
-      ANDROID_KEY_BASE64:
-        required: true
-  pull_request:
   push:
+    branches:
+      - master
+    paths:
+      - 'src-tauri/**'
+      - 'src/**'
+      - 'static/**'
+      - 'package.json'
+      - 'bun.lockb'
+      - 'svelte.config.js'
+      - 'tailwind.config.js'
+      - 'vite.config.js'
+      - '.github/workflows/build.yml'
+  pull_request:
+    paths:
+        - 'src-tauri/**'
+        - 'src/**'
+        - 'static/**'
+        - 'package.json'
+        - 'bun.lockb'
+        - 'svelte.config.js'
+        - 'tailwind.config.js'
+        - 'vite.config.js'
+        - '.github/workflows/build.yml'
 
 jobs:
   build-tauri:
@@ -47,10 +63,6 @@ jobs:
           - name: "Linux Desktop"
             platform: "ubuntu-22.04"
             args: ""
-          # Single Android build that will output all ABIs
-          - name: "Android"
-            platform: "ubuntu-22.04"
-            android: true
 
     runs-on: ${{ matrix.platform }}
     env:
@@ -85,51 +97,16 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
           # Add a suffix to distinguish between different platforms and architectures
-          key: ${{ matrix.platform }}${{ matrix.arch && '-' }}${{ matrix.arch }}${{ matrix.android && '-android' }}
+          key: ${{ matrix.platform }}${{ matrix.arch && '-' }}${{ matrix.arch }}
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: >-
             ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
-            ${{ matrix.android && 'aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android' || '' }}
 
       - name: Install frontend dependencies
         run: bun install
-
-      - name: Cache Android NDK
-        if: matrix.android
-        uses: actions/cache@v4
-        with:
-          path: /usr/local/lib/android/sdk/ndk/25.2.9519653
-          key: ${{ runner.os }}-ndk-25.2.9519653
-
-      - name: Set up JDK 17
-        if: matrix.android
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04' && !matrix.android
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
-            libfuse2 fuse libglib2.0-dev libcairo2-dev libpango1.0-dev \
-            libasound2-dev libgtk-3-dev desktop-file-utils
-
-      - name: Setup Android SDK
-        if: matrix.android
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android NDK
-        if: matrix.android
-        run: |
-          sdkmanager --install "ndk;25.2.9519653"
-          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
-          echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
-
 
       - name: Import Apple Developer Certificate
         if: matrix.platform == 'macos-latest'
@@ -161,7 +138,7 @@ jobs:
           echo "Apple Developer Certificate imported."
 
       - name: Import GPG key
-        if: matrix.platform == 'ubuntu-22.04' && !matrix.android
+        if: matrix.platform == 'ubuntu-22.04'
         id: import_gpg
         uses: crazy-max/ghaction-import-gpg@v6
         with:
@@ -169,18 +146,8 @@ jobs:
           passphrase: ${{ secrets.GPG_PASSPHRASE }}
           trust_level: 5
 
-      - name: Setup Android signing
-        if: matrix.android
-        run: |
-          cd src-tauri/gen/android
-          echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" > keystore.properties
-          echo "password=${{ secrets.ANDROID_KEY_PASSWORD }}" >> keystore.properties
-          base64 -d <<< "${{ secrets.ANDROID_KEY_BASE64 }}" > $RUNNER_TEMP/keystore.jks
-          echo "storeFile=$RUNNER_TEMP/keystore.jks" >> keystore.properties
-
       # Split the build step into two different actions based on the target
       - name: Build Desktop App
-        if: ${{ !matrix.android }}
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -189,20 +156,19 @@ jobs:
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ matrix.platform == 'macos-latest' && 'Developer ID Application' || '' }}
           # AppImage signing
-          LDAI_SIGN: ${{ matrix.platform == 'ubuntu-22.04' && !matrix.android }}
-          LDAI_SIGN_KEY: ${{ matrix.platform == 'ubuntu-22.04' && !matrix.android && steps.import_gpg.outputs.keyid || '' }}
+          LDAI_SIGN: ${{ matrix.platform == 'ubuntu-22.04' }}
+          LDAI_SIGN_KEY: ${{ matrix.platform == 'ubuntu-22.04' && steps.import_gpg.outputs.keyid || '' }}
           LDAI_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           # DEB signing
-          TAURI_SIGNING_KEY: ${{ matrix.platform == 'ubuntu-22.04' && !matrix.android && steps.import_gpg.outputs.keyid || '' }}
+          TAURI_SIGNING_KEY: ${{ matrix.platform == 'ubuntu-22.04' && steps.import_gpg.outputs.keyid || '' }}
           TAURI_SIGNING_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           # RPM signing
-          RPM_SIGNING_KEY: ${{ matrix.platform == 'ubuntu-22.04' && !matrix.android && steps.import_gpg.outputs.keyid || '' }}
+          RPM_SIGNING_KEY: ${{ matrix.platform == 'ubuntu-22.04' && steps.import_gpg.outputs.keyid || '' }}
           RPM_SIGNING_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         with:
-          args: ${{ matrix.args }} --features ${{ matrix.platform == 'macos-latest' && 'ndb' || 'lmdb' }}
+          args: ${{ matrix.args }}
 
       - name: Generate desktop artifact hashes
-        if: ${{ !matrix.android }}
         run: |
           if [ "${{ matrix.platform }}" = "ubuntu-22.04" ]; then
             # Get version from Cargo.toml
@@ -249,79 +215,7 @@ jobs:
             ' sh "$VERSION" {} \;
           fi
 
-      - name: Build Android universal binary
-        if: matrix.android
-        run: |
-          bun tauri android build --features lmdb
-
-      - name: Build Android arch specific binaries
-        if: matrix.android
-        run: |
-          bun tauri android build --apk --split-per-abi --features lmdb
-
-      - name: List Android build outputs
-        if: matrix.android
-        run: |
-          echo "Listing all APKs recursively:"
-          find src-tauri/gen/android -name "*.apk" -type f
-          echo "\nListing all AABs recursively:"
-          find src-tauri/gen/android -name "*.aab" -type f
-          echo "\nListing specific release directories:"
-          ls -la src-tauri/gen/android/app/build/outputs/apk/*/release/ || echo "Release dirs not found"
-
-      - name: Prepare Android artifacts
-        if: matrix.android
-        run: |
-          # Get version from Cargo.toml
-          VERSION=$(grep '^version[[:space:]]*=[[:space:]]*"' src-tauri/Cargo.toml | sed 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/')
-          echo "Version: $VERSION"
-          mkdir -p android-artifacts
-
-          echo "Checking source paths:"
-          for type in universal arm64 arm x86 x86_64; do
-            echo "Checking ${type}:"
-            ls -la "src-tauri/gen/android/app/build/outputs/apk/${type}/release/" || echo "${type} directory not found"
-          done
-
-          # Copy files with error checking
-          for pair in \
-            "universal/release/app-universal-release.apk:android-universal.apk" \
-            "arm64/release/app-arm64-release.apk:android-arm64.apk" \
-            "arm/release/app-arm-release.apk:android-arm.apk" \
-            "x86/release/app-x86-release.apk:android-x86.apk" \
-            "x86_64/release/app-x86_64-release.apk:android-x86_64.apk"; do
-            src=${pair%:*}
-            dst=${pair#*:}
-            if [ -f "src-tauri/gen/android/app/build/outputs/apk/$src" ]; then
-              cp "src-tauri/gen/android/app/build/outputs/apk/$src" "android-artifacts/whitenoise-${VERSION}-${dst}"
-              echo "Copied $src successfully"
-            else
-              echo "Source file not found: $src"
-            fi
-          done
-
-      - name: Generate Android artifact hashes
-        if: matrix.android
-        run: |
-          cd android-artifacts
-          find . -type f -not -name "*.sha256" -exec sh -c '
-            sha256sum "$1" | sed "s|./|  |" > "${1}.sha256"
-          ' sh {} \;
-
-      - name: List Android artifacts
-        if: matrix.android
-        run: |
-          find android-artifacts/* -type f
-
-      - name: Upload Android artifacts
-        if: matrix.android
-        uses: actions/upload-artifact@v4
-        with:
-          name: android
-          path: android-artifacts/*
-
       - name: Prepare Desktop artifacts
-        if: ${{ !matrix.android }}
         run: |
           # Get version from Cargo.toml
           VERSION=$(grep '^version[[:space:]]*=[[:space:]]*"' src-tauri/Cargo.toml | sed 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/')
@@ -359,12 +253,10 @@ jobs:
           fi
 
       - name: List desktop artifacts
-        if: ${{ !matrix.android }}
         run: |
           find desktop-artifacts/* -type f
 
       - name: Upload Desktop artifacts
-        if: ${{ !matrix.android }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.platform }}${{ matrix.arch && '-' }}${{ matrix.arch }}

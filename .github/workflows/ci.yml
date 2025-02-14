@@ -2,8 +2,30 @@ name: "CI"
 
 on:
   workflow_call: {}  # Allow this workflow to be called by other workflows
-  pull_request:
   push:
+    branches:
+      - master
+    paths:
+      - 'src-tauri/**'
+      - 'src/**'
+      - 'static/**'
+      - 'package.json'
+      - 'bun.lockb'
+      - 'svelte.config.js'
+      - 'tailwind.config.js'
+      - 'vite.config.js'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    paths:
+        - 'src-tauri/**'
+        - 'src/**'
+        - 'static/**'
+        - 'package.json'
+        - 'bun.lockb'
+        - 'svelte.config.js'
+        - 'tailwind.config.js'
+        - 'vite.config.js'
+        - '.github/workflows/ci.yml'
 
 jobs:
   check:
@@ -16,17 +38,14 @@ jobs:
             platform: "macos-latest"
             args: "--target aarch64-apple-darwin"
             arch: "aarch64"
-            features: "ndb"
           - name: "macOS (Intel)"
             platform: "macos-latest"
             args: "--target x86_64-apple-darwin"
             arch: "x86_64"
-            features: "ndb"
           # Linux desktop builds
           - name: "Linux Desktop"
             platform: "ubuntu-22.04"
             args: ""
-            features: "lmdb"
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -75,7 +94,7 @@ jobs:
         run: bun install
 
       - name: Run tests
-        run: cd src-tauri && cargo test ${{ matrix.args }} --features ${{ matrix.features }}
+        run: cd src-tauri && cargo test ${{ matrix.args }}
 
       - name: Run clippy
-        run: cd src-tauri && cargo clippy ${{ matrix.args }} --features ${{ matrix.features }} -- -D warnings
+        run: cd src-tauri && cargo clippy ${{ matrix.args }} -- -D warnings

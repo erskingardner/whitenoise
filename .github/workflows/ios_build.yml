@@ -1,0 +1,128 @@
+name: "iOS Build & Upload"
+
+on:
+  workflow_call:
+    secrets:
+      APPLE_ID:
+        required: true
+      APPLE_PASSWORD:
+        required: true
+      APPLE_TEAM_ID:
+        required: true
+      APPLE_DISTRIBUTION_CERTIFICATE:
+        required: true
+      APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD:
+        required: true
+      APPLE_PROVISIONING_PROFILE:
+        required: true
+      KEYCHAIN_PASSWORD:
+        required: true
+  push:
+    branches:
+      - master
+    paths:
+      - 'src-tauri/**'
+      - 'src/**'
+      - 'static/**'
+      - 'package.json'
+      - 'bun.lockb'
+      - 'svelte.config.js'
+      - 'tailwind.config.js'
+      - 'vite.config.js'
+      - '.github/workflows/ios_build.yml'
+  pull_request:
+    paths:
+        - 'src-tauri/**'
+        - 'src/**'
+        - 'static/**'
+        - 'package.json'
+        - 'bun.lockb'
+        - 'svelte.config.js'
+        - 'tailwind.config.js'
+        - 'vite.config.js'
+        - '.github/workflows/ios_build.yml'
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    env:
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 1.1.39
+
+      - name: Add Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+          cache-directories: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ios-${{ runner.os }}
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,x86_64-apple-ios
+
+      - name: Install frontend dependencies
+        run: bun install
+
+      - name: Import Distribution Certificate
+        env:
+          APPLE_DISTRIBUTION_CERTIFICATE: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE }}
+          APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          echo $APPLE_DISTRIBUTION_CERTIFICATE | base64 --decode > distribution_certificate.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security import distribution_certificate.p12 -k build.keychain -P "$APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-keychain-settings -t 3600 -l build.keychain
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          rm distribution_certificate.p12
+
+      - name: Install Provisioning Profile
+        env:
+          APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
+        run: |
+          echo $APPLE_PROVISIONING_PROFILE | base64 --decode > provisioning_profile.mobileprovision
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp provisioning_profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+          rm provisioning_profile.mobileprovision
+
+      - name: Build iOS App
+        run: |
+          bun tauri ios build
+
+      - name: Upload to TestFlight
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+        run: |
+          xcrun altool --upload-app --type ios --file "src-tauri/gen/ios/whitenoise.ipa" \
+            --username "$APPLE_ID" \
+            --password "$APPLE_PASSWORD"
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-app
+          path: src-tauri/gen/ios/whitenoise.ipa

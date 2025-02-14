@@ -14,10 +14,6 @@ edition = "2021"
 name = "whitenoise_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
-[features]
-lmdb = []
-ndb = []
-
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -48,7 +44,7 @@ tauri-plugin-notification = "2.2.1"
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
 nostr-sdk = { version = "0.38", features = [
-    "ndb",
+    "ndb",  # Use NDB for macOS and iOS
     "nip04",
     "nip44",
     "nip59",
@@ -56,7 +52,7 @@ nostr-sdk = { version = "0.38", features = [
 
 [target.'cfg(not(any(target_os = "ios", target_os = "macos")))'.dependencies]
 nostr-sdk = { version = "0.38", features = [
-    "lmdb",
+    "lmdb",  # Use LMDB for all other platforms
     "nip04",
     "nip44",
     "nip59",

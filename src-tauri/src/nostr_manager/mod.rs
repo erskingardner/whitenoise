@@ -76,25 +76,23 @@ impl NostrManager {
     pub async fn new(db_path: PathBuf, app_handle: AppHandle) -> Result<Self> {
         let opts = Options::default();
 
-        #[cfg(all(feature = "ndb", feature = "lmdb"))]
-        compile_error!("Cannot enable both 'ndb' and 'lmdb' features simultaneously");
-
-        let db = {
-            #[cfg(all(feature = "ndb", not(feature = "lmdb")))]
+        // Initialize the client with the appropriate database based on platform
+        let client = {
+            #[cfg(any(target_os = "ios", target_os = "macos"))]
             {
                 let full_path = db_path.join("nostr_ndb");
-                NdbDatabase::open(full_path.to_str().expect("Invalid path"))
-                    .expect("Failed to open Nostr database")
+                let db = NdbDatabase::open(full_path.to_str().expect("Invalid path"))
+                    .expect("Failed to open Nostr database");
+                Client::builder().database(db).opts(opts).build()
             }
 
-            #[cfg(all(feature = "lmdb", not(feature = "ndb")))]
+            #[cfg(not(any(target_os = "ios", target_os = "macos")))]
             {
                 let full_path = db_path.join("nostr_lmdb");
-                NostrLMDB::open(full_path).expect("Failed to open Nostr database")
+                let db = NostrLMDB::open(full_path).expect("Failed to open Nostr database");
+                Client::builder().database(db).opts(opts).build()
             }
         };
-
-        let client = Client::builder().database(db).opts(opts).build();
 
         let settings = NostrManagerSettings::default();
 

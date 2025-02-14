@@ -1,0 +1,165 @@
+name: "Android Build"
+
+on:
+  workflow_call:
+    secrets:
+      ANDROID_KEY_ALIAS:
+        required: true
+      ANDROID_KEY_PASSWORD:
+        required: true
+      ANDROID_KEY_BASE64:
+        required: true
+  push:
+    branches:
+      - master
+    paths:
+      - 'src-tauri/**'
+      - 'src/**'
+      - 'static/**'
+      - 'package.json'
+      - 'bun.lockb'
+      - 'svelte.config.js'
+      - 'tailwind.config.js'
+      - 'vite.config.js'
+      - '.github/workflows/android_build.yml'
+  pull_request:
+    paths:
+        - 'src-tauri/**'
+        - 'src/**'
+        - 'static/**'
+        - 'package.json'
+        - 'bun.lockb'
+        - 'svelte.config.js'
+        - 'tailwind.config.js'
+        - 'vite.config.js'
+        - '.github/workflows/android_build.yml'
+
+jobs:
+  build-android:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 1.1.39
+
+      - name: Add Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+          cache-directories: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: android-${{ runner.os }}
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
+
+      - name: Install frontend dependencies
+        run: bun install
+
+      - name: Cache Android NDK
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/lib/android/sdk/ndk/25.2.9519653
+          key: ${{ runner.os }}-ndk-25.2.9519653
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK
+        run: |
+          sdkmanager --install "ndk;25.2.9519653"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
+          echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
+
+      - name: Setup Android signing
+        run: |
+          cd src-tauri/gen/android
+          echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" > keystore.properties
+          echo "password=${{ secrets.ANDROID_KEY_PASSWORD }}" >> keystore.properties
+          base64 -d <<< "${{ secrets.ANDROID_KEY_BASE64 }}" > $RUNNER_TEMP/keystore.jks
+          echo "storeFile=$RUNNER_TEMP/keystore.jks" >> keystore.properties
+
+      - name: Build Android universal binary
+        run: |
+          bun tauri android build
+
+      - name: Build Android arch specific binaries
+        run: |
+          bun tauri android build --apk --split-per-abi
+
+      - name: List Android build outputs
+        run: |
+          echo "Listing all APKs recursively:"
+          find src-tauri/gen/android -name "*.apk" -type f
+          echo "\nListing all AABs recursively:"
+          find src-tauri/gen/android -name "*.aab" -type f
+          echo "\nListing specific release directories:"
+          ls -la src-tauri/gen/android/app/build/outputs/apk/*/release/ || echo "Release dirs not found"
+
+      - name: Prepare Android artifacts
+        run: |
+          VERSION=$(grep '^version[[:space:]]*=[[:space:]]*"' src-tauri/Cargo.toml | sed 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/')
+          echo "Version: $VERSION"
+          mkdir -p android-artifacts
+
+          echo "Checking source paths:"
+          for type in universal arm64 arm x86 x86_64; do
+            echo "Checking ${type}:"
+            ls -la "src-tauri/gen/android/app/build/outputs/apk/${type}/release/" || echo "${type} directory not found"
+          done
+
+          for pair in \
+            "universal/release/app-universal-release.apk:android-universal.apk" \
+            "arm64/release/app-arm64-release.apk:android-arm64.apk" \
+            "arm/release/app-arm-release.apk:android-arm.apk" \
+            "x86/release/app-x86-release.apk:android-x86.apk" \
+            "x86_64/release/app-x86_64-release.apk:android-x86_64.apk"; do
+            src=${pair%:*}
+            dst=${pair#*:}
+            if [ -f "src-tauri/gen/android/app/build/outputs/apk/$src" ]; then
+              cp "src-tauri/gen/android/app/build/outputs/apk/$src" "android-artifacts/whitenoise-${VERSION}-${dst}"
+              echo "Copied $src successfully"
+            else
+              echo "Source file not found: $src"
+            fi
+          done
+
+      - name: Generate Android artifact hashes
+        run: |
+          cd android-artifacts
+          find . -type f -not -name "*.sha256" -exec sh -c '
+            sha256sum "$1" | sed "s|./|  |" > "${1}.sha256"
+          ' sh {} \;
+
+      - name: List Android artifacts
+        run: |
+          find android-artifacts/* -type f
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: android-artifacts/*
