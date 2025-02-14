@@ -39,6 +39,23 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+      - name: Check disk space before cleanup
+        run: |
+          echo "Available disk space before cleanup:"
+          df -h
+
+      - name: Free disk space
+        run: |
+          # Remove unnecessary large packages
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          sudo apt-get clean
+          echo "Available disk space after cleanup:"
+          df -h
+
       - uses: actions/checkout@v4
 
       - name: Cache bun dependencies
@@ -105,10 +122,23 @@ jobs:
       - name: Build Android universal binary
         run: |
           bun tauri android build
+          echo "Disk space after universal build:"
+          df -h
 
       - name: Build Android arch specific binaries
         run: |
           bun tauri android build --apk --split-per-abi
+          echo "Disk space after arch-specific builds:"
+          df -h
+
+      - name: Cleanup build artifacts
+        run: |
+          cd src-tauri/gen/android
+          ./gradlew clean
+          cd app/build
+          rm -rf intermediates
+          echo "Disk space after cleanup:"
+          df -h
 
       - name: List Android build outputs
         run: |

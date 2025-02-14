@@ -103,14 +103,36 @@ jobs:
         env:
           APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
         run: |
-          echo $APPLE_PROVISIONING_PROFILE | base64 --decode > provisioning_profile.mobileprovision
+          echo $APPLE_PROVISIONING_PROFILE | base64 --decode > whitenoise_appstore.mobileprovision
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp provisioning_profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
-          rm provisioning_profile.mobileprovision
+          cp whitenoise_appstore.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/whitenoise_appstore.mobileprovision
+          rm whitenoise_appstore.mobileprovision
+
+      - name: Create CI ExportOptions.plist
+        run: |
+          cat > src-tauri/gen/apple/ExportOptions-ci.plist << EOL
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>app-store</string>
+              <key>teamID</key>
+              <string>${APPLE_TEAM_ID}</string>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>provisioningProfiles</key>
+              <dict>
+                  <key>com.paper-robin.whitenoise</key>
+                  <string>White Noise App Store Profile</string>
+              </dict>
+          </dict>
+          </plist>
+          EOL
 
       - name: Build iOS App
         run: |
-          bun tauri ios build
+          bun tauri ios build -- --options-path src-tauri/gen/apple/ExportOptions-ci.plist
 
       - name: Upload to TestFlight
         env:
