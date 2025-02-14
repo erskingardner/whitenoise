@@ -5,7 +5,7 @@ import Toast from "./Toast.svelte";
 let toastState = getToastState();
 </script>
 
-<div class="absolute top-2 left-2 md:left-auto right-2 z-50 flex flex-col gap-2">
+<div class="absolute top-2 left-2 md:left-auto right-2 z-50 flex flex-col gap-2 pt-safe-top">
     {#each toastState.toasts as toast}
         <Toast {toast} />
     {/each}

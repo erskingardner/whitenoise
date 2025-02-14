@@ -16,7 +16,7 @@ let textColor: string = $derived.by(() => {
 
 <div
     transition:fly={{ duration: 200, y: -20 }}
-    class="bg-gray-950 opacity-[.97] text-white rounded-md p-4 shadow-lg ring-1 ring-black relative flex flex-row gap-2 justify-between"
+    class="bg-gray-950/95 opacity-[.97] text-white rounded-md p-4 shadow-lg ring-1 ring-gray-700 relative flex flex-row gap-2 justify-between"
 >
     <div class="flex flex-col gap-2">
         <h3 class="text-lg font-bold flex flex-row gap-2 items-center {textColor}">
@@ -33,7 +33,7 @@ let textColor: string = $derived.by(() => {
     </div>
     <X
         size={24}
-        class="cursor-pointer text-gray-400 hover:text-white"
+        class="cursor-pointer text-gray-400 hover:text-white whitespace-nowrap shrink-0"
         onclick={() => toastState.remove(toast.id)}
     />
 </div>
