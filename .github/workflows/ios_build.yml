@@ -43,6 +43,8 @@ on:
         - '.github/workflows/ios_build.yml'
 jobs:
   build-ios:
+    #disabled for now
+    if: false
     runs-on: macos-latest
     env:
       APPLE_ID: ${{ secrets.APPLE_ID }}
