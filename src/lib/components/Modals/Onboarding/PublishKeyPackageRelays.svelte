@@ -22,7 +22,7 @@ let {
     keyPackagePublished: boolean;
 }>();
 
-let keyPackageRelays: string[] = $state([
+let keyPackageRelays: string[] = $state(import.meta.env.DEV ? ["ws://localhost:8080"] : [
     "wss://relay.damus.io",
     "wss://relay.primal.net",
     "wss://nos.lol",
