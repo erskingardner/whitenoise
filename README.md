@@ -1,5 +1,7 @@
 ![CI](https://github.com/erskingardner/whitenoise/actions/workflows/ci.yml/badge.svg?event=push)
-![Build](https://github.com/erskingardner/whitenoise/actions/workflows/build.yml/badge.svg?event=push)
+![Desktop Build](https://github.com/erskingardner/whitenoise/actions/workflows/build.yml/badge.svg?event=push)
+![Android Build](https://github.com/erskingardner/whitenoise/actions/workflows/android_build.yml/badge.svg?event=push)
+![iOS Build](https://github.com/erskingardner/whitenoise/actions/workflows/ios_build.yml/badge.svg?event=push)
 ![Release](https://github.com/erskingardner/whitenoise/actions/workflows/release.yml/badge.svg?event=push)
 
 # White Noise

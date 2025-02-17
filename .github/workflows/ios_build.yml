@@ -1,4 +1,4 @@
-name: "iOS Build & Upload"
+name: "iOS Build"
 
 on:
   workflow_call:

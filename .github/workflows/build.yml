@@ -1,4 +1,4 @@
-name: "Build"
+name: "Desktop Build"
 
 on:
   workflow_call:
@@ -34,90 +34,238 @@ on:
       - '.github/workflows/build.yml'
   pull_request:
     paths:
-        - 'src-tauri/**'
-        - 'src/**'
-        - 'static/**'
-        - 'package.json'
-        - 'bun.lockb'
-        - 'svelte.config.js'
-        - 'tailwind.config.js'
-        - 'vite.config.js'
-        - '.github/workflows/build.yml'
+      - 'src-tauri/**'
+      - 'src/**'
+      - 'static/**'
+      - 'package.json'
+      - 'bun.lockb'
+      - 'svelte.config.js'
+      - 'tailwind.config.js'
+      - 'vite.config.js'
+      - '.github/workflows/build.yml'
+
+# Cancel in-progress runs for PRs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  build-tauri:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # macOS desktop builds
-          - name: "macOS (Apple Silicon)"
-            platform: "macos-latest"
-            args: "--target aarch64-apple-darwin"
-            arch: "aarch64"
-          - name: "macOS (Intel)"
-            platform: "macos-latest"
-            args: "--target x86_64-apple-darwin"
-            arch: "x86_64"
-          # Linux desktop builds
-          - name: "Linux Desktop"
-            platform: "ubuntu-22.04"
-            args: ""
-
-    runs-on: ${{ matrix.platform }}
-    env:
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache bun dependencies
-        uses: actions/cache@v4
+      - name: Get version from Cargo.toml
+        id: get-version
+        run: |
+          VERSION=$(grep '^version[[:space:]]*=[[:space:]]*"' src-tauri/Cargo.toml | sed 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # We'll remove the frontend cache from setup since it needs to be OS-specific
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v1
         with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
+          bun-version: 1.1.39
+
+  build-linux:
+    needs: setup
+    runs-on: ubuntu-22.04
+    env:
+      VERSION: ${{ needs.setup.outputs.version }}
+      CARGO_INCREMENTAL: 0  # Disable incremental compilation for CI
+      RUST_BACKTRACE: 1     # Better error reporting
+      RUSTFLAGS: "-C target-feature=+crt-static"  # Static linking for better portability
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Setup bun
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: 1.1.39
 
-      - name: Add Rust cache
-        uses: Swatinem/rust-cache@v2
+      # OS-specific frontend cache for Linux
+      - name: Cache frontend dependencies
+        uses: actions/cache@v4
+        id: cache-frontend-deps
         with:
-          # Specify the working directory for Rust cache
-          workspaces: "src-tauri -> target"
-          # Cache cargo registry
-          cache-directories: |
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: frontend-deps-linux-${{ hashFiles('**/bun.lockb') }}
+          restore-keys: |
+            frontend-deps-linux-
+
+      - name: Install frontend dependencies
+        if: steps.cache-frontend-deps.outputs.cache-hit != 'true'
+        run: bun install
+
+      # Separate Rust cache for Linux
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
             ~/.cargo/registry
             ~/.cargo/git
-          # Add a suffix to distinguish between different platforms and architectures
-          key: ${{ matrix.platform }}${{ matrix.arch && '-' }}${{ matrix.arch }}
+          key: rust-deps-linux-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            rust-deps-linux-
+
+      - name: Add Rust build cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+          key: linux-rust-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      # Combine apt-get commands and clean up in the same step
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libfuse2 \
+            fuse \
+            libglib2.0-dev \
+            libcairo2-dev \
+            libpango1.0-dev \
+            libasound2-dev \
+            libgtk-3-dev \
+            desktop-file-utils \
+            && sudo apt-get clean \
+            && sudo rm -rf /var/lib/apt/lists/*
+
+      - name: Import GPG key
+        id: import_gpg
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          trust_level: 5
+
+      - name: Build Linux Desktop App
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LDAI_SIGN: true
+          LDAI_SIGN_KEY: ${{ steps.import_gpg.outputs.keyid }}
+          LDAI_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          TAURI_SIGNING_KEY: ${{ steps.import_gpg.outputs.keyid }}
+          TAURI_SIGNING_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          RPM_SIGNING_KEY: ${{ steps.import_gpg.outputs.keyid }}
+          RPM_SIGNING_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+
+      - name: Generate Linux artifact hashes
+        run: |
+          cd src-tauri/target/release/bundle
+          find . -type f -name "*.deb" -exec sh -c '
+            FILE="$1"
+            sha256sum "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-linux-amd64.deb|" > "${FILE}.sha256"
+          ' sh {} \;
+          find . -type f -name "*.rpm" -exec sh -c '
+            FILE="$1"
+            sha256sum "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-linux-x86_64.rpm|" > "${FILE}.sha256"
+          ' sh {} \;
+          find . -type f -name "*.AppImage" -exec sh -c '
+            FILE="$1"
+            sha256sum "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-linux-x86_64.AppImage|" > "${FILE}.sha256"
+          ' sh {} \;
+
+      - name: Prepare Linux artifacts
+        run: |
+          mkdir -p desktop-artifacts
+          find src-tauri/target/release/bundle/deb -name "*.deb" -exec sh -c '
+            cp "$1" desktop-artifacts/whitenoise-${VERSION}-linux-amd64.deb
+            cp "${1}.sha256" desktop-artifacts/whitenoise-${VERSION}-linux-amd64.deb.sha256
+          ' sh {} \;
+
+          find src-tauri/target/release/bundle/rpm -name "*.rpm" -exec sh -c '
+            cp "$1" desktop-artifacts/whitenoise-${VERSION}-linux-x86_64.rpm
+            cp "${1}.sha256" desktop-artifacts/whitenoise-${VERSION}-linux-x86_64.rpm.sha256
+          ' sh {} \;
+
+          find src-tauri/target/release/bundle/appimage -name "*.AppImage" -exec sh -c '
+            cp "$1" desktop-artifacts/whitenoise-${VERSION}-linux-x86_64.AppImage
+            cp "${1}.sha256" desktop-artifacts/whitenoise-${VERSION}-linux-x86_64.AppImage.sha256
+          ' sh {} \;
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64
+          path: desktop-artifacts/*
+
+  build-macos:
+    needs: setup
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: "aarch64"
+            target: "aarch64-apple-darwin"
+          - arch: "x86_64"
+            target: "x86_64-apple-darwin"
+    env:
+      VERSION: ${{ needs.setup.outputs.version }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      CARGO_INCREMENTAL: 0  # Disable incremental compilation for CI
+      RUST_BACKTRACE: 1     # Better error reporting
+      MACOSX_DEPLOYMENT_TARGET: "10.15"  # Set minimum macOS version
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 1.1.39
+
+      # OS-specific frontend cache for macOS
+      - name: Cache frontend dependencies
+        uses: actions/cache@v4
+        id: cache-frontend-deps
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: frontend-deps-macos-${{ matrix.arch }}-${{ hashFiles('**/bun.lockb') }}
+          restore-keys: |
+            frontend-deps-macos-${{ matrix.arch }}-
+
+      - name: Install frontend dependencies
+        if: steps.cache-frontend-deps.outputs.cache-hit != 'true'
+        run: bun install
+
+      # Separate Rust cache for macOS
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: rust-deps-macos-${{ matrix.arch }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            rust-deps-macos-${{ matrix.arch }}-
+
+      - name: Add Rust build cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+          key: macos-${{ matrix.arch }}-rust-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: >-
-            ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
-
-      - name: Install frontend dependencies
-        run: bun install
-
-      - name: Install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
-            libfuse2 fuse libglib2.0-dev libcairo2-dev libpango1.0-dev \
-            libasound2-dev libgtk-3-dev desktop-file-utils
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Import Apple Developer Certificate
-        if: matrix.platform == 'macos-latest'
         id: import_apple_certificate
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -132,11 +280,8 @@ jobs:
           security set-keychain-settings -t 3600 -l build.keychain
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
           security list-keychains -s build.keychain
-          security list-keychains
-          security find-identity -v -p codesigning build.keychain
 
       - name: Verify Certificate
-        if: matrix.platform == 'macos-latest'
         id: verify_apple_certificate
         run: |
           security find-identity -v -p codesigning build.keychain
@@ -145,127 +290,49 @@ jobs:
           echo "cert_id=$CERT_ID" >> "$GITHUB_OUTPUT"
           echo "Apple Developer Certificate imported."
 
-      - name: Import GPG key
-        if: matrix.platform == 'ubuntu-22.04'
-        id: import_gpg
-        uses: crazy-max/ghaction-import-gpg@v6
-        with:
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          passphrase: ${{ secrets.GPG_PASSPHRASE }}
-          trust_level: 5
-
-      # Split the build step into two different actions based on the target
-      - name: Build Desktop App
+      - name: Build macOS Desktop App
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Apple signing
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ matrix.platform == 'macos-latest' && 'Developer ID Application' || '' }}
-          # AppImage signing
-          LDAI_SIGN: ${{ matrix.platform == 'ubuntu-22.04' }}
-          LDAI_SIGN_KEY: ${{ matrix.platform == 'ubuntu-22.04' && steps.import_gpg.outputs.keyid || '' }}
-          LDAI_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-          # DEB signing
-          TAURI_SIGNING_KEY: ${{ matrix.platform == 'ubuntu-22.04' && steps.import_gpg.outputs.keyid || '' }}
-          TAURI_SIGNING_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-          # RPM signing
-          RPM_SIGNING_KEY: ${{ matrix.platform == 'ubuntu-22.04' && steps.import_gpg.outputs.keyid || '' }}
-          RPM_SIGNING_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          APPLE_SIGNING_IDENTITY: 'Developer ID Application'
         with:
-          args: ${{ matrix.args }}
+          args: --target ${{ matrix.target }}
 
-      - name: Generate desktop artifact hashes
+      - name: Generate macOS artifact hashes
         run: |
-          if [ "${{ matrix.platform }}" = "ubuntu-22.04" ]; then
-            # Get version from Cargo.toml
-            VERSION=$(grep '^version[[:space:]]*=[[:space:]]*"' src-tauri/Cargo.toml | sed 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/')
-            cd src-tauri/target/release/bundle
-            # Generate hash for each Linux package
-            find . -type f -name "*.deb" -exec sh -c '
-              VERSION="$1"
-              FILE="$2"
-              sha256sum "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-linux-amd64.deb|" > "${FILE}.sha256"
-            ' sh "$VERSION" {} \;
-            find . -type f -name "*.rpm" -exec sh -c '
-              VERSION="$1"
-              FILE="$2"
-              sha256sum "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-linux-x86_64.rpm|" > "${FILE}.sha256"
-            ' sh "$VERSION" {} \;
-            find . -type f -name "*.AppImage" -exec sh -c '
-              VERSION="$1"
-              FILE="$2"
-              sha256sum "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-linux-x86_64.AppImage|" > "${FILE}.sha256"
-            ' sh "$VERSION" {} \;
-          elif [ "${{ matrix.platform }}" = "macos-latest" ]; then
-            # Get version from Cargo.toml
-            VERSION=$(grep '^version[[:space:]]*=[[:space:]]*"' src-tauri/Cargo.toml | sed 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/')
-            cd src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle
-            # Generate hash for macOS app bundle
-            cd macos
-            find . -type f -name "*.app" -exec sh -c '
-              VERSION="$1"
-              FILE="$2"
-              shasum -a 256 "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-macos-${{ matrix.arch }}.app|" > "${FILE}.sha256"
-            ' sh "$VERSION" {} \;
-            find . -type f -name "*.app.tar.gz" -exec sh -c '
-              VERSION="$1"
-              FILE="$2"
-              shasum -a 256 "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-macos-${{ matrix.arch }}.app.tar.gz|" > "${FILE}.sha256"
-            ' sh "$VERSION" {} \;
-            # Generate hash for DMG
-            cd ../dmg
-            find . -type f -name "*.dmg" -exec sh -c '
-              VERSION="$1"
-              FILE="$2"
-              shasum -a 256 "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-macos-${{ matrix.arch }}.dmg|" > "${FILE}.sha256"
-            ' sh "$VERSION" {} \;
-          fi
+          cd src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle
+          cd macos
+          find . -type f -name "*.app" -exec sh -c '
+            FILE="$1"
+            shasum -a 256 "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-macos-${{ matrix.arch }}.app|" > "${FILE}.sha256"
+          ' sh {} \;
+          find . -type f -name "*.app.tar.gz" -exec sh -c '
+            FILE="$1"
+            shasum -a 256 "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-macos-${{ matrix.arch }}.app.tar.gz|" > "${FILE}.sha256"
+          ' sh {} \;
+          cd ../dmg
+          find . -type f -name "*.dmg" -exec sh -c '
+            FILE="$1"
+            shasum -a 256 "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-macos-${{ matrix.arch }}.dmg|" > "${FILE}.sha256"
+          ' sh {} \;
 
-      - name: Prepare Desktop artifacts
+      - name: Prepare macOS artifacts
         run: |
-          # Get version from Cargo.toml
-          VERSION=$(grep '^version[[:space:]]*=[[:space:]]*"' src-tauri/Cargo.toml | sed 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/')
-          echo "Version: $VERSION"
           mkdir -p desktop-artifacts
+          find src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/dmg -name "*.dmg" -exec sh -c '
+            cp "$1" desktop-artifacts/whitenoise-${VERSION}-macos-${{ matrix.arch }}.dmg
+            cp "${1}.sha256" desktop-artifacts/whitenoise-${VERSION}-macos-${{ matrix.arch }}.dmg.sha256
+          ' sh {} \;
 
-          if [ "${{ matrix.platform }}" = "ubuntu-22.04" ]; then
-            # Linux packages
-            find src-tauri/target/release/bundle/deb -name "*.deb" -exec sh -c '
-              cp "$1" desktop-artifacts/whitenoise-'"$VERSION"'-linux-amd64.deb
-              cp "${1}.sha256" desktop-artifacts/whitenoise-'"$VERSION"'-linux-amd64.deb.sha256
-            ' sh {} \;
+          find src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/macos -name "*.app.tar.gz" -exec sh -c '
+            cp "$1" desktop-artifacts/whitenoise-${VERSION}-macos-${{ matrix.arch }}.app.tar.gz
+            cp "${1}.sha256" desktop-artifacts/whitenoise-${VERSION}-macos-${{ matrix.arch }}.app.tar.gz.sha256
+          ' sh {} \;
 
-            find src-tauri/target/release/bundle/rpm -name "*.rpm" -exec sh -c '
-              cp "$1" desktop-artifacts/whitenoise-'"$VERSION"'-linux-x86_64.rpm
-              cp "${1}.sha256" desktop-artifacts/whitenoise-'"$VERSION"'-linux-x86_64.rpm.sha256
-            ' sh {} \;
-
-            find src-tauri/target/release/bundle/appimage -name "*.AppImage" -exec sh -c '
-              cp "$1" desktop-artifacts/whitenoise-'"$VERSION"'-linux-x86_64.AppImage
-              cp "${1}.sha256" desktop-artifacts/whitenoise-'"$VERSION"'-linux-x86_64.AppImage.sha256
-            ' sh {} \;
-
-          elif [ "${{ matrix.platform }}" = "macos-latest" ]; then
-            # macOS packages
-            find src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/dmg -name "*.dmg" -exec sh -c '
-              cp "$1" desktop-artifacts/whitenoise-'"$VERSION"'-macos-${{ matrix.arch }}.dmg
-              cp "${1}.sha256" desktop-artifacts/whitenoise-'"$VERSION"'-macos-${{ matrix.arch }}.dmg.sha256
-            ' sh {} \;
-
-            find src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/macos -name "*.app.tar.gz" -exec sh -c '
-              cp "$1" desktop-artifacts/whitenoise-'"$VERSION"'-macos-${{ matrix.arch }}.app.tar.gz
-              cp "${1}.sha256" desktop-artifacts/whitenoise-'"$VERSION"'-macos-${{ matrix.arch }}.app.tar.gz.sha256
-            ' sh {} \;
-          fi
-
-      - name: List desktop artifacts
-        run: |
-          find desktop-artifacts/* -type f
-
-      - name: Upload Desktop artifacts
+      - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.platform }}${{ matrix.arch && '-' }}${{ matrix.arch }}
+          name: macos-${{ matrix.arch }}
           path: desktop-artifacts/*
