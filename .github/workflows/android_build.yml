@@ -145,6 +145,11 @@ jobs:
           path: |
             src-tauri/gen/android/
 
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 1.1.39
+
       - name: Restore build environment
         uses: actions/cache/restore@v4
         with:
@@ -167,6 +172,7 @@ jobs:
         run: |
           export ANDROID_NDK_HOME=/usr/local/lib/android/sdk/ndk/25.2.9519653
           export NDK_HOME=/usr/local/lib/android/sdk/ndk/25.2.9519653
+          export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
           bun tauri android build
           echo "Disk space after universal build:"
           df -h
@@ -219,6 +225,11 @@ jobs:
           path: |
             src-tauri/gen/android/
 
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 1.1.39
+
       - name: Restore build environment
         uses: actions/cache/restore@v4
         with:
@@ -241,6 +252,7 @@ jobs:
         run: |
           export ANDROID_NDK_HOME=/usr/local/lib/android/sdk/ndk/25.2.9519653
           export NDK_HOME=/usr/local/lib/android/sdk/ndk/25.2.9519653
+          export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
           bun tauri android build --apk --split-per-abi
           echo "Disk space after arch-specific builds:"
           df -h
