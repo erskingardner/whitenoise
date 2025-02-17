@@ -35,16 +35,17 @@ on:
         - '.github/workflows/android_build.yml'
 
 jobs:
-  build-android:
+  setup-android-env:
     runs-on: ubuntu-22.04
-
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@main
         with:
-          tool-cache: false
+          tool-cache: true
           android: false
           dotnet: true
           haskell: true
@@ -52,43 +53,21 @@ jobs:
           docker-images: true
           swap-storage: true
 
-      - name: Cache bun dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
+      - name: Get version
+        id: get-version
+        run: |
+          VERSION=$(grep '^version[[:space:]]*=[[:space:]]*"' src-tauri/Cargo.toml | sed 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Setup bun
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: 1.1.39
 
-      - name: Add Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: "src-tauri -> target"
-          cache-directories: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: android-${{ runner.os }}
-
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
-
-      - name: Install frontend dependencies
-        run: bun install
-
-      - name: Cache Android NDK
-        uses: actions/cache@v4
-        with:
-          path: /usr/local/lib/android/sdk/ndk/25.2.9519653
-          key: ${{ runner.os }}-ndk-25.2.9519653
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -105,6 +84,27 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
           echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
 
+      - name: Install frontend dependencies
+        run: bun install
+
+      - name: Cache build environment
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+            /usr/local/lib/android/sdk
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            src-tauri/gen/android/.gradle
+            ~/.rustup
+            $ANDROID_HOME
+            $JAVA_HOME
+          key: android-build-env-${{ runner.os }}-${{ hashFiles('**/bun.lockb', '**/Cargo.lock', 'src-tauri/gen/android/**/*.gradle*') }}
+
       - name: Setup Android signing
         run: |
           cd src-tauri/gen/android
@@ -113,77 +113,166 @@ jobs:
           base64 -d <<< "${{ secrets.ANDROID_KEY_BASE64 }}" > $RUNNER_TEMP/keystore.jks
           echo "storeFile=$RUNNER_TEMP/keystore.jks" >> keystore.properties
 
+      - name: Upload keystore config
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-keystore
+          path: |
+            src-tauri/gen/android/keystore.properties
+            ${{ runner.temp }}/keystore.jks
+
+  build-android-universal:
+    needs: setup-android-env
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: false
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Download keystore config
+        uses: actions/download-artifact@v4
+        with:
+          name: android-keystore
+          path: |
+            src-tauri/gen/android/
+
+      - name: Restore build environment
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+            /usr/local/lib/android/sdk
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            src-tauri/gen/android/.gradle
+            ~/.rustup
+            $ANDROID_HOME
+            $JAVA_HOME
+          key: android-build-env-${{ runner.os }}-${{ hashFiles('**/bun.lockb', '**/Cargo.lock', 'src-tauri/gen/android/**/*.gradle*') }}
+
       - name: Build Android universal binary
         run: |
+          export ANDROID_NDK_HOME=/usr/local/lib/android/sdk/ndk/25.2.9519653
+          export NDK_HOME=/usr/local/lib/android/sdk/ndk/25.2.9519653
           bun tauri android build
           echo "Disk space after universal build:"
           df -h
 
-      - name: Build Android arch specific binaries
-        run: |
-          bun tauri android build --apk --split-per-abi
-          echo "Disk space after arch-specific builds:"
-          df -h
-
-      - name: Cleanup build artifacts
+      - name: Aggressive cleanup
         run: |
           cd src-tauri/gen/android
           ./gradlew clean
           cd app/build
-          rm -rf intermediates
+          rm -rf intermediates transforms
+          rm -rf tmp
+          find . -type d -name "generated" -exec rm -rf {} +
           echo "Disk space after cleanup:"
           df -h
 
-      - name: List Android build outputs
+      - name: Prepare universal artifact
         run: |
-          echo "Listing all APKs recursively:"
-          find src-tauri/gen/android -name "*.apk" -type f
-          echo "\nListing all AABs recursively:"
-          find src-tauri/gen/android -name "*.aab" -type f
-          echo "\nListing specific release directories:"
-          ls -la src-tauri/gen/android/app/build/outputs/apk/*/release/ || echo "Release dirs not found"
-
-      - name: Prepare Android artifacts
-        run: |
-          VERSION=$(grep '^version[[:space:]]*=[[:space:]]*"' src-tauri/Cargo.toml | sed 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/')
-          echo "Version: $VERSION"
           mkdir -p android-artifacts
+          cp src-tauri/gen/android/app/build/outputs/bundle/release/app-release.aab android-artifacts/whitenoise-${{ needs.setup-android-env.outputs.version }}-android-universal.aab
+          cd android-artifacts
+          sha256sum whitenoise-${{ needs.setup-android-env.outputs.version }}-android-universal.aab > whitenoise-${{ needs.setup-android-env.outputs.version }}-android-universal.aab.sha256
 
-          echo "Checking source paths:"
-          for type in universal arm64 arm x86 x86_64; do
-            echo "Checking ${type}:"
-            ls -la "src-tauri/gen/android/app/build/outputs/apk/${type}/release/" || echo "${type} directory not found"
+      - name: Upload universal artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-universal
+          path: android-artifacts/*
+
+  build-android-arch-specific:
+    needs: setup-android-env
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: false
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Download keystore config
+        uses: actions/download-artifact@v4
+        with:
+          name: android-keystore
+          path: |
+            src-tauri/gen/android/
+
+      - name: Restore build environment
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+            /usr/local/lib/android/sdk
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            src-tauri/gen/android/.gradle
+            ~/.rustup
+            $ANDROID_HOME
+            $JAVA_HOME
+          key: android-build-env-${{ runner.os }}-${{ hashFiles('**/bun.lockb', '**/Cargo.lock', 'src-tauri/gen/android/**/*.gradle*') }}
+
+      - name: Build Android arch specific binaries
+        run: |
+          export ANDROID_NDK_HOME=/usr/local/lib/android/sdk/ndk/25.2.9519653
+          export NDK_HOME=/usr/local/lib/android/sdk/ndk/25.2.9519653
+          bun tauri android build --apk --split-per-abi
+          echo "Disk space after arch-specific builds:"
+          df -h
+
+      - name: Aggressive cleanup
+        run: |
+          cd src-tauri/gen/android
+          ./gradlew clean
+          cd app/build
+          rm -rf intermediates transforms
+          rm -rf tmp
+          find . -type d -name "generated" -exec rm -rf {} +
+          echo "Disk space after cleanup:"
+          df -h
+
+      - name: Prepare arch-specific artifacts
+        run: |
+          mkdir -p android-artifacts
+          for type in arm64 arm x86 x86_64; do
+            if [ -f "src-tauri/gen/android/app/build/outputs/apk/${type}/release/app-${type}-release.apk" ]; then
+              cp "src-tauri/gen/android/app/build/outputs/apk/${type}/release/app-${type}-release.apk" "android-artifacts/whitenoise-${{ needs.setup-android-env.outputs.version }}-android-${type}.apk"
+            fi
           done
-
-          for pair in \
-            "universal/release/app-universal-release.apk:android-universal.apk" \
-            "arm64/release/app-arm64-release.apk:android-arm64.apk" \
-            "arm/release/app-arm-release.apk:android-arm.apk" \
-            "x86/release/app-x86-release.apk:android-x86.apk" \
-            "x86_64/release/app-x86_64-release.apk:android-x86_64.apk"; do
-            src=${pair%:*}
-            dst=${pair#*:}
-            if [ -f "src-tauri/gen/android/app/build/outputs/apk/$src" ]; then
-              cp "src-tauri/gen/android/app/build/outputs/apk/$src" "android-artifacts/whitenoise-${VERSION}-${dst}"
-              echo "Copied $src successfully"
-            else
-              echo "Source file not found: $src"
+          cd android-artifacts
+          for file in *.apk; do
+            if [ -f "$file" ]; then
+              sha256sum "$file" > "${file}.sha256"
             fi
           done
 
-      - name: Generate Android artifact hashes
-        run: |
-          cd android-artifacts
-          find . -type f -not -name "*.sha256" -exec sh -c '
-            sha256sum "$1" | sed "s|./|  |" > "${1}.sha256"
-          ' sh {} \;
-
-      - name: List Android artifacts
-        run: |
-          find android-artifacts/* -type f
-
-      - name: Upload Android artifacts
+      - name: Upload arch-specific artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: android
+          name: android-arch-specific
           path: android-artifacts/*
