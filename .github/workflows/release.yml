@@ -9,23 +9,16 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-desktop:
     uses: ./.github/workflows/build.yml
-    secrets:
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-      GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-      GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-      ANDROID_KEY_BASE64: ${{ secrets.ANDROID_KEY_BASE64 }}
+    secrets: inherit
+
+  build-android:
+    uses: ./.github/workflows/android_build.yml
+    secrets: inherit
 
   create-release:
-    needs: build
+    needs: [build-desktop, build-android]
     runs-on: ubuntu-22.04
     steps:
       - name: Download artifacts
