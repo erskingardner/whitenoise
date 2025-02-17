@@ -72,16 +72,6 @@ jobs:
   build-linux:
     needs: setup
     runs-on: ubuntu-22.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: "x86_64"
-            target: "x86_64-unknown-linux-gnu"
-            deb_arch: "amd64"
-          - arch: "aarch64"
-            target: "aarch64-unknown-linux-gnu"
-            deb_arch: "arm64"
     env:
       VERSION: ${{ needs.setup.outputs.version }}
       CARGO_INCREMENTAL: 0  # Disable incremental compilation for CI
@@ -103,9 +93,9 @@ jobs:
           path: |
             ~/.bun/install/cache
             node_modules
-          key: frontend-deps-linux-${{ matrix.arch }}-${{ hashFiles('**/bun.lockb') }}
+          key: frontend-deps-linux-${{ hashFiles('**/bun.lockb') }}
           restore-keys: |
-            frontend-deps-linux-${{ matrix.arch }}-
+            frontend-deps-linux-
 
       - name: Install frontend dependencies
         if: steps.cache-frontend-deps.outputs.cache-hit != 'true'
@@ -118,20 +108,20 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: rust-deps-linux-${{ matrix.arch }}-${{ hashFiles('**/Cargo.lock') }}
+          key: rust-deps-linux-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            rust-deps-linux-${{ matrix.arch }}-
+            rust-deps-linux-
 
       - name: Add Rust build cache
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: "src-tauri -> target"
-          key: linux-${{ matrix.arch }}-rust-${{ hashFiles('**/Cargo.lock') }}
+          key: linux-rust-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: x86_64-unknown-linux-gnu
 
       # Combine apt-get commands and clean up in the same step
       - name: Install Linux dependencies
@@ -153,35 +143,6 @@ jobs:
             && sudo apt-get clean \
             && sudo rm -rf /var/lib/apt/lists/*
 
-      - name: Setup ARM64 cross-compilation
-        if: matrix.arch == 'aarch64'
-        run: |
-          sudo dpkg --add-architecture arm64
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            gcc-aarch64-linux-gnu \
-            g++-aarch64-linux-gnu \
-            libwebkit2gtk-4.1-dev:arm64 \
-            libappindicator3-dev:arm64 \
-            librsvg2-dev:arm64 \
-            libglib2.0-dev:arm64 \
-            libcairo2-dev:arm64 \
-            libpango1.0-dev:arm64 \
-            libasound2-dev:arm64 \
-            libgtk-3-dev:arm64 \
-            pkg-config-aarch64-linux-gnu
-
-          # Set up pkg-config for cross-compilation
-          echo "PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
-          echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
-          echo "PKG_CONFIG_SYSROOT_DIR=/" >> $GITHUB_ENV
-          echo "PKG_CONFIG=/usr/bin/pkg-config-aarch64-linux-gnu" >> $GITHUB_ENV
-
-          # Create symbolic links for pkg-config files
-          sudo mkdir -p /usr/lib/aarch64-linux-gnu/pkgconfig
-          sudo cp -r /usr/lib/x86_64-linux-gnu/pkgconfig/* /usr/lib/aarch64-linux-gnu/pkgconfig/
-          sudo sed -i 's|/usr/lib/x86_64-linux-gnu|/usr/lib/aarch64-linux-gnu|g' /usr/lib/aarch64-linux-gnu/pkgconfig/*.pc
-
       - name: Import GPG key
         id: import_gpg
         uses: crazy-max/ghaction-import-gpg@v6
@@ -201,47 +162,45 @@ jobs:
           TAURI_SIGNING_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           RPM_SIGNING_KEY: ${{ steps.import_gpg.outputs.keyid }}
           RPM_SIGNING_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-        with:
-          args: --target ${{ matrix.target }}
 
       - name: Generate Linux artifact hashes
         run: |
-          cd src-tauri/target/${{ matrix.target }}/release/bundle
+          cd src-tauri/target/release/bundle
           find . -type f -name "*.deb" -exec sh -c '
             FILE="$1"
-            sha256sum "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-linux-${{ matrix.deb_arch }}.deb|" > "${FILE}.sha256"
+            sha256sum "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-linux-amd64.deb|" > "${FILE}.sha256"
           ' sh {} \;
           find . -type f -name "*.rpm" -exec sh -c '
             FILE="$1"
-            sha256sum "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-linux-${{ matrix.arch }}.rpm|" > "${FILE}.sha256"
+            sha256sum "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-linux-x86_64.rpm|" > "${FILE}.sha256"
           ' sh {} \;
           find . -type f -name "*.AppImage" -exec sh -c '
             FILE="$1"
-            sha256sum "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-linux-${{ matrix.arch }}.AppImage|" > "${FILE}.sha256"
+            sha256sum "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-linux-x86_64.AppImage|" > "${FILE}.sha256"
           ' sh {} \;
 
       - name: Prepare Linux artifacts
         run: |
           mkdir -p desktop-artifacts
-          find src-tauri/target/${{ matrix.target }}/release/bundle/deb -name "*.deb" -exec sh -c '
-            cp "$1" desktop-artifacts/whitenoise-${VERSION}-linux-${{ matrix.deb_arch }}.deb
-            cp "${1}.sha256" desktop-artifacts/whitenoise-${VERSION}-linux-${{ matrix.deb_arch }}.deb.sha256
+          find src-tauri/target/release/bundle/deb -name "*.deb" -exec sh -c '
+            cp "$1" desktop-artifacts/whitenoise-${VERSION}-linux-amd64.deb
+            cp "${1}.sha256" desktop-artifacts/whitenoise-${VERSION}-linux-amd64.deb.sha256
           ' sh {} \;
 
-          find src-tauri/target/${{ matrix.target }}/release/bundle/rpm -name "*.rpm" -exec sh -c '
-            cp "$1" desktop-artifacts/whitenoise-${VERSION}-linux-${{ matrix.arch }}.rpm
-            cp "${1}.sha256" desktop-artifacts/whitenoise-${VERSION}-linux-${{ matrix.arch }}.rpm.sha256
+          find src-tauri/target/release/bundle/rpm -name "*.rpm" -exec sh -c '
+            cp "$1" desktop-artifacts/whitenoise-${VERSION}-linux-x86_64.rpm
+            cp "${1}.sha256" desktop-artifacts/whitenoise-${VERSION}-linux-x86_64.rpm.sha256
           ' sh {} \;
 
-          find src-tauri/target/${{ matrix.target }}/release/bundle/appimage -name "*.AppImage" -exec sh -c '
-            cp "$1" desktop-artifacts/whitenoise-${VERSION}-linux-${{ matrix.arch }}.AppImage
-            cp "${1}.sha256" desktop-artifacts/whitenoise-${VERSION}-linux-${{ matrix.arch }}.AppImage.sha256
+          find src-tauri/target/release/bundle/appimage -name "*.AppImage" -exec sh -c '
+            cp "$1" desktop-artifacts/whitenoise-${VERSION}-linux-x86_64.AppImage
+            cp "${1}.sha256" desktop-artifacts/whitenoise-${VERSION}-linux-x86_64.AppImage.sha256
           ' sh {} \;
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: linux-${{ matrix.arch }}
+          name: linux-x86_64
           path: desktop-artifacts/*
 
   build-macos:

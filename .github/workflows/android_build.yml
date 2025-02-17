@@ -107,7 +107,7 @@ jobs:
 
       - name: Setup Android signing
         run: |
-          cd src-tauri/gen/android
+          cd src-tauri/gen/android/app
           echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" > keystore.properties
           echo "password=${{ secrets.ANDROID_KEY_PASSWORD }}" >> keystore.properties
           base64 -d <<< "${{ secrets.ANDROID_KEY_BASE64 }}" > keystore.jks
@@ -117,7 +117,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: android-keystore
-          path: src-tauri/gen/android/
+          path: src-tauri/gen/android/app/
 
   build-android-universal:
     needs: setup-android-env
