@@ -137,48 +137,59 @@ jobs:
       - name: Build Android universal binary
         run: bun tauri android build
 
-      - name: Prepare universal artifact
-        run: |
-          set -e  # Exit on any error
-          mkdir -p android-artifacts
-          AAB_PATH="src-tauri/gen/android/app/build/outputs/bundle/release/app-release.aab"
-          if [ ! -f "$AAB_PATH" ]; then
-            echo "Error: Universal AAB file not found at $AAB_PATH"
-            exit 1
-          fi
-          cp "$AAB_PATH" "android-artifacts/whitenoise-${{ steps.get-version.outputs.version }}-android-universal.aab"
-          cd android-artifacts
-          sha256sum "whitenoise-${{ steps.get-version.outputs.version }}-android-universal.aab" > "whitenoise-${{ steps.get-version.outputs.version }}-android-universal.aab.sha256"
-
-      - name: Upload universal artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-universal
-          path: android-artifacts/*
-
       - name: Build Android arch specific binaries
         run: bun tauri android build --apk --split-per-abi
 
-      - name: Prepare arch-specific artifacts
+      - name: List Android build outputs
         run: |
-          set -e  # Exit on any error
+          echo "Listing all APKs recursively:"
+          find src-tauri/gen/android -name "*.apk" -type f
+          echo "\nListing all AABs recursively:"
+          find src-tauri/gen/android -name "*.aab" -type f
+          echo "\nListing specific release directories:"
+          ls -la src-tauri/gen/android/app/build/outputs/apk/*/release/ || echo "Release dirs not found"
+
+      - name: Prepare Android artifacts
+        run: |
+          VERSION=$(grep '^version[[:space:]]*=[[:space:]]*"' src-tauri/Cargo.toml | sed 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/')
+          echo "Version: $VERSION"
           mkdir -p android-artifacts
-          FOUND_APK=false
-          for type in arm64 arm x86 x86_64; do
-            APK_PATH="src-tauri/gen/android/app/build/outputs/apk/${type}/release/app-${type}-release.apk"
-            if [ -f "$APK_PATH" ]; then
-              FOUND_APK=true
-              cp "$APK_PATH" "android-artifacts/whitenoise-${{ steps.get-version.outputs.version }}-android-${type}.apk"
-              (cd android-artifacts && sha256sum "whitenoise-${{ steps.get-version.outputs.version }}-android-${type}.apk" > "whitenoise-${{ steps.get-version.outputs.version }}-android-${type}.apk.sha256")
+
+          echo "Checking source paths:"
+          for type in universal arm64 arm x86 x86_64; do
+            echo "Checking ${type}:"
+            ls -la "src-tauri/gen/android/app/build/outputs/apk/${type}/release/" || echo "${type} directory not found"
+          done
+
+          for pair in \
+            "universal/release/app-universal-release.apk:android-universal.apk" \
+            "arm64/release/app-arm64-release.apk:android-arm64.apk" \
+            "arm/release/app-arm-release.apk:android-arm.apk" \
+            "x86/release/app-x86-release.apk:android-x86.apk" \
+            "x86_64/release/app-x86_64-release.apk:android-x86_64.apk"; do
+            src=${pair%:*}
+            dst=${pair#*:}
+            if [ -f "src-tauri/gen/android/app/build/outputs/apk/$src" ]; then
+              cp "src-tauri/gen/android/app/build/outputs/apk/$src" "android-artifacts/whitenoise-${VERSION}-${dst}"
+              echo "Copied $src successfully"
+            else
+              echo "Source file not found: $src"
             fi
           done
-          if [ "$FOUND_APK" = false ]; then
-            echo "Error: No architecture-specific APK files were found"
-            exit 1
-          fi
 
-      - name: Upload arch-specific artifacts
+      - name: Generate Android artifact hashes
+        run: |
+          cd android-artifacts
+          find . -type f -not -name "*.sha256" -exec sh -c '
+            sha256sum "$1" | sed "s|./|  |" > "${1}.sha256"
+          ' sh {} \;
+
+      - name: List Android artifacts
+        run: |
+          find android-artifacts/* -type f
+
+      - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: android-arch-specific
+          name: android
           path: android-artifacts/*
