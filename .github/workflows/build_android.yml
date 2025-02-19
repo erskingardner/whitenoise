@@ -40,7 +40,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  build-android:
+  build-android-universal:
     runs-on: ubuntu-22.04
     outputs:
       version: ${{ steps.get-version.outputs.version }}
@@ -90,6 +90,14 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Cleanup unnecessary Android SDK packages
+        run: |
+          sdkmanager --uninstall "platforms;android-33"
+          sdkmanager --uninstall "platforms;android-32"
+          sdkmanager --uninstall "build-tools;33.0.0"
+          sdkmanager --uninstall "build-tools;32.0.0"
+          yes | sdkmanager --licenses
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
@@ -120,6 +128,9 @@ jobs:
       - name: Install frontend dependencies
         run: bun install
 
+      - name: Clean npm cache
+        run: bun clean || true
+
       - name: Setup Android signing
         run: |
           cd src-tauri/gen/android
@@ -135,60 +146,165 @@ jobs:
           path: src-tauri/gen/android/app/
 
       - name: Build Android universal binary
-        run: bun tauri android build
+        run: |
+          cd src-tauri/gen/android
+          ./gradlew clean
+          cd ../../..
+          bun tauri android build
+
+      - name: Upload universal artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-universal
+          path: src-tauri/gen/android/app/build/outputs/bundle/release/*.aab
+
+  build-android-split:
+    runs-on: ubuntu-22.04
+    needs: build-android-universal
+    env:
+      NDK_VERSION: "25.2.9519653"
+      ANDROID_NDK_HOME: ${{ github.workspace }}/android-ndk-25.2.9519653
+      NDK_HOME: ${{ github.workspace }}/android-ndk-25.2.9519653
+      JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: false
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Get version
+        id: get-version
+        run: |
+          VERSION=$(grep '^version[[:space:]]*=[[:space:]]*"' src-tauri/Cargo.toml | sed 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 1.1.39
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Cleanup unnecessary Android SDK packages
+        run: |
+          sdkmanager --uninstall "platforms;android-33"
+          sdkmanager --uninstall "platforms;android-32"
+          sdkmanager --uninstall "build-tools;33.0.0"
+          sdkmanager --uninstall "build-tools;32.0.0"
+          yes | sdkmanager --licenses
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Cache Android NDK
+        id: cache-ndk
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ANDROID_NDK_HOME }}
+          key: android-ndk-${{ env.NDK_VERSION }}
+
+      - name: Install Android NDK
+        if: steps.cache-ndk.outputs.cache-hit != 'true'
+        run: |
+          sdkmanager --install "ndk;${{ env.NDK_VERSION }}"
+          mkdir -p ${{ env.ANDROID_NDK_HOME }}
+          cp -r $ANDROID_SDK_ROOT/ndk/${{ env.NDK_VERSION }}/* ${{ env.ANDROID_NDK_HOME }}/
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install frontend dependencies
+        run: bun install
+
+      - name: Clean npm cache
+        run: bun clean || true
+
+      - name: Setup Android signing
+        run: |
+          cd src-tauri/gen/android
+          echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" > keystore.properties
+          echo "password=${{ secrets.ANDROID_KEY_PASSWORD }}" >> keystore.properties
+          base64 -d <<< "${{ secrets.ANDROID_KEY_BASE64 }}" > $RUNNER_TEMP/keystore.jks
+          echo "storeFile=$RUNNER_TEMP/keystore.jks" >> keystore.properties
+
+      - name: Upload keystore config
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-keystore
+          path: src-tauri/gen/android/app/
 
       - name: Build Android arch specific binaries
         run: bun tauri android build --apk --split-per-abi
 
-      - name: List Android build outputs
-        run: |
-          echo "Listing all APKs recursively:"
-          find src-tauri/gen/android -name "*.apk" -type f
-          echo "\nListing all AABs recursively:"
-          find src-tauri/gen/android -name "*.aab" -type f
-          echo "\nListing specific release directories:"
-          ls -la src-tauri/gen/android/app/build/outputs/apk/*/release/ || echo "Release dirs not found"
+      - name: Upload split ABI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-split
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/*/release/*.apk
 
-      - name: Prepare Android artifacts
+  prepare-release:
+    runs-on: ubuntu-22.04
+    needs: [build-android-universal, build-android-split]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version
+        id: get-version
         run: |
           VERSION=$(grep '^version[[:space:]]*=[[:space:]]*"' src-tauri/Cargo.toml | sed 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/')
-          echo "Version: $VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare final artifacts
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
           mkdir -p android-artifacts
 
-          echo "Checking source paths:"
-          for type in universal arm64 arm x86 x86_64; do
-            echo "Checking ${type}:"
-            ls -la "src-tauri/gen/android/app/build/outputs/apk/${type}/release/" || echo "${type} directory not found"
-          done
+          # Move and rename artifacts
+          find artifacts -type f -name "*.apk" -exec cp {} android-artifacts/ \;
+          find artifacts -type f -name "*.aab" -exec cp {} android-artifacts/ \;
 
-          for pair in \
-            "universal/release/app-universal-release.apk:android-universal.apk" \
-            "arm64/release/app-arm64-release.apk:android-arm64.apk" \
-            "arm/release/app-arm-release.apk:android-arm.apk" \
-            "x86/release/app-x86-release.apk:android-x86.apk" \
-            "x86_64/release/app-x86_64-release.apk:android-x86_64.apk"; do
-            src=${pair%:*}
-            dst=${pair#*:}
-            if [ -f "src-tauri/gen/android/app/build/outputs/apk/$src" ]; then
-              cp "src-tauri/gen/android/app/build/outputs/apk/$src" "android-artifacts/whitenoise-${VERSION}-${dst}"
-              echo "Copied $src successfully"
-            else
-              echo "Source file not found: $src"
-            fi
-          done
-
-      - name: Generate Android artifact hashes
-        run: |
+          # Generate checksums
           cd android-artifacts
           find . -type f -not -name "*.sha256" -exec sh -c '
             sha256sum "$1" | sed "s|./|  |" > "${1}.sha256"
           ' sh {} \;
 
-      - name: List Android artifacts
-        run: |
-          find android-artifacts/* -type f
-
-      - name: Upload Android artifacts
+      - name: Upload final artifacts
         uses: actions/upload-artifact@v4
         with:
           name: android
