@@ -127,7 +127,10 @@ jobs:
             libpango1.0-dev \
             libasound2-dev \
             libgtk-3-dev \
-            desktop-file-utils
+            desktop-file-utils \
+            rpm \
+            rpmlint \
+            rpm-build
 
       - name: Import GPG key
         id: import_gpg
@@ -146,8 +149,8 @@ jobs:
           LDAI_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           TAURI_SIGNING_KEY: ${{ steps.import_gpg.outputs.keyid }}
           TAURI_SIGNING_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-          RPM_SIGNING_KEY: ${{ steps.import_gpg.outputs.keyid }}
-          RPM_SIGNING_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          RUST_BACKTRACE: full
+          RUST_LOG: debug
 
       - name: Generate Linux artifact hashes
         run: |
