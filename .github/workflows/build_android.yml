@@ -138,11 +138,7 @@ jobs:
           path: src-tauri/gen/android/app/
 
       - name: Build Android universal binary
-        run: |
-          cd src-tauri/gen/android
-          ./gradlew clean
-          cd ../../..
-          bun tauri android build
+        run: bun tauri android build
 
       - name: Upload universal artifacts
         uses: actions/upload-artifact@v4
