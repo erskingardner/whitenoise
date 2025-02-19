@@ -165,25 +165,15 @@ jobs:
             $JAVA_HOME
           key: android-build-env-${{ runner.os }}-${{ hashFiles('**/bun.lockb', '**/Cargo.lock', 'src-tauri/gen/android/**/*.gradle*') }}
 
+      - name: Install frontend dependencies
+        run: bun install
+
       - name: Build Android universal binary
         run: |
           export ANDROID_NDK_HOME=/usr/local/lib/android/sdk/ndk/25.2.9519653
           export NDK_HOME=/usr/local/lib/android/sdk/ndk/25.2.9519653
           export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
           bun tauri android build
-          echo "Disk space after universal build:"
-          df -h
-
-      - name: Aggressive cleanup
-        run: |
-          cd src-tauri/gen/android
-          ./gradlew clean
-          cd app/build
-          rm -rf intermediates transforms
-          rm -rf tmp
-          find . -type d -name "generated" -exec rm -rf {} +
-          echo "Disk space after cleanup:"
-          df -h
 
       - name: Prepare universal artifact
         run: |
@@ -244,25 +234,15 @@ jobs:
             $JAVA_HOME
           key: android-build-env-${{ runner.os }}-${{ hashFiles('**/bun.lockb', '**/Cargo.lock', 'src-tauri/gen/android/**/*.gradle*') }}
 
+      - name: Install frontend dependencies
+        run: bun install
+
       - name: Build Android arch specific binaries
         run: |
           export ANDROID_NDK_HOME=/usr/local/lib/android/sdk/ndk/25.2.9519653
           export NDK_HOME=/usr/local/lib/android/sdk/ndk/25.2.9519653
           export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
           bun tauri android build --apk --split-per-abi
-          echo "Disk space after arch-specific builds:"
-          df -h
-
-      - name: Aggressive cleanup
-        run: |
-          cd src-tauri/gen/android
-          ./gradlew clean
-          cd app/build
-          rm -rf intermediates transforms
-          rm -rf tmp
-          find . -type d -name "generated" -exec rm -rf {} +
-          echo "Disk space after cleanup:"
-          df -h
 
       - name: Prepare arch-specific artifacts
         run: |
