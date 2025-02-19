@@ -24,21 +24,31 @@ on:
       - '.github/workflows/build_android.yml'
   pull_request:
     paths:
-        - 'src-tauri/**'
-        - 'src/**'
-        - 'static/**'
-        - 'package.json'
-        - 'bun.lockb'
-        - 'svelte.config.js'
-        - 'tailwind.config.js'
-        - 'vite.config.js'
-        - '.github/workflows/build_android.yml'
+      - 'src-tauri/**'
+      - 'src/**'
+      - 'static/**'
+      - 'package.json'
+      - 'bun.lockb'
+      - 'svelte.config.js'
+      - 'tailwind.config.js'
+      - 'vite.config.js'
+      - '.github/workflows/build_android.yml'
+
+# Cancel in-progress runs for PRs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  setup-android-env:
+  build-android:
     runs-on: ubuntu-22.04
     outputs:
       version: ${{ steps.get-version.outputs.version }}
+    env:
+      NDK_VERSION: "25.2.9519653"
+      ANDROID_NDK_HOME: ${{ github.workspace }}/android-ndk-25.2.9519653
+      NDK_HOME: ${{ github.workspace }}/android-ndk-25.2.9519653
+      JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
     steps:
       - uses: actions/checkout@v4
 
@@ -69,6 +79,11 @@ jobs:
         with:
           targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
 
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -78,32 +93,32 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Cache Android NDK
+        id: cache-ndk
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ANDROID_NDK_HOME }}
+          key: android-ndk-${{ env.NDK_VERSION }}
+
       - name: Install Android NDK
+        if: steps.cache-ndk.outputs.cache-hit != 'true'
         run: |
-          sdkmanager --install "ndk;25.2.9519653"
-          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
-          echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
+          sdkmanager --install "ndk;${{ env.NDK_VERSION }}"
+          mkdir -p ${{ env.ANDROID_NDK_HOME }}
+          cp -r $ANDROID_SDK_ROOT/ndk/${{ env.NDK_VERSION }}/* ${{ env.ANDROID_NDK_HOME }}/
 
-      - name: Install frontend dependencies
-        run: bun install
-
-      - name: Cache build environment
+      - name: Cache Bun dependencies
         uses: actions/cache@v4
         with:
           path: |
             ~/.bun/install/cache
             node_modules
-            ~/.cargo/registry
-            ~/.cargo/git
-            src-tauri/target
-            /usr/local/lib/android/sdk
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-            src-tauri/gen/android/.gradle
-            ~/.rustup
-            $ANDROID_HOME
-            $JAVA_HOME
-          key: android-build-env-${{ runner.os }}-${{ hashFiles('**/bun.lockb', '**/Cargo.lock', 'src-tauri/gen/android/**/*.gradle*') }}
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install frontend dependencies
+        run: bun install
 
       - name: Setup Android signing
         run: |
@@ -119,68 +134,21 @@ jobs:
           name: android-keystore
           path: src-tauri/gen/android/app/
 
-  build-android-universal:
-    needs: setup-android-env
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: true
-          android: false
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true
-
-      - name: Download keystore config
-        uses: actions/download-artifact@v4
-        with:
-          name: android-keystore
-          path: src-tauri/gen/android
-
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: 1.1.39
-
-      - name: Restore build environment
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
-            ~/.cargo/registry
-            ~/.cargo/git
-            src-tauri/target
-            /usr/local/lib/android/sdk
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-            src-tauri/gen/android/.gradle
-            ~/.rustup
-            $ANDROID_HOME
-            $JAVA_HOME
-          key: android-build-env-${{ runner.os }}-${{ hashFiles('**/bun.lockb', '**/Cargo.lock', 'src-tauri/gen/android/**/*.gradle*') }}
-
-      - name: Install frontend dependencies
-        run: bun install
-
       - name: Build Android universal binary
-        run: |
-          export ANDROID_NDK_HOME=/usr/local/lib/android/sdk/ndk/25.2.9519653
-          export NDK_HOME=/usr/local/lib/android/sdk/ndk/25.2.9519653
-          export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
-          bun tauri android build
+        run: bun tauri android build
 
       - name: Prepare universal artifact
         run: |
+          set -e  # Exit on any error
           mkdir -p android-artifacts
-          cp src-tauri/gen/android/app/build/outputs/bundle/release/app-release.aab android-artifacts/whitenoise-${{ needs.setup-android-env.outputs.version }}-android-universal.aab
+          AAB_PATH="src-tauri/gen/android/app/build/outputs/bundle/release/app-release.aab"
+          if [ ! -f "$AAB_PATH" ]; then
+            echo "Error: Universal AAB file not found at $AAB_PATH"
+            exit 1
+          fi
+          cp "$AAB_PATH" "android-artifacts/whitenoise-${{ steps.get-version.outputs.version }}-android-universal.aab"
           cd android-artifacts
-          sha256sum whitenoise-${{ needs.setup-android-env.outputs.version }}-android-universal.aab > whitenoise-${{ needs.setup-android-env.outputs.version }}-android-universal.aab.sha256
+          sha256sum "whitenoise-${{ steps.get-version.outputs.version }}-android-universal.aab" > "whitenoise-${{ steps.get-version.outputs.version }}-android-universal.aab.sha256"
 
       - name: Upload universal artifact
         uses: actions/upload-artifact@v4
@@ -188,76 +156,26 @@ jobs:
           name: android-universal
           path: android-artifacts/*
 
-  build-android-arch-specific:
-    needs: setup-android-env
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: true
-          android: false
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true
-
-      - name: Download keystore config
-        uses: actions/download-artifact@v4
-        with:
-          name: android-keystore
-          path: src-tauri/gen/android
-
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: 1.1.39
-
-      - name: Restore build environment
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
-            ~/.cargo/registry
-            ~/.cargo/git
-            src-tauri/target
-            /usr/local/lib/android/sdk
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-            src-tauri/gen/android/.gradle
-            ~/.rustup
-            $ANDROID_HOME
-            $JAVA_HOME
-          key: android-build-env-${{ runner.os }}-${{ hashFiles('**/bun.lockb', '**/Cargo.lock', 'src-tauri/gen/android/**/*.gradle*') }}
-
-      - name: Install frontend dependencies
-        run: bun install
-
       - name: Build Android arch specific binaries
-        run: |
-          export ANDROID_NDK_HOME=/usr/local/lib/android/sdk/ndk/25.2.9519653
-          export NDK_HOME=/usr/local/lib/android/sdk/ndk/25.2.9519653
-          export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
-          bun tauri android build --apk --split-per-abi
+        run: bun tauri android build --apk --split-per-abi
 
       - name: Prepare arch-specific artifacts
         run: |
+          set -e  # Exit on any error
           mkdir -p android-artifacts
+          FOUND_APK=false
           for type in arm64 arm x86 x86_64; do
-            if [ -f "src-tauri/gen/android/app/build/outputs/apk/${type}/release/app-${type}-release.apk" ]; then
-              cp "src-tauri/gen/android/app/build/outputs/apk/${type}/release/app-${type}-release.apk" "android-artifacts/whitenoise-${{ needs.setup-android-env.outputs.version }}-android-${type}.apk"
+            APK_PATH="src-tauri/gen/android/app/build/outputs/apk/${type}/release/app-${type}-release.apk"
+            if [ -f "$APK_PATH" ]; then
+              FOUND_APK=true
+              cp "$APK_PATH" "android-artifacts/whitenoise-${{ steps.get-version.outputs.version }}-android-${type}.apk"
+              (cd android-artifacts && sha256sum "whitenoise-${{ steps.get-version.outputs.version }}-android-${type}.apk" > "whitenoise-${{ steps.get-version.outputs.version }}-android-${type}.apk.sha256")
             fi
           done
-          cd android-artifacts
-          for file in *.apk; do
-            if [ -f "$file" ]; then
-              sha256sum "$file" > "${file}.sha256"
-            fi
-          done
+          if [ "$FOUND_APK" = false ]; then
+            echo "Error: No architecture-specific APK files were found"
+            exit 1
+          fi
 
       - name: Upload arch-specific artifacts
         uses: actions/upload-artifact@v4
