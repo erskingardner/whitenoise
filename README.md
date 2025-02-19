@@ -1,9 +1,3 @@
-![CI](https://github.com/erskingardner/whitenoise/actions/workflows/ci.yml/badge.svg?event=push)
-![Desktop Build](https://github.com/erskingardner/whitenoise/actions/workflows/build.yml/badge.svg?event=push)
-![Android Build](https://github.com/erskingardner/whitenoise/actions/workflows/android_build.yml/badge.svg?event=push)
-![iOS Build](https://github.com/erskingardner/whitenoise/actions/workflows/ios_build.yml/badge.svg?event=push)
-![Release](https://github.com/erskingardner/whitenoise/actions/workflows/release.yml/badge.svg?event=push)
-
 # White Noise
 
 A secure, private, and decentralized chat app built on Nostr, using the MLS protocol under the hood.
@@ -11,6 +5,15 @@ A secure, private, and decentralized chat app built on Nostr, using the MLS prot
 ## Overview
 
 White Noise aims to be the most secure private chat app on Nostr, with a focus on privacy and security. Under the hood, it uses the [Messaging Layer Security](https://www.rfc-editor.org/rfc/rfc9420.html) (MLS) protocol to manage group communications in a highly secure way. Nostr is used as the transport protocol and as the framework for the ongoing conversation in each chat.
+
+## Status
+![CI](https://github.com/erskingardner/whitenoise/actions/workflows/ci.yml/badge.svg?event=push)
+
+![Linux Build](https://github.com/erskingardner/whitenoise/actions/workflows/build_linux.yml/badge.svg?event=push) ![Android Build](https://github.com/erskingardner/whitenoise/actions/workflows/build_android.yml/badge.svg?event=push)
+
+![MacOS Build](https://github.com/erskingardner/whitenoise/actions/workflows/build_macos.yml/badge.svg?event=push) ![iOS Build](https://github.com/erskingardner/whitenoise/actions/workflows/build_ios.yml/badge.svg?event=push)
+
+![Release](https://github.com/erskingardner/whitenoise/actions/workflows/release.yml/badge.svg?event=push)
 
 ## The Spec
 
