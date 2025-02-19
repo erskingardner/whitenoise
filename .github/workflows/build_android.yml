@@ -90,14 +90,6 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Cleanup unnecessary Android SDK packages
-        run: |
-          sdkmanager --uninstall "platforms;android-33"
-          sdkmanager --uninstall "platforms;android-32"
-          sdkmanager --uninstall "build-tools;33.0.0"
-          sdkmanager --uninstall "build-tools;32.0.0"
-          yes | sdkmanager --licenses
-
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
@@ -206,14 +198,6 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-
-      - name: Cleanup unnecessary Android SDK packages
-        run: |
-          sdkmanager --uninstall "platforms;android-33"
-          sdkmanager --uninstall "platforms;android-32"
-          sdkmanager --uninstall "build-tools;33.0.0"
-          sdkmanager --uninstall "build-tools;32.0.0"
-          yes | sdkmanager --licenses
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
