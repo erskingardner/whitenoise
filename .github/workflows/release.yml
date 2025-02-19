@@ -9,16 +9,25 @@ permissions:
   contents: write
 
 jobs:
-  build-desktop:
-    uses: ./.github/workflows/build.yml
+  build-linux:
+    uses: ./.github/workflows/build_linux.yml
+    secrets: inherit
+
+  build-macos:
+    uses: ./.github/workflows/build_macos.yml
     secrets: inherit
 
   build-android:
-    uses: ./.github/workflows/android_build.yml
+    uses: ./.github/workflows/build_android.yml
     secrets: inherit
 
+  # comment out for now
+  # build-ios:
+  #   uses: ./.github/workflows/build_ios.yml
+  #   secrets: inherit
+
   create-release:
-    needs: [build-desktop, build-android]
+    needs: [build-linux, build-macos, build-android]
     runs-on: ubuntu-22.04
     steps:
       - name: Download artifacts

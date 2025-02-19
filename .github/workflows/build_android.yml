@@ -21,7 +21,7 @@ on:
       - 'svelte.config.js'
       - 'tailwind.config.js'
       - 'vite.config.js'
-      - '.github/workflows/android_build.yml'
+      - '.github/workflows/build_android.yml'
   pull_request:
     paths:
         - 'src-tauri/**'
@@ -32,7 +32,7 @@ on:
         - 'svelte.config.js'
         - 'tailwind.config.js'
         - 'vite.config.js'
-        - '.github/workflows/android_build.yml'
+        - '.github/workflows/build_android.yml'
 
 jobs:
   setup-android-env:

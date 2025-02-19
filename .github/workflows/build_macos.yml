@@ -1,4 +1,4 @@
-name: "Desktop Build"
+name: "macOS Build"
 
 on:
   workflow_call:
@@ -15,10 +15,6 @@ on:
         required: true
       KEYCHAIN_PASSWORD:
         required: true
-      GPG_PRIVATE_KEY:
-        required: true
-      GPG_PASSPHRASE:
-        required: true
   push:
     branches:
       - master
@@ -31,7 +27,7 @@ on:
       - 'svelte.config.js'
       - 'tailwind.config.js'
       - 'vite.config.js'
-      - '.github/workflows/build.yml'
+      - '.github/workflows/build_macos.yml'
   pull_request:
     paths:
       - 'src-tauri/**'
@@ -42,7 +38,7 @@ on:
       - 'svelte.config.js'
       - 'tailwind.config.js'
       - 'vite.config.js'
-      - '.github/workflows/build.yml'
+      - '.github/workflows/build_macos.yml'
 
 # Cancel in-progress runs for PRs
 concurrency:
@@ -62,153 +58,6 @@ jobs:
         run: |
           VERSION=$(grep '^version[[:space:]]*=[[:space:]]*"' src-tauri/Cargo.toml | sed 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/')
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      # We'll remove the frontend cache from setup since it needs to be OS-specific
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: 1.1.39
-
-  build-linux:
-    needs: setup
-    runs-on: ubuntu-22.04
-    env:
-      VERSION: ${{ needs.setup.outputs.version }}
-      CARGO_INCREMENTAL: 0  # Disable incremental compilation for CI
-      RUST_BACKTRACE: 1     # Better error reporting
-      RUSTFLAGS: "-C target-feature=+crt-static"  # Static linking for better portability
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: 1.1.39
-
-      # OS-specific frontend cache for Linux
-      - name: Cache frontend dependencies
-        uses: actions/cache@v4
-        id: cache-frontend-deps
-        with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
-          key: frontend-deps-linux-${{ hashFiles('**/bun.lockb') }}
-          restore-keys: |
-            frontend-deps-linux-
-
-      - name: Install frontend dependencies
-        if: steps.cache-frontend-deps.outputs.cache-hit != 'true'
-        run: bun install
-
-      # Separate Rust cache for Linux
-      - name: Cache Rust dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: rust-deps-linux-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            rust-deps-linux-
-
-      - name: Add Rust build cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: "src-tauri -> target"
-          key: linux-rust-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-unknown-linux-gnu
-          components: rustc, cargo, rust-std, rust-src, rustfmt, clippy
-
-      # Combine apt-get commands and clean up in the same step
-      - name: Install Linux dependencies
-        run: |
-          sudo apt-get update && sudo apt-get install -y --no-install-recommends \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            libfuse2 \
-            fuse \
-            libglib2.0-dev \
-            libcairo2-dev \
-            libpango1.0-dev \
-            libasound2-dev \
-            libgtk-3-dev \
-            desktop-file-utils \
-            pkg-config \
-            build-essential \
-            gcc \
-            g++ \
-            cmake \
-            llvm \
-            clang \
-            && sudo apt-get clean \
-            && sudo rm -rf /var/lib/apt/lists/*
-
-      - name: Import GPG key
-        id: import_gpg
-        uses: crazy-max/ghaction-import-gpg@v6
-        with:
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          passphrase: ${{ secrets.GPG_PASSPHRASE }}
-          trust_level: 5
-
-      - name: Build Linux Desktop App
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          LDAI_SIGN: true
-          LDAI_SIGN_KEY: ${{ steps.import_gpg.outputs.keyid }}
-          LDAI_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-          TAURI_SIGNING_KEY: ${{ steps.import_gpg.outputs.keyid }}
-          TAURI_SIGNING_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-          RPM_SIGNING_KEY: ${{ steps.import_gpg.outputs.keyid }}
-          RPM_SIGNING_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-
-      - name: Generate Linux artifact hashes
-        run: |
-          cd src-tauri/target/release/bundle
-          find . -type f -name "*.deb" -exec sh -c '
-            FILE="$1"
-            sha256sum "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-linux-amd64.deb|" > "${FILE}.sha256"
-          ' sh {} \;
-          find . -type f -name "*.rpm" -exec sh -c '
-            FILE="$1"
-            sha256sum "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-linux-x86_64.rpm|" > "${FILE}.sha256"
-          ' sh {} \;
-          find . -type f -name "*.AppImage" -exec sh -c '
-            FILE="$1"
-            sha256sum "$FILE" | sed "s|  .*|  whitenoise-${VERSION}-linux-x86_64.AppImage|" > "${FILE}.sha256"
-          ' sh {} \;
-
-      - name: Prepare Linux artifacts
-        run: |
-          mkdir -p desktop-artifacts
-          find src-tauri/target/release/bundle/deb -name "*.deb" -exec sh -c '
-            cp "$1" desktop-artifacts/whitenoise-${VERSION}-linux-amd64.deb
-            cp "${1}.sha256" desktop-artifacts/whitenoise-${VERSION}-linux-amd64.deb.sha256
-          ' sh {} \;
-
-          find src-tauri/target/release/bundle/rpm -name "*.rpm" -exec sh -c '
-            cp "$1" desktop-artifacts/whitenoise-${VERSION}-linux-x86_64.rpm
-            cp "${1}.sha256" desktop-artifacts/whitenoise-${VERSION}-linux-x86_64.rpm.sha256
-          ' sh {} \;
-
-          find src-tauri/target/release/bundle/appimage -name "*.AppImage" -exec sh -c '
-            cp "$1" desktop-artifacts/whitenoise-${VERSION}-linux-x86_64.AppImage
-            cp "${1}.sha256" desktop-artifacts/whitenoise-${VERSION}-linux-x86_64.AppImage.sha256
-          ' sh {} \;
-
-      - name: Upload Linux artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-x86_64
-          path: desktop-artifacts/*
 
   build-macos:
     needs: setup
@@ -237,7 +86,6 @@ jobs:
         with:
           bun-version: 1.1.39
 
-      # OS-specific frontend cache for macOS
       - name: Cache frontend dependencies
         uses: actions/cache@v4
         id: cache-frontend-deps
@@ -253,7 +101,6 @@ jobs:
         if: steps.cache-frontend-deps.outputs.cache-hit != 'true'
         run: bun install
 
-      # Separate Rust cache for macOS
       - name: Cache Rust dependencies
         uses: actions/cache@v4
         with:

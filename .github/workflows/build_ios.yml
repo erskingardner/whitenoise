@@ -29,7 +29,7 @@ on:
       - 'svelte.config.js'
       - 'tailwind.config.js'
       - 'vite.config.js'
-      - '.github/workflows/ios_build.yml'
+      - '.github/workflows/build_ios.yml'
   pull_request:
     paths:
         - 'src-tauri/**'
@@ -40,7 +40,7 @@ on:
         - 'svelte.config.js'
         - 'tailwind.config.js'
         - 'vite.config.js'
-        - '.github/workflows/ios_build.yml'
+        - '.github/workflows/build_ios.yml'
 jobs:
   build-ios:
     #disabled for now
