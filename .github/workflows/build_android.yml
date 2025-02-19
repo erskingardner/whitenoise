@@ -236,12 +236,6 @@ jobs:
           base64 -d <<< "${{ secrets.ANDROID_KEY_BASE64 }}" > $RUNNER_TEMP/keystore.jks
           echo "storeFile=$RUNNER_TEMP/keystore.jks" >> keystore.properties
 
-      - name: Upload keystore config
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-keystore
-          path: src-tauri/gen/android/app/
-
       - name: Build Android arch specific binaries
         run: bun tauri android build --apk --split-per-abi
 
