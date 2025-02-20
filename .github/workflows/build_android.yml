@@ -35,15 +35,27 @@ on:
       - '.github/workflows/build_android.yml'
 
 jobs:
-  build-android-universal:
+  setup:
     runs-on: ubuntu-22.04
     outputs:
       version: ${{ steps.get-version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get version
+        id: get-version
+        run: |
+          VERSION=$(grep '^version[[:space:]]*=[[:space:]]*"' src-tauri/Cargo.toml | sed 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  build-android-universal:
+    needs: setup
+    runs-on: ubuntu-22.04
     env:
       NDK_VERSION: "25.2.9519653"
       ANDROID_NDK_HOME: ${{ github.workspace }}/android-ndk-25.2.9519653
       NDK_HOME: ${{ github.workspace }}/android-ndk-25.2.9519653
       JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
+      VERSION: ${{ needs.setup.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -57,12 +69,6 @@ jobs:
           large-packages: true
           docker-images: true
           swap-storage: true
-
-      - name: Get version
-        id: get-version
-        run: |
-          VERSION=$(grep '^version[[:space:]]*=[[:space:]]*"' src-tauri/Cargo.toml | sed 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/')
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Setup bun
         uses: oven-sh/setup-bun@v1
@@ -125,30 +131,36 @@ jobs:
           echo "password=${{ secrets.ANDROID_KEY_PASSWORD }}" >> keystore.properties
           base64 -d <<< "${{ secrets.ANDROID_KEY_BASE64 }}" > $RUNNER_TEMP/keystore.jks
           echo "storeFile=$RUNNER_TEMP/keystore.jks" >> keystore.properties
-
-      - name: Upload keystore config
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-keystore
-          path: src-tauri/gen/android/app/
 
       - name: Build Android universal binary
         run: bun tauri android build
 
-      - name: Upload universal artifacts
+      - name: Prepare universal artifact
+        run: |
+          mkdir -p android-artifacts
+          # Copy and rename universal AAB
+          find src-tauri/gen/android/app/build/outputs/bundle/release -name "*.aab" -exec cp {} android-artifacts/whitenoise-${VERSION}-android-universal.aab \;
+
+          # Generate checksum
+          cd android-artifacts
+          sha256sum whitenoise-${VERSION}-android-universal.aab > whitenoise-${VERSION}-android-universal.aab.sha256
+
+      - name: Upload universal artifact
         uses: actions/upload-artifact@v4
         with:
           name: android-universal
-          path: src-tauri/gen/android/app/build/outputs/bundle/release/*.aab
+          path: android-artifacts/*
+          if-no-files-found: error
 
   build-android-split:
+    needs: setup
     runs-on: ubuntu-22.04
-    needs: build-android-universal
     env:
       NDK_VERSION: "25.2.9519653"
       ANDROID_NDK_HOME: ${{ github.workspace }}/android-ndk-25.2.9519653
       NDK_HOME: ${{ github.workspace }}/android-ndk-25.2.9519653
       JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
+      VERSION: ${{ needs.setup.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -162,12 +174,6 @@ jobs:
           large-packages: true
           docker-images: true
           swap-storage: true
-
-      - name: Get version
-        id: get-version
-        run: |
-          VERSION=$(grep '^version[[:space:]]*=[[:space:]]*"' src-tauri/Cargo.toml | sed 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/')
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Setup bun
         uses: oven-sh/setup-bun@v1
@@ -231,50 +237,45 @@ jobs:
           base64 -d <<< "${{ secrets.ANDROID_KEY_BASE64 }}" > $RUNNER_TEMP/keystore.jks
           echo "storeFile=$RUNNER_TEMP/keystore.jks" >> keystore.properties
 
-      - name: Build Android arch specific binaries
+      - name: Build Android split APKs
         run: bun tauri android build --apk --split-per-abi
 
-      - name: Upload split ABI artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-split
-          path: |
-            src-tauri/gen/android/app/build/outputs/apk/*/release/*.apk
-
-  prepare-release:
-    runs-on: ubuntu-22.04
-    needs: [build-android-universal, build-android-split]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Get version
-        id: get-version
+      - name: Prepare split artifacts
         run: |
-          VERSION=$(grep '^version[[:space:]]*=[[:space:]]*"' src-tauri/Cargo.toml | sed 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/')
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Prepare final artifacts
-        run: |
-          VERSION="${{ steps.get-version.outputs.version }}"
           mkdir -p android-artifacts
-
-          # Move and rename artifacts
-          find artifacts -type f -name "*.apk" -exec cp {} android-artifacts/ \;
-          find artifacts -type f -name "*.aab" -exec cp {} android-artifacts/ \;
+          # Copy and rename split APKs
+          find src-tauri/gen/android/app/build/outputs/apk/release -name "*arm64-v8a-release.apk" -exec cp {} android-artifacts/whitenoise-${VERSION}-android-arm64.apk \;
+          find src-tauri/gen/android/app/build/outputs/apk/release -name "*armeabi-v7a-release.apk" -exec cp {} android-artifacts/whitenoise-${VERSION}-android-arm.apk \;
+          find src-tauri/gen/android/app/build/outputs/apk/release -name "*x86_64-release.apk" -exec cp {} android-artifacts/whitenoise-${VERSION}-android-x86_64.apk \;
+          find src-tauri/gen/android/app/build/outputs/apk/release -name "*x86-release.apk" -exec cp {} android-artifacts/whitenoise-${VERSION}-android-x86.apk \;
 
           # Generate checksums
           cd android-artifacts
-          find . -type f -not -name "*.sha256" -exec sh -c '
-            sha256sum "$1" | sed "s|./|  |" > "${1}.sha256"
-          ' sh {} \;
+          for file in *.apk; do
+            sha256sum "$file" > "${file}.sha256"
+          done
 
-      - name: Upload final artifacts
+      - name: Upload split artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-split
+          path: android-artifacts/*
+          if-no-files-found: error
+
+  collect-android-artifacts:
+    needs: [setup, build-android-universal, build-android-split]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: android-*
+          path: all-artifacts
+          merge-multiple: true
+
+      - name: Upload combined artifacts
         uses: actions/upload-artifact@v4
         with:
           name: android
-          path: android-artifacts/*
+          path: all-artifacts/*
+          if-no-files-found: error
