@@ -40,11 +40,6 @@ on:
       - 'vite.config.js'
       - '.github/workflows/build_macos.yml'
 
-# Cancel in-progress runs for PRs
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 jobs:
   setup:
     runs-on: ubuntu-latest

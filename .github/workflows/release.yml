@@ -4,9 +4,18 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g. v1.0.0)'
+        required: true
+        type: string
+        default: 'v0.0.0'
 
 permissions:
   contents: write
+  actions: write
+  packages: read
 
 jobs:
   build-linux:
@@ -30,10 +39,24 @@ jobs:
     needs: [build-linux, build-macos, build-android]
     runs-on: ubuntu-22.04
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+          merge-multiple: true
 
       - name: Display structure of downloaded files
         run: |
@@ -48,8 +71,17 @@ jobs:
         with:
           draft: true
           prerelease: false
-          name: ${{ github.ref_name }}
-          tag_name: ${{ github.ref_name }}
-          body: "See the assets to download this version and install."
+          name: White Noise ${{ steps.get_version.outputs.VERSION }}
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          body: |
+            # White Noise ${{ steps.get_version.outputs.VERSION }}
+
+            ## Installation
+            ### Desktop
+            - **Linux**: Download the .deb, .rpm, or .AppImage file for your distribution
+            - **macOS**: Download the .dmg file for your architecture (Intel or Apple Silicon)
+
+            ### Mobile
+            - **Android**: Download the .apk file for your device architecture or the universal .aab file
           files: |
             artifacts/**/*
