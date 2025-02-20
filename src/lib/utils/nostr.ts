@@ -1,6 +1,6 @@
 import { activeAccount } from "$lib/stores/accounts";
 import { invoke } from "@tauri-apps/api/core";
-import { npubEncode } from "nostr-tools/nip19";
+import { decode as nip19Decode, npubEncode } from "nostr-tools/nip19";
 import { get } from "svelte/store";
 import type { EnrichedContact, NEvent, NMetadata } from "../types/nostr";
 
@@ -86,4 +86,42 @@ export async function latestMessagePreview(messageId: number | undefined): Promi
     });
     const otherAuthorMetadata = user.metadata;
     return `${nameFromMetadata(otherAuthorMetadata)}: ${event.content}`;
+}
+
+/**
+ * Checks if a string is a valid npub (Nostr public key in bech32 format).
+ * @param str - The string to check.
+ * @returns True if the string is a valid npub, false otherwise.
+ */
+export function isValidNpub(str: string): boolean {
+    try {
+        const decoded = nip19Decode(str);
+        return decoded.type === "npub";
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Checks if a string is a valid hex public key.
+ * @param str - The string to check.
+ * @returns True if the string is a valid hex public key, false otherwise.
+ */
+export function isValidHexKey(str: string): boolean {
+    // Hex public key should be 64 characters long and contain only hex characters
+    return /^[0-9a-f]{64}$/i.test(str);
+}
+
+/**
+ * Converts an npub to its hex public key representation.
+ * @param npub - The npub to convert.
+ * @returns The hex public key.
+ * @throws Error if the npub is invalid.
+ */
+export function hexKeyFromNpub(npub: string): string {
+    const decoded = nip19Decode(npub);
+    if (decoded.type !== "npub") {
+        throw new Error("Invalid npub");
+    }
+    return decoded.data;
 }

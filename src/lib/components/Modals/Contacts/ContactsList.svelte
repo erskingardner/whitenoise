@@ -3,6 +3,7 @@ import { getToastState } from "$lib/stores/toast-state.svelte";
 import type { PushView } from "$lib/types/modal";
 import type { EnrichedContact, EnrichedContactsMap } from "$lib/types/nostr";
 import { npubFromPubkey } from "$lib/utils/nostr";
+import { hexKeyFromNpub, isValidHexKey, isValidNpub } from "$lib/utils/nostr";
 import { invoke } from "@tauri-apps/api/core";
 import { type UnlistenFn, listen } from "@tauri-apps/api/event";
 import { CaretRight } from "phosphor-svelte";
@@ -32,6 +33,10 @@ let searchResults = $state<EnrichedContactsMap>({});
 let contacts = $state<EnrichedContactsMap>({});
 let search = $state("");
 let filteredContacts = $state<EnrichedContactsMap>({});
+
+let isValidKey = $state(false);
+let validKeyPubkey = $state<string | null>(null);
+let validKeyContact = $state<EnrichedContact | null>(null);
 
 async function loadContacts() {
     const contactsResponse = await invoke("fetch_enriched_contacts");
@@ -92,10 +97,46 @@ onDestroy(() => {
     toastState.cleanup();
 });
 
+async function fetchEnrichedContact(pubkey: string): Promise<EnrichedContact | null> {
+    try {
+        const contact = (await invoke("fetch_enriched_contact", {
+            pubkey,
+            updateAccount: false,
+        })) as EnrichedContact;
+        return contact;
+    } catch (e) {
+        console.error("Failed to fetch enriched contact:", e);
+        return null;
+    }
+}
+
 $effect(() => {
     if (!search || search === "") {
         filteredContacts = contacts;
+        isValidKey = false;
+        validKeyPubkey = null;
+        validKeyContact = null;
     } else {
+        // Check if input is a valid npub or hex key
+        if (isValidNpub(search)) {
+            isValidKey = true;
+            validKeyPubkey = hexKeyFromNpub(search);
+        } else if (isValidHexKey(search)) {
+            isValidKey = true;
+            validKeyPubkey = search;
+        } else {
+            isValidKey = false;
+            validKeyPubkey = null;
+            validKeyContact = null;
+        }
+
+        // If we have a valid key, try to fetch the contact info
+        if (validKeyPubkey) {
+            fetchEnrichedContact(validKeyPubkey).then((contact) => {
+                validKeyContact = contact;
+            });
+        }
+
         filteredContacts = Object.fromEntries(
             Object.entries(contacts as EnrichedContactsMap).filter(
                 ([pubkey, contact]) =>
@@ -194,6 +235,25 @@ async function searchRelays(): Promise<void> {
                         <CaretRight size={20} class="ml-auto" />
                     </button>
                 {/each}
+            {:else if isValidKey && validKeyPubkey !== null}
+                <button
+                    onclick={() => viewContact(validKeyPubkey as string, validKeyContact ?? {
+                        metadata: {},
+                        nip17: false,
+                        nip104: false,
+                        nostr_relays: [],
+                        inbox_relays: [],
+                        key_package_relays: []
+                    })}
+                    class="flex flex-row gap-2 items-center px-2 py-3 hover:bg-gray-700 w-full"
+                >
+                    <Avatar pubkey={validKeyPubkey as string} picture={validKeyContact?.metadata?.picture} pxSize={40} />
+                    <div class="flex flex-col items-start justify-start truncate">
+                        <Name pubkey={validKeyPubkey as string} metadata={validKeyContact?.metadata} />
+                        <span class="text-gray-400 text-sm">Click to start a new group with this user</span>
+                    </div>
+                    <CaretRight size={20} class="ml-auto" />
+                </button>
             {:else}
                 <div class="flex flex-col gap-6 items-center justify-center h-full">
                     <span class="text-gray-400 my-4">Submit a search to find other people</span>
