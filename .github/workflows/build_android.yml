@@ -139,11 +139,14 @@ jobs:
         run: |
           mkdir -p android-artifacts
           # Copy and rename universal AAB
-          find src-tauri/gen/android/app/build/outputs/bundle/release -name "*.aab" -exec cp {} android-artifacts/whitenoise-${VERSION}-android-universal.aab \;
+          cp src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab android-artifacts/whitenoise-${VERSION}-android-universal.aab
+          cp src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk android-artifacts/whitenoise-${VERSION}-android-universal.apk
 
-          # Generate checksum
+          # Generate checksums
           cd android-artifacts
-          sha256sum whitenoise-${VERSION}-android-universal.aab > whitenoise-${VERSION}-android-universal.aab.sha256
+          for file in *; do
+            sha256sum "$file" > "${file}.sha256"
+          done
 
       - name: Upload universal artifact
         uses: actions/upload-artifact@v4
@@ -243,11 +246,11 @@ jobs:
       - name: Prepare split artifacts
         run: |
           mkdir -p android-artifacts
-          # Copy and rename split APKs
-          find src-tauri/gen/android/app/build/outputs/apk/release -name "*arm64-v8a-release.apk" -exec cp {} android-artifacts/whitenoise-${VERSION}-android-arm64.apk \;
-          find src-tauri/gen/android/app/build/outputs/apk/release -name "*armeabi-v7a-release.apk" -exec cp {} android-artifacts/whitenoise-${VERSION}-android-arm.apk \;
-          find src-tauri/gen/android/app/build/outputs/apk/release -name "*x86_64-release.apk" -exec cp {} android-artifacts/whitenoise-${VERSION}-android-x86_64.apk \;
-          find src-tauri/gen/android/app/build/outputs/apk/release -name "*x86-release.apk" -exec cp {} android-artifacts/whitenoise-${VERSION}-android-x86.apk \;
+          # Copy and rename split APKs with exact paths
+          cp src-tauri/gen/android/app/build/outputs/apk/arm64/release/app-arm64-release.apk android-artifacts/whitenoise-${VERSION}-android-arm64.apk
+          cp src-tauri/gen/android/app/build/outputs/apk/arm/release/app-arm-release.apk android-artifacts/whitenoise-${VERSION}-android-arm.apk
+          cp src-tauri/gen/android/app/build/outputs/apk/x86_64/release/app-x86_64-release.apk android-artifacts/whitenoise-${VERSION}-android-x86_64.apk
+          cp src-tauri/gen/android/app/build/outputs/apk/x86/release/app-x86-release.apk android-artifacts/whitenoise-${VERSION}-android-x86.apk
 
           # Generate checksums
           cd android-artifacts
