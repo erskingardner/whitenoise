@@ -1,0 +1,101 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+
+## [v0.1.0-alpha.3] - 2025-02-20
+
+### Added
+- Basic notification system, chat times, and latest message previews. ([erskingardner])
+- Simple nsec export via copy ([erskingardner])
+- Invite to WhiteNoise via NIP-04 DM. ([erskingardner])
+
+### Changed
+- Messages now send on enter key press ([erskingardner])
+- Improved contact metadata fetching ([erskingardner])
+- Updated login page with new logo ([erskingardner])
+- Enhanced toast messages design ([erskingardner])
+- Updated styling for Android/iOS ([erskingardner])
+- Updated to nostr-sdk v38 ([erskingardner])
+- Improved build system for multiple platforms (Linux, Android, iOS, MacOS) ([erskingardner])
+- Split build workflows for better efficiency ([erskingardner])
+
+### Removed
+- Removed overscroll behavior ([erskingardner])
+- Disabled unimplemented chat actions ([erskingardner])
+
+### Fixed
+- Non-blocking tracing appender for stdout logging. iOS Builds now! ([justinmoon])
+- Android keyboard overlaying message input ([erskingardner])
+- Contact loading improvements ([erskingardner])
+- Fixed infinite looping back button behavior from chat details page ([erskingardner])
+- Fixed position of toasts on mobile ([erskingardner])
+- Various iOS and Android styles fixes ([erskingardner])
+- Fixed invite actions modal behavior for iOS and Android ([erskingardner])
+- Updated modal background ([erskingardner])
+- Improved group creation button behavior ([erskingardner])
+- Enhanced account management text ([erskingardner])
+
+## [v0.1.0-alpha.2] - 2025-02-08
+
+### Added
+- Replies! 💬 ([erskingardner])
+- Search all of nostr for contacts, not just your contact list 🔍 ([erskingardner])
+- Add metadata to Name component when available ([erskingardner])
+- Improved contacts search (includes NIP-05 and npub now) ([erskingardner])
+
+### Fixed
+- Delete all now gives more context ([erskingardner])
+- Fixed broken queries to delete data in database ([erskingardner])
+- Fixed broken query to fetch group relays ([erskingardner])
+- Fixed contact list display ([erskingardner])
+
+## [v0.1.0-alpha.1] - 2025-02-04
+
+### Added
+- Stickers (large emoji when you post just a single emoji) ⭐ ([erskingardner])
+- Reactions! ❤️ ([erskingardner])
+- Added relay list with status on group info page ([erskingardner])
+
+### Fixed
+- Added more default relays to get better contact discovery ([erskingardner])
+- Fixed relay bug related to publishing key packages ([erskingardner])
+- Cleaned up dangling event listeners and log messaging ([erskingardner])
+- Scroll conversation to bottom on new messages ([erskingardner])
+- New chat window text alignment on mobile ([erskingardner])
+
+## [v0.1.0-alpha] - 2025-02-03
+
+### Added
+- Initial release of White Noise ([erskingardner])
+
+
+<!-- Contributors -->
+[erskingardner]: <https://github.com/erskingardner> (nostr:npub1zuuajd7u3sx8xu92yav9jwxpr839cs0kc3q6t56vd5u9q033xmhsk6c2uc)
+[justinmoon]: <https://github.com/justinmoon> (nostr:npub1zxu639qym0esxnn7rzrt48wycmfhdu3e5yvzwx7ja3t84zyc2r8qz8cx2y)
+[hodlbod]: <https://github.com/staab> (nostr:npub1jlrs53pkdfjnts29kveljul2sm0actt6n8dxrrzqcersttvcuv3qdjynqn)
+[dmcarrington]: <https://github.com/dmcarrington>
+
+
+
+<!-- Tags -->
+[Unreleased]: https://github.com/erskingardner/whitenoise/compare/v0.1.0-alpha.3...HEAD
+[v0.1.0-alpha.3]: https://github.com/erskingardner/whitenoise/releases/tag/v0.1.0-alpha.3
+[v0.1.0-alpha.2]: https://github.com/erskingardner/whitenoise/releases/tag/v0.1.0-alpha.2
+[v0.1.0-alpha.1]: https://github.com/erskingardner/whitenoise/releases/tag/v0.1.0-alpha.1
+[v0.1.0-alpha]: https://github.com/erskingardner/whitenoise/releases/tag/v0.1.0-alpha
+
+
+<!-- Categories
+`Added` for new features.
+`Changed` for changes in existing functionality.
+`Deprecated` for soon-to-be removed features.
+`Removed` for now removed features.
+`Fixed` for any bug fixes.
+`Security` in case of vulnerabilities.
+-->
