@@ -251,7 +251,7 @@ async function copyMessage() {
     }
 }
 
-async function payMessage() {
+async function payInvoice() {
     if (!group) {
         console.error("no group found");
         return;
@@ -457,14 +457,14 @@ onDestroy(() => {
 
 <div
     id="messageMenuExtended"
-    class="{showMessageMenu ? 'visible' : 'invisible'} fixed bg-gray-900/90 backdrop-blur-sm drop-shadow-md drop-shadow-black rounded-md ring-1 ring-gray-700 z-30 translate-x-0"
+    class="{showMessageMenu ? 'opacity-100 visible' : 'opacity-0 invisible'} fixed bg-gray-900/90 backdrop-blur-sm drop-shadow-md drop-shadow-black rounded-md ring-1 ring-gray-700 z-30 translate-x-0 transition-opacity duration-200"
     style="left: {messageMenuExtendedPosition.x}px; top: {messageMenuExtendedPosition.y}px;"
     role="menu"
 >
     <div class="flex flex-col justify-start items-between divide-y divide-gray-800">
         <button data-copy-button onclick={copyMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Copy <CopySimple size={20} /></button>
         <button onclick={replyToMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Reply <ArrowBendUpLeft size={20} /></button>
-        <button onclick={payMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Pay<Lightning size={20} /></button>
+        <button onclick={payInvoice} class="glow-button px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Pay<Lightning size={20} weight="fill" /></button>
         <!-- <button onclick={editMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between">Edit <PencilSimple size={20} /></button>
         <button onclick={deleteMessage} class="text-red-500 px-4 py-2 flex flex-row gap-20 items-center justify-between">Delete <TrashSimple size={20} /></button> -->
     </div>
@@ -481,5 +481,32 @@ onDestroy(() => {
     .copy-success {
         color: rgb(34 197 94); /* text-green-500 */
         transition: color 0.2s ease-in-out;
+    }
+
+    .glow-button {
+        position: relative;
+        color: #fff;
+        transition: all 0.3s ease;
+        background: rgba(173, 0, 255, 0.1);
+    }
+
+    .glow-button::before {
+        content: '';
+        position: absolute;
+        inset: -1px;
+        background: linear-gradient(90deg, #ff00ea 0%, #ad00ff 100%);
+        z-index: -1;
+        opacity: 0.15;
+        filter: blur(8px);
+        border-radius: 0.375rem;
+    }
+
+    .glow-button:hover {
+        background: rgba(173, 0, 255, 0.2);
+    }
+
+    /* Ensure immediate visibility state change */
+    .invisible {
+        display: none;
     }
 </style>
