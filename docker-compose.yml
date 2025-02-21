@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  nostr-rs-relay:
+    image: scsibug/nostr-rs-relay:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./dev/data/nostr-rs-relay:/usr/src/app/data
+      - ./dev/nostr-rs-relay-config.toml:/usr/src/app/config
+    environment:
+      - RUST_LOG=info
+    restart: unless-stopped 
+  blossom:
+    image: ghcr.io/hzrd149/blossom-server:master
+    build: .
+    ports:
+      - 3000:3000
+    volumes:
+      - ./dev/data/blossom-ts-server:/app/data
+      - ./dev/blossom-server-ts-config.yml:/app/config.yml
+

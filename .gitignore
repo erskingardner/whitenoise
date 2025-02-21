@@ -10,3 +10,4 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 upload-keystore.jks
 package-lock.json
+dev/data
