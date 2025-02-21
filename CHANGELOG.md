@@ -6,14 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-- Added a copy npub button in settings page([josefinalliende])
 
 ### Added
+
 - Search for contacts by npub or hex pubkey ([erskingardner])
+- Copy npub button in settings page([josefinalliende])
+- Basic NWC support for paying invoices in messages ([a-mpch], [F3r10], [jgmontoya], [josefinalliende])
 
 ### Changed
 
-
+- Better handling of long messages in chat ([josefinalliende])
 
 ## [v0.1.0-alpha.3] - 2025-02-20
 
@@ -88,6 +90,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [hodlbod]: <https://github.com/staab> (nostr:npub1jlrs53pkdfjnts29kveljul2sm0actt6n8dxrrzqcersttvcuv3qdjynqn)
 [dmcarrington]: <https://github.com/dmcarrington>
 [josefinalliende]: <https://github.com/josefinalliende>
+[jgmontoya]: <https://github.com/jgmontoya> (nostr:npub1jgm0ntzjr03wuzj5788llhed7l6fst05um4ej2r86ueaa08etv6sgd669p)
+[a-mpch]: <https://github.com/a-mpch> (nostr:npub1mpchxagw3kaglylnyajzjmghdj63vly9q5eu7d62fl72f2gz8xfqk6nwkd)
+[F3r10]: <https://github.com/F3r10>
 
 
 
