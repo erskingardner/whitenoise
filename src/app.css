@@ -98,3 +98,7 @@ html {
         padding-bottom: max(8px, var(--sab, 8px));
     }
 }
+
+.break-words-smart {
+    word-break: break-word;
+}
