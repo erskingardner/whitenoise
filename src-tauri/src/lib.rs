@@ -75,8 +75,11 @@ pub fn run() {
                 let window = app.get_webview_window("main").unwrap();
                 window.open_devtools();
                 window.close_devtools();
-                // Customize the window title based on port
-                window.set_title(&format!("White Noise (port {})", &port))?;
+                // Customize the window title based on port on desktop
+                #[cfg(desktop)]
+                {
+                    window.set_title(&format!("White Noise (port {})", &port))?;
+                }
             }
 
             tauri::async_runtime::block_on(async move {
