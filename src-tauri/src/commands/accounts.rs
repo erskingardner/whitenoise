@@ -233,7 +233,7 @@ pub async fn set_nostr_wallet_connect_uri(
     let nwc: NWC = NWC::new(uri);
     nwc.get_info()
         .await
-        .map_err(|e| return format!("Error getting NWC info: {}", e))?;
+        .map_err(|e| format!("Error getting NWC info: {}", e))?;
 
     active_account
         .store_nostr_wallet_connect_uri(&nostr_wallet_connect_uri, wn.clone())
