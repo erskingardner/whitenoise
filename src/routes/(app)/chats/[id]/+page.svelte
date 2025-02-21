@@ -1,6 +1,7 @@
 <script lang="ts">
 import { goto } from "$app/navigation";
 import { page } from "$app/state";
+import { getToastState } from "$lib/stores/toast-state.svelte";
 import GroupAvatar from "$lib/components/GroupAvatar.svelte";
 import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
 import MessageBar from "$lib/components/MessageBar.svelte";
@@ -25,6 +26,7 @@ import {
     CircleDashed,
     CopySimple,
     DotsThree,
+    Lightning,
 } from "phosphor-svelte";
 import { onDestroy, onMount, tick } from "svelte";
 import { type PressCustomEvent, press } from "svelte-gestures";
@@ -42,6 +44,7 @@ let selectedMessageId: string | null | undefined = $state(undefined);
 let messageMenuPosition = $state({ x: 0, y: 0 });
 let messageMenuExtendedPosition = $state({ x: 0, y: 0 });
 let replyToMessageEvent: NEvent | undefined = $state(undefined);
+let toastState = getToastState();
 
 $effect(() => {
     if (
@@ -248,6 +251,47 @@ async function copyMessage() {
     }
 }
 
+async function payMessage() {
+    if (!group) {
+        console.error("no group found");
+        return;
+    }
+    if (!selectedMessageId) {
+        console.error("no message selected");
+        return;
+    }
+    const message = messages.find((m) => m.id === selectedMessageId);
+    if (!message) {
+        console.error("message not found");
+        return;
+    }
+     // Filter out tags that are not "e" or "p" (or invalid)
+     let tags = message.tags.filter((t) => t.length >= 2 && (t[0] === "e" || t[0] === "p"));
+    // Now add our own tags for the reaction
+    tags = [...tags, ["e", selectedMessageId], ["p", message.pubkey], ["k", message.kind.toString()]];
+    console.log("Sending payment", tags);
+    invoke("pay_invoice", {
+        group,
+        tags: tags,
+        bolt11: message.content
+    })
+        .then((reactionEvent) => {
+            console.log("reaction sent", reactionEvent);
+            toastState.add("Payment success", "Successfully sent payment to invoice", "success");
+            handleNewMessage(reactionEvent as NEvent, false);
+        }, (e) => {
+            toastState.add(
+                "Error sending payment",
+                `Failed to send payment: ${e.message}`,
+                "error"
+            );
+            console.error("Error sending payment", e);
+        })
+        .finally(() => {
+            showMessageMenu = false;
+        });
+}
+
 function replyToMessage() {
     replyToMessageEvent = messages.find((m) => m.id === selectedMessageId);
     document.getElementById("newMessageInput")?.focus();
@@ -291,6 +335,7 @@ function reactionsForMessage(message: NEvent): { content: string; count: number 
 onDestroy(() => {
     unlistenMlsMessageProcessed();
     unlistenMlsMessageReceived();
+    toastState.cleanup();
 });
 </script>
 
@@ -419,6 +464,7 @@ onDestroy(() => {
     <div class="flex flex-col justify-start items-between divide-y divide-gray-800">
         <button data-copy-button onclick={copyMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Copy <CopySimple size={20} /></button>
         <button onclick={replyToMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Reply <ArrowBendUpLeft size={20} /></button>
+        <button onclick={payMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Pay<Lightning size={20} /></button>
         <!-- <button onclick={editMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between">Edit <PencilSimple size={20} /></button>
         <button onclick={deleteMessage} class="text-red-500 px-4 py-2 flex flex-row gap-20 items-center justify-between">Delete <TrashSimple size={20} /></button> -->
     </div>
