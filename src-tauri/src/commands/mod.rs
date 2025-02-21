@@ -6,6 +6,7 @@ pub mod invites;
 pub mod key_packages;
 pub mod messages;
 pub mod nostr;
+pub mod payments;
 
 #[tauri::command]
 pub async fn delete_all_data(wn: tauri::State<'_, Whitenoise>) -> Result<(), String> {

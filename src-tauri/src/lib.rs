@@ -6,6 +6,7 @@ mod invites;
 mod key_packages;
 mod messages;
 mod nostr_manager;
+mod payments;
 mod relays;
 mod secrets_store;
 mod types;
@@ -19,6 +20,7 @@ use crate::commands::invites::*;
 use crate::commands::key_packages::*;
 use crate::commands::messages::*;
 use crate::commands::nostr::*;
+use crate::commands::payments::*;
 use crate::whitenoise::Whitenoise;
 use once_cell::sync::Lazy;
 use std::path::PathBuf;
@@ -109,6 +111,7 @@ pub fn run() {
             get_invite,
             accept_invite,
             decline_invite,
+            pay_invoice,
             send_mls_message,
             delete_all_data,
             search_for_enriched_contacts,
