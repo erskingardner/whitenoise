@@ -46,24 +46,62 @@ impl Database {
 
         let db_url = format!("{}", db_path.display());
 
+        // Add detailed logging
+        tracing::info!(
+            target: "whitenoise::database",
+            "Initializing database at path: {:?}, process ID: {}",
+            db_url,
+            std::process::id()
+        );
+
         // Create database if it doesn't exist
-        tracing::info!("Checking if DB exists...{:?}", db_url);
+        tracing::info!(
+            target: "whitenoise::database",
+            "Checking if DB exists...{:?}",
+            db_url
+        );
         if Sqlite::database_exists(&db_url).await.unwrap_or(false) {
-            tracing::info!("DB exists");
+            tracing::info!(
+                target: "whitenoise::database",
+                "DB exists at {:?}, process: {}",
+                db_url,
+                std::process::id()
+            );
         } else {
-            tracing::info!("DB does not exist, creating...");
+            tracing::info!(
+                target: "whitenoise::database",
+                "DB does not exist at {:?}, creating... (process: {})",
+                db_url,
+                std::process::id()
+            );
             match Sqlite::create_database(&db_url).await {
                 Ok(_) => {
-                    tracing::info!("DB created");
+                    tracing::info!(
+                        target: "whitenoise::database",
+                        "DB created at {:?}, process: {}",
+                        db_url,
+                        std::process::id()
+                    );
                 }
                 Err(e) => {
-                    tracing::error!("Error creating DB: {:?}", e);
+                    tracing::error!(
+                        target: "whitenoise::database",
+                        "Error creating DB at {:?}: {:?}, process: {}",
+                        db_url,
+                        e,
+                        std::process::id()
+                    );
                 }
             }
         }
 
         // Create connection pool with refined settings
-        tracing::info!("Creating connection pool...");
+        tracing::info!(
+            target: "whitenoise::database",
+            "Creating connection pool for {:?}, process: {}",
+            db_url,
+            std::process::id()
+        );
         let pool = SqlitePoolOptions::new()
             .acquire_timeout(Duration::from_secs(5))
             .max_connections(10)

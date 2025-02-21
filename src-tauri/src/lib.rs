@@ -34,6 +34,9 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
+            // Get the port from environment variable or use default
+            let port = std::env::var("TAURI_DEV_PORT").unwrap_or_else(|_| "1420".to_string());
+
             let data_dir = app
                 .handle()
                 .path()
@@ -43,14 +46,22 @@ pub fn run() {
             let logs_dir = app.handle().path().app_log_dir().unwrap();
 
             let formatted_data_dir = if cfg!(dev) {
-                PathBuf::from(format!("{}/dev", data_dir.to_string_lossy()))
+                PathBuf::from(format!(
+                    "{}/dev/instance_{}",
+                    data_dir.to_string_lossy(),
+                    port
+                ))
             } else {
                 PathBuf::from(format!("{}/release", data_dir.to_string_lossy()))
             };
             std::fs::create_dir_all(&formatted_data_dir)?;
 
             let formatted_logs_dir = if cfg!(dev) {
-                PathBuf::from(format!("{}/dev", logs_dir.to_string_lossy()))
+                PathBuf::from(format!(
+                    "{}/dev/instance_{}",
+                    logs_dir.to_string_lossy(),
+                    port
+                ))
             } else {
                 PathBuf::from(format!("{}/release", logs_dir.to_string_lossy()))
             };
