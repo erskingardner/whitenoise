@@ -1,6 +1,7 @@
 use crate::accounts::Account;
 use crate::whitenoise::Whitenoise;
 use nostr_sdk::prelude::*;
+use nwc::prelude::*;
 
 /// Lists all accounts.
 ///
@@ -227,6 +228,12 @@ pub async fn set_nostr_wallet_connect_uri(
     let active_account = Account::get_active(wn.clone())
         .await
         .map_err(|e| format!("Error getting active account: {}", e))?;
+    let uri: NostrWalletConnectURI =
+        NostrWalletConnectURI::parse(&nostr_wallet_connect_uri).expect("Failed to parse NWC URI");
+    let nwc: NWC = NWC::new(uri);
+    nwc.get_info()
+        .await
+        .map_err(|e| return format!("Error getting NWC info: {}", e))?;
 
     active_account
         .store_nostr_wallet_connect_uri(&nostr_wallet_connect_uri, wn.clone())
