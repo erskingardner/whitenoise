@@ -93,6 +93,9 @@ jobs:
       - name: Install frontend dependencies
         run: bun install
 
+      - name: Build frontend
+        run: bun run build
+
       - name: Run tests
         run: cd src-tauri && cargo test ${{ matrix.args }}
 
