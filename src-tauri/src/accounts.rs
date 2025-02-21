@@ -686,8 +686,8 @@ impl Account {
     }
 
     /// Stores a Nostr Wallet Connect URI for this account
-    pub fn store_nwc_uri(&self, nwc_uri: &str, wn: tauri::State<'_, Whitenoise>) -> Result<()> {
-        secrets_store::store_nwc_uri(&self.pubkey.to_hex(), nwc_uri, &wn.data_dir)
+    pub fn store_nostr_wallet_connect_uri(&self, nostr_wallet_connect_uri: &str, wn: tauri::State<'_, Whitenoise>) -> Result<()> {
+        secrets_store::store_nostr_wallet_connect_uri(&self.pubkey.to_hex(), nostr_wallet_connect_uri, &wn.data_dir)
             .map_err(AccountError::SecretsStoreError)
     }
 
@@ -696,14 +696,14 @@ impl Account {
     /// # Returns
     /// * `Result<Option<String>>` - Some(uri) if a URI is stored, None if no URI is stored,
     ///   or an error if the operation fails
-    pub fn get_nwc_uri(&self, wn: tauri::State<'_, Whitenoise>) -> Result<Option<String>> {
-        secrets_store::get_nwc_uri(&self.pubkey.to_hex(), &wn.data_dir)
+    pub fn get_nostr_wallet_connect_uri(&self, wn: tauri::State<'_, Whitenoise>) -> Result<Option<String>> {
+        secrets_store::get_nostr_wallet_connect_uri(&self.pubkey.to_hex(), &wn.data_dir)
             .map_err(AccountError::SecretsStoreError)
     }
 
     /// Removes the Nostr Wallet Connect URI for this account
-    pub fn remove_nwc_uri(&self, wn: tauri::State<'_, Whitenoise>) -> Result<()> {
-        secrets_store::remove_nwc_uri(&self.pubkey.to_hex(), &wn.data_dir)
+    pub fn remove_nostr_wallet_connect_uri(&self, wn: tauri::State<'_, Whitenoise>) -> Result<()> {
+        secrets_store::remove_nostr_wallet_connect_uri(&self.pubkey.to_hex(), &wn.data_dir)
             .map_err(AccountError::SecretsStoreError)
     }
 }
