@@ -183,3 +183,75 @@ pub async fn update_account_onboarding(
         .map_err(|e| format!("Error saving account: {}", e))?;
     Ok(account)
 }
+
+/// Checks if a Nostr Wallet Connect URI is configured for the active account.
+///
+/// # Arguments
+///
+/// * `wn` - A reference to the Whitenoise state
+///
+/// # Returns
+///
+/// * `Ok(bool)` - true if a NWC URI is configured, false otherwise
+/// * `Err(String)` - An error message if there was an issue checking the NWC URI
+#[tauri::command]
+pub async fn has_nostr_wallet_connect_uri(
+    wn: tauri::State<'_, Whitenoise>,
+) -> Result<bool, String> {
+    let active_account = Account::get_active(wn.clone())
+        .await
+        .map_err(|e| format!("Error getting active account: {}", e))?;
+
+    active_account
+        .get_nostr_wallet_connect_uri(wn.clone())
+        .map(|opt| opt.is_some())
+        .map_err(|e| format!("Error checking NWC URI: {}", e))
+}
+
+/// Sets the Nostr Wallet Connect URI for the active account.
+///
+/// # Arguments
+///
+/// * `nostr_wallet_connect_uri` - The NWC URI to store
+/// * `wn` - A reference to the Whitenoise state
+///
+/// # Returns
+///
+/// * `Ok(())` - If the URI was stored successfully
+/// * `Err(String)` - An error message if there was an issue storing the URI
+#[tauri::command]
+pub async fn set_nostr_wallet_connect_uri(
+    nostr_wallet_connect_uri: String,
+    wn: tauri::State<'_, Whitenoise>,
+) -> Result<(), String> {
+    let active_account = Account::get_active(wn.clone())
+        .await
+        .map_err(|e| format!("Error getting active account: {}", e))?;
+
+    active_account
+        .store_nostr_wallet_connect_uri(&nostr_wallet_connect_uri, wn.clone())
+        .map_err(|e| format!("Error storing NWC URI: {}", e))
+}
+
+/// Removes the Nostr Wallet Connect URI for the active account.
+///
+/// # Arguments
+///
+/// * `wn` - A reference to the Whitenoise state
+///
+/// # Returns
+///
+/// * `Ok(())` - If the URI was removed successfully
+/// * `Err(String)` - An error message if there was an issue removing the URI
+#[tauri::command]
+pub async fn remove_nostr_wallet_connect_uri(
+    wn: tauri::State<'_, Whitenoise>,
+) -> Result<(), String> {
+    let active_account = Account::get_active(wn.clone())
+        .await
+        .map_err(|e| format!("Error getting active account: {}", e))?;
+
+    active_account
+        .remove_nostr_wallet_connect_uri(wn.clone())
+        .map_err(|e| format!("Error removing NWC URI: {}", e))
+}
