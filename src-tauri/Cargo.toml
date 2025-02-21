@@ -42,7 +42,7 @@ nostr-openmls = { version = "0.1.0", git="https://github.com/erskingardner/nostr
 tauri-plugin-clipboard-manager = "2.2.1"
 tauri-plugin-notification = "2.2.1"
 nwc = { version = "0.38" }
-lightning-invoice = { version = "0.29.0", features = [] }
+lightning-invoice = "0.33.1"
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
 nostr-sdk = { version = "0.38", features = [
