@@ -41,12 +41,14 @@ base64 = "0.22"
 nostr-openmls = { version = "0.1.0", git="https://github.com/erskingardner/nostr-openmls", branch="master" }
 tauri-plugin-clipboard-manager = "2.2.1"
 tauri-plugin-notification = "2.2.1"
+nwc = { version = "0.38" }
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
 nostr-sdk = { version = "0.38", features = [
     "ndb",  # Use NDB for macOS and iOS
     "nip04",
     "nip44",
+    "nip47",
     "nip59",
 ] }
 
@@ -55,6 +57,7 @@ nostr-sdk = { version = "0.38", features = [
     "lmdb",  # Use LMDB for all other platforms
     "nip04",
     "nip44",
+    "nip47",
     "nip59",
 ] }
 
