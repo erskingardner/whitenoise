@@ -2,9 +2,23 @@ import { describe, it, expect } from 'vitest';
 import { validateNostrWalletConnectUri } from '../accounts';
 
 describe('validateNostrWalletConnectUri', () => {
-    it('should validate a correct NWC URI', () => {
+    it('should validate a correct NWC URI with WSS relay', () => {
         const validUri = "nostr+walletconnect://b889ff5b1513b641e2a139f661a661364979c5beee91842f8f0ef42ab558e9d4?relay=wss%3A%2F%2Frelay.damus.io&secret=71a8c14c1407c113601079c4302dab36460f0ccd0ad506f1f2dc73b5100e4f3c";
         const result = validateNostrWalletConnectUri(validUri);
+        expect(result.isValid).toBe(true);
+        expect(result.error).toBeUndefined();
+    });
+
+    it('should validate a correct NWC URI with WS relay', () => {
+        const validUri = "nostr+walletconnect://pubkey?relay=ws://relay.example.com&secret=123";
+        const result = validateNostrWalletConnectUri(validUri);
+        expect(result.isValid).toBe(true);
+        expect(result.error).toBeUndefined();
+    });
+
+    it('should validate URI with multiple relays', () => {
+        const multiRelayUri = "nostr+walletconnect://pubkey?relay=wss://relay1.com&relay=ws://relay2.com&secret=123";
+        const result = validateNostrWalletConnectUri(multiRelayUri);
         expect(result.isValid).toBe(true);
         expect(result.error).toBeUndefined();
     });
@@ -23,11 +37,18 @@ describe('validateNostrWalletConnectUri', () => {
         expect(result.error).toBe("Missing required 'relay' parameter");
     });
 
-    it('should reject URI with non-WSS relay', () => {
+    it('should reject URI with non-WS/WSS relay', () => {
         const httpRelayUri = "nostr+walletconnect://pubkey?relay=http://relay.com&secret=123";
         const result = validateNostrWalletConnectUri(httpRelayUri);
         expect(result.isValid).toBe(false);
-        expect(result.error).toBe("Relay must use WSS protocol");
+        expect(result.error).toBe("Relay must use either WSS or WS protocol");
+    });
+
+    it('should reject URI with mixed valid/invalid relay protocols', () => {
+        const mixedRelayUri = "nostr+walletconnect://pubkey?relay=wss://relay1.com&relay=http://relay2.com&secret=123";
+        const result = validateNostrWalletConnectUri(mixedRelayUri);
+        expect(result.isValid).toBe(false);
+        expect(result.error).toBe("Relay must use either WSS or WS protocol");
     });
 
     it('should reject URI with invalid relay URL format', () => {

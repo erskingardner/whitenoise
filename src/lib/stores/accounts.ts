@@ -160,27 +160,30 @@ export function validateNostrWalletConnectUri(uri: string): { isValid: boolean; 
 
     try {
         const url = new URL(uri);
-        const relay = url.searchParams.get("relay");
-        if (!relay) {
+        
+        const relays = url.searchParams.getAll("relay");
+        if (relays.length === 0) {
             return {
                 isValid: false,
                 error: "Missing required 'relay' parameter"
             };
         }
 
-        try {
-            const relayUrl = new URL(relay);
-            if (relayUrl.protocol !== "wss:") {
+        for (const relay of relays) {
+            try {
+                const relayUrl = new URL(relay);
+                if (relayUrl.protocol !== "wss:" && relayUrl.protocol !== "ws:") {
+                    return {
+                        isValid: false,
+                        error: "Relay must use either WSS or WS protocol"
+                    };
+                }
+            } catch {
                 return {
                     isValid: false,
-                    error: "Relay must use WSS protocol"
+                    error: "Invalid relay URL format"
                 };
             }
-        } catch {
-            return {
-                isValid: false,
-                error: "Invalid relay URL format"
-            };
         }
 
         const secret = url.searchParams.get("secret");
