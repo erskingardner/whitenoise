@@ -19,4 +19,10 @@ services:
     volumes:
       - ./dev/data/blossom-ts-server:/app/data
       - ./dev/blossom-server-ts-config.yml:/app/config.yml
-
+  strfry-nostr-relay:
+    image: dockurr/strfry:latest
+    volumes:
+      - ./dev/strfry.conf:/etc/strfry.conf
+      - ./dev/data/strfry-db:/app/strfry-db
+    ports:
+      - "7777:7777"
