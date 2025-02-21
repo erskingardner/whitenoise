@@ -692,7 +692,11 @@ impl Account {
     }
 
     /// Retrieves the Nostr Wallet Connect URI for this account
-    pub fn get_nwc_uri(&self, wn: tauri::State<'_, Whitenoise>) -> Result<String> {
+    ///
+    /// # Returns
+    /// * `Result<Option<String>>` - Some(uri) if a URI is stored, None if no URI is stored,
+    ///   or an error if the operation fails
+    pub fn get_nwc_uri(&self, wn: tauri::State<'_, Whitenoise>) -> Result<Option<String>> {
         secrets_store::get_nwc_uri(&self.pubkey.to_hex(), &wn.data_dir)
             .map_err(AccountError::SecretsStoreError)
     }

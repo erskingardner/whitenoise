@@ -369,12 +369,15 @@ pub fn store_nwc_uri(pubkey: &str, nwc_uri: &str, data_dir: &Path) -> Result<()>
 ///
 /// # Returns
 ///
-/// * `Result<String>` - The NWC URI if found, or an error if not found or operation fails
-pub fn get_nwc_uri(pubkey: &str, data_dir: &Path) -> Result<String> {
+/// * `Result<Option<String>>` - Some(uri) if found, None if not found, or an error if operation fails
+pub fn get_nwc_uri(pubkey: &str, data_dir: &Path) -> Result<Option<String>> {
     let secrets = read_secrets_file(data_dir)?;
     let key = format!("nwc:{}", pubkey);
-    let obfuscated_uri = secrets[key].as_str().ok_or(SecretsStoreError::KeyNotFound)?;
-    deobfuscate(obfuscated_uri, data_dir)
+    
+    match secrets[key].as_str() {
+        Some(obfuscated_uri) => Ok(Some(deobfuscate(obfuscated_uri, data_dir)?)),
+        None => Ok(None),
+    }
 }
 
 /// Removes the NWC URI for a specific public key from the secrets store.
@@ -551,20 +554,23 @@ mod tests {
         let pubkey = "test_pubkey";
         let nwc_uri = "nostr+walletconnect://abcdef1234567890?secret=mysecret";
 
+        // Test non-existent URI returns None
+        let result = get_nwc_uri(pubkey, temp_dir.path())?;
+        assert!(result.is_none());
+
         // Store the NWC URI
         store_nwc_uri(pubkey, nwc_uri, temp_dir.path())?;
 
         // Retrieve the NWC URI
-        let retrieved_uri = get_nwc_uri(pubkey, temp_dir.path())?;
-
+        let retrieved_uri = get_nwc_uri(pubkey, temp_dir.path())?.expect("URI should exist");
         assert_eq!(nwc_uri, retrieved_uri);
 
         // Clean up
         remove_nwc_uri(pubkey, temp_dir.path())?;
 
-        // Verify removal
-        let result = get_nwc_uri(pubkey, temp_dir.path());
-        assert!(result.is_err());
+        // Verify removal returns None
+        let result = get_nwc_uri(pubkey, temp_dir.path())?;
+        assert!(result.is_none());
 
         Ok(())
     }
