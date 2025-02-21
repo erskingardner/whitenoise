@@ -149,9 +149,61 @@ export async function hasNostrWalletConnectUri(): Promise<boolean> {
     }
 }
 
+/** Validates a Nostr Wallet Connect URI and returns detailed error messages */
+export function validateNostrWalletConnectUri(uri: string): { isValid: boolean; error?: string } {
+    if (!uri.startsWith("nostr+walletconnect://")) {
+        return {
+            isValid: false,
+            error: "Invalid URI format: must start with 'nostr+walletconnect://'"
+        };
+    }
+
+    try {
+        const url = new URL(uri);
+        const relay = url.searchParams.get("relay");
+        if (!relay) {
+            return {
+                isValid: false,
+                error: "Missing required 'relay' parameter"
+            };
+        }
+
+        try {
+            const relayUrl = new URL(relay);
+            if (relayUrl.protocol !== "wss:") {
+                return {
+                    isValid: false,
+                    error: "Relay must use WSS protocol"
+                };
+            }
+        } catch {
+            return {
+                isValid: false,
+                error: "Invalid relay URL format"
+            };
+        }
+
+        const secret = url.searchParams.get("secret");
+        if (!secret) {
+            return {
+                isValid: false,
+                error: "Missing required 'secret' parameter"
+            };
+        }
+
+        return { isValid: true };
+    } catch (error) {
+        return {
+            isValid: false,
+            error: "Invalid URI format"
+        };
+    }
+}
+
 export async function setNostrWalletConnectUri(uri: string): Promise<void> {
-    if (!uri || !uri.startsWith("nostr+walletconnect://")) {
-        throw new NostrWalletConnectError("Invalid Nostr Wallet Connect URI");
+    const validation = validateNostrWalletConnectUri(uri);
+    if (!validation.isValid) {
+        throw new NostrWalletConnectError(validation.error || "Invalid Nostr Wallet Connect URI");
     }
 
     try {
