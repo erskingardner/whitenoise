@@ -346,7 +346,7 @@ onDestroy(() => {
                                 <RepliedTo messageId={message.tags.find((t) => t[0] === "q")?.[1]} />
                             {/if}
                             <div class="flex {message.content.trim().length < 50 && !isSingleEmoji(message.content) ? "flex-row gap-6" : "flex-col gap-2 justify-end w-full"} items-end {isSingleEmoji(message.content) ? 'mb-4 my-6' : ''}">
-                                <div class="break-words {isSingleEmoji(message.content) ? 'text-7xl leading-none' : ''}">
+                                <div class="break-words-smart {isSingleEmoji(message.content) ? 'text-7xl leading-none' : ''}">
                                     {#if message.content.trim().length > 0}
                                         {message.content}
                                     {:else}
@@ -437,4 +437,3 @@ onDestroy(() => {
         transition: color 0.2s ease-in-out;
     }
 </style>
-
