@@ -41,6 +41,7 @@ let groupName = $state("");
 let messages: NEvent[] = $state([]);
 let showMessageMenu = $state(false);
 let selectedMessageId: string | null | undefined = $state(undefined);
+let isSelectedMessageBolt11: boolean | null | undefined = $state(false);
 let messageMenuPosition = $state({ x: 0, y: 0 });
 let messageMenuExtendedPosition = $state({ x: 0, y: 0 });
 let replyToMessageEvent: NEvent | undefined = $state(undefined);
@@ -128,6 +129,13 @@ function handleNewMessage(message: NEvent, replaceTemp: boolean) {
     messages = [...messages, message].sort((a, b) => a.created_at - b.created_at);
     scrollToBottom();
 }
+function findBolt11Tag(message: NEvent): string | undefined {
+    return message.tags.find((t) => t[0] === "bolt11")?.[1];
+}
+
+function doesMessageHaveBolt11Tag(message: NEvent): boolean {
+    return findBolt11Tag(message) !== undefined;
+}
 
 function handlePress(event: PressCustomEvent | MouseEvent) {
     const target = event.target as HTMLElement;
@@ -135,7 +143,10 @@ function handlePress(event: PressCustomEvent | MouseEvent) {
     const messageId = messageContainer?.getAttribute("data-message-id");
     const isCurrentUser = messageContainer?.getAttribute("data-is-current-user") === "true";
     selectedMessageId = messageId;
-
+    const message = messages.find((m) => m.id === messageId);
+    if(message) {
+       isSelectedMessageBolt11 = doesMessageHaveBolt11Tag(message);
+    }
     const messageBubble = messageContainer?.parentElement?.querySelector(
         "[data-message-container]:not(button)"
     );
@@ -200,6 +211,7 @@ function handlePress(event: PressCustomEvent | MouseEvent) {
 function handleOutsideClick() {
     showMessageMenu = false;
     selectedMessageId = undefined;
+    isSelectedMessageBolt11 = undefined;
 }
 
 async function sendReaction(reaction: string, messageId: string | null | undefined) {
@@ -265,15 +277,21 @@ async function payInvoice() {
         console.error("message not found");
         return;
     }
-     // Filter out tags that are not "e" or "p" (or invalid)
-     let tags = message.tags.filter((t) => t.length >= 2 && (t[0] === "e" || t[0] === "p"));
+    
+    if (!isSelectedMessageBolt11) {
+        console.error("message is not a bolt11 invoice");
+        return;
+    }
+    const invoice = findBolt11Tag(message);
+    // Filter out tags that are not "e" or "p" (or invalid)
+    let tags = message.tags.filter((t) => t.length >= 2 && (t[0] === "e" || t[0] === "p"));
     // Now add our own tags for the reaction
     tags = [...tags, ["e", selectedMessageId], ["p", message.pubkey], ["k", message.kind.toString()]];
     console.log("Sending payment", tags);
     invoke("pay_invoice", {
         group,
         tags: tags,
-        bolt11: message.content
+        bolt11: invoice
     })
         .then((reactionEvent) => {
             console.log("reaction sent", reactionEvent);
@@ -464,7 +482,9 @@ onDestroy(() => {
     <div class="flex flex-col justify-start items-between divide-y divide-gray-800">
         <button data-copy-button onclick={copyMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Copy <CopySimple size={20} /></button>
         <button onclick={replyToMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Reply <ArrowBendUpLeft size={20} /></button>
-        <button onclick={payInvoice} class="glow-button px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Pay<Lightning size={20} weight="fill" /></button>
+        {#if isSelectedMessageBolt11}
+            <button onclick={payInvoice} class="glow-button px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Pay<Lightning size={20} weight="fill" /></button>
+        {/if}
         <!-- <button onclick={editMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between">Edit <PencilSimple size={20} /></button>
         <button onclick={deleteMessage} class="text-red-500 px-4 py-2 flex flex-row gap-20 items-center justify-between">Delete <TrashSimple size={20} /></button> -->
     </div>
