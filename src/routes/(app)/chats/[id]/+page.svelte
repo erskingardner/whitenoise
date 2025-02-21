@@ -6,7 +6,7 @@ import GroupAvatar from "$lib/components/GroupAvatar.svelte";
 import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
 import MessageBar from "$lib/components/MessageBar.svelte";
 import RepliedTo from "$lib/components/RepliedTo.svelte";
-import { activeAccount } from "$lib/stores/accounts";
+import { activeAccount, hasNostrWalletConnectUri, NostrWalletConnectError } from "$lib/stores/accounts";
 import {
     type EnrichedContact,
     type NEvent,
@@ -46,6 +46,7 @@ let messageMenuPosition = $state({ x: 0, y: 0 });
 let messageMenuExtendedPosition = $state({ x: 0, y: 0 });
 let replyToMessageEvent: NEvent | undefined = $state(undefined);
 let toastState = getToastState();
+let accountHasNostrWalletConnectUri: boolean | undefined = $state(undefined);
 
 $effect(() => {
     if (
@@ -94,6 +95,16 @@ async function scrollToBottom() {
     }
 }
 
+async function checkWalletStatus() {
+    try {
+        accountHasNostrWalletConnectUri = await hasNostrWalletConnectUri();
+    } catch (e) {
+        if (e instanceof NostrWalletConnectError) {
+            console.error(e);
+        }
+    }
+}
+
 onMount(async () => {
     if (!unlistenMlsMessageProcessed) {
         unlistenMlsMessageProcessed = await listen<[NostrMlsGroup, NEvent]>(
@@ -119,6 +130,7 @@ onMount(async () => {
         );
     }
 
+    await checkWalletStatus();
     await loadGroup();
 });
 
@@ -282,6 +294,12 @@ async function payInvoice() {
         console.error("message is not a bolt11 invoice");
         return;
     }
+
+    if (!accountHasNostrWalletConnectUri) {
+        console.error("Nostr Wallet Connect URI not found");
+        return;
+    }
+
     const invoice = findBolt11Tag(message);
     // Filter out tags that are not "e" or "p" (or invalid)
     let tags = message.tags.filter((t) => t.length >= 2 && (t[0] === "e" || t[0] === "p"));
@@ -482,7 +500,7 @@ onDestroy(() => {
     <div class="flex flex-col justify-start items-between divide-y divide-gray-800">
         <button data-copy-button onclick={copyMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Copy <CopySimple size={20} /></button>
         <button onclick={replyToMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Reply <ArrowBendUpLeft size={20} /></button>
-        {#if isSelectedMessageBolt11}
+        {#if isSelectedMessageBolt11 && accountHasNostrWalletConnectUri}
             <button onclick={payInvoice} class="glow-button px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Pay<Lightning size={20} weight="fill" /></button>
         {/if}
         <!-- <button onclick={editMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between">Edit <PencilSimple size={20} /></button>
