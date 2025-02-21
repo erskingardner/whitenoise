@@ -58,14 +58,12 @@ pub fn run() {
 
             setup_logging(formatted_logs_dir.clone())?;
 
+            // Open devtools on debug builds
             #[cfg(debug_assertions)]
             {
-                // Open devtools on debug builds
                 let window = app.get_webview_window("main").unwrap();
                 window.open_devtools();
                 window.close_devtools();
-                // Customize the window title based on port
-                window.set_title(&format!("White Noise (port {})", &port))?;
             }
 
             tauri::async_runtime::block_on(async move {
