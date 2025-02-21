@@ -19,6 +19,7 @@ import {
 import { getToastState } from "$lib/stores/toast-state.svelte";
 import { isValidHexPubkey, isValidNsec } from "$lib/types/nostr";
 import { nameFromMetadata, npubFromPubkey } from "$lib/utils/nostr";
+import { copyToClipboard } from "$lib/utils/clipboard";
 import { invoke } from "@tauri-apps/api/core";
 import { type UnlistenFn, listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -37,6 +38,7 @@ import {
     Skull,
     Trash,
     UserPlus,
+    CopySimple
 } from "phosphor-svelte";
 import { onDestroy, onMount } from "svelte";
 
@@ -201,34 +203,46 @@ async function toggleInspectInvites() {
 }
 
 async function copyNsec(account: Account) {
-    invoke("export_nsec", { pubkey: account.pubkey })
-        .then(async (nsec) => {
-            await writeText(nsec as string)
-                .then(() => {
-                    const button = document.querySelector(`[data-pubkey="${account.pubkey}"]`);
-                    button?.classList.add("text-green-500");
-                    setTimeout(() => {
-                        button?.classList.remove("text-green-500");
-                    }, 1000);
-                })
-                .catch((e) => {
-                    console.error(e);
-                    toastState.add(
-                        "Error copying nsec",
-                        "There was an error copying your nsec, please try again.",
-                        "error"
-                    );
-                });
-        })
-        .catch((e) => {
-            console.error(e);
-            toastState.add(
-                "Error exporting nsec",
-                "There was an error exporting your nsec, please try again.",
-                "error"
-            );
-        });
+    try {
+        const nsec = await invoke("export_nsec", { pubkey: account.pubkey });
+        if (await copyToClipboard(nsec as string, "nsec")) {
+            highlightButton(`[id="nsec-copy-${account.pubkey}"]`);
+        } else {
+          toastCopyErrorMessage("nsec");
+        }
+    } catch (e) {
+        console.error(e);
+        toastState.add("Error exporting nsec", "There was an error exporting your nsec, please try again.", "error");
+    }
 }
+
+async function copyNpub(account: Account) {
+    const npub = npubFromPubkey(account.pubkey);
+    if (await copyToClipboard(npub, "npub")) {
+        highlightButton(`[id="npub-copy-${account.pubkey}"]`);
+    } else {
+        toastCopyErrorMessage("npub");
+    }
+}
+
+function highlightButton(selector: string) {
+    const button = document.querySelector(selector);
+    if (!button) return;
+
+    button.classList.add("text-green-500");
+    setTimeout(() => {
+        button.classList.remove("text-green-500");
+    }, 1000);
+}
+
+function toastCopyErrorMessage(errorMessage: string) {
+    toastState.add(
+        `Error copying ${errorMessage}`,
+        `There was an error copying your ${errorMessage}, please try again.`,
+      "error"
+    );
+}
+
 </script>
 
 {#if showDeleteAlert}
@@ -300,27 +314,42 @@ async function copyNsec(account: Account) {
     <div class="section w-full">
         {#each $accounts as account (account.pubkey)}
             <div class="flex flex-row gap-4 items-center border-b border-gray-700 py-3 min-w-0 w-full">
-                <button
-                    class="flex flex-row items-center flex-1 min-w-0"
-                    onclick={() => setActiveAccount(account.pubkey)}
-                >
-                    <Avatar
-                        pubkey={account.pubkey}
-                        picture={account.metadata?.picture}
-                        pxSize={40}
-                        showRing={$activeAccount?.pubkey === account.pubkey}
-                    />
-
+                <div class="flex flex-row items-center flex-1 min-w-0">
+                    <button
+                      onclick={() => setActiveAccount(account.pubkey)}
+                    >
+                      <Avatar
+                          pubkey={account.pubkey}
+                          picture={account.metadata?.picture}
+                          pxSize={40}
+                          showRing={$activeAccount?.pubkey === account.pubkey}
+                      />
+                    </button>
                     <div class="flex flex-col gap-1 min-w-0 justify-start text-left pl-4 truncate">
                         <div class="truncate">
                             {nameFromMetadata(account.metadata, account.pubkey)}
                         </div>
-                        <div class="font-mono truncate">
+                        <div class="flex gap-2 items-center">
+                          <p class="font-mono truncate">
                             {npubFromPubkey(account.pubkey)}
+                          </p>
+                          <button
+                            class="transition-colors duration-200"
+                            id={`npub-copy-${account.pubkey}`}
+                            onclick={() => copyNpub(account)}
+                          >
+                            <CopySimple size={24} />
+                          </button>
                         </div>
                     </div>
+                </div>
+                <button
+                  class="export-nsec-butto min-w-fit text-sm button-outline shrink-0 transition-colors duration-200"
+                  id={`nsec-copy-${account.pubkey}`}
+                  onclick={() => copyNsec(account)}
+                >
+                  Copy nsec
                 </button>
-                <button class="export-nsec-button min-w-fit text-sm button-outline shrink-0 transition-colors duration-200" data-pubkey={account.pubkey} onclick={() => copyNsec(account)}>Copy nsec</button>
                 <button class="min-w-fit text-sm button-outline shrink-0" onclick={() => handleLogout(account.pubkey)}>
                     Log out
                 </button>
