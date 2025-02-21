@@ -34,7 +34,7 @@ pub async fn pay_bolt11_invoice(bolt11: &str, nwc_uri: &str) -> Result<String, P
         .unwrap()
         .as_secs() as u64;
 
-    if current_timestamp > invoice.expiry_time().as_secs() {
+    if current_timestamp > invoice.expires_at().expect("invoice expiry time").as_secs() {
         return Err(PaymentError::ExpiredInvoice);
     }
 
