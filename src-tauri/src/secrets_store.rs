@@ -340,6 +340,61 @@ pub fn get_export_secret_keys_for_group(
     // }
 }
 
+/// Stores the NWC (Nostr Wallet Connect) URI for a specific public key in the secrets store.
+///
+/// # Arguments
+///
+/// * `pubkey` - The public key to associate the NWC URI with
+/// * `nwc_uri` - The NWC URI to store
+/// * `data_dir` - Path to the data directory
+///
+/// # Returns
+///
+/// * `Result<()>` - Ok(()) if successful, or an error if the operation fails
+pub fn store_nwc_uri(pubkey: &str, nwc_uri: &str, data_dir: &Path) -> Result<()> {
+    let mut secrets = read_secrets_file(data_dir).unwrap_or(json!({}));
+    let key = format!("nwc:{}", pubkey);
+    let obfuscated_uri = obfuscate(nwc_uri, data_dir);
+    secrets[key] = json!(obfuscated_uri);
+    write_secrets_file(data_dir, &secrets)?;
+    Ok(())
+}
+
+/// Retrieves the NWC URI for a specific public key from the secrets store.
+///
+/// # Arguments
+///
+/// * `pubkey` - The public key to get the NWC URI for
+/// * `data_dir` - Path to the data directory
+///
+/// # Returns
+///
+/// * `Result<String>` - The NWC URI if found, or an error if not found or operation fails
+pub fn get_nwc_uri(pubkey: &str, data_dir: &Path) -> Result<String> {
+    let secrets = read_secrets_file(data_dir)?;
+    let key = format!("nwc:{}", pubkey);
+    let obfuscated_uri = secrets[key].as_str().ok_or(SecretsStoreError::KeyNotFound)?;
+    deobfuscate(obfuscated_uri, data_dir)
+}
+
+/// Removes the NWC URI for a specific public key from the secrets store.
+///
+/// # Arguments
+///
+/// * `pubkey` - The public key to remove the NWC URI for
+/// * `data_dir` - Path to the data directory
+///
+/// # Returns
+///
+/// * `Result<()>` - Ok(()) if successful, or an error if the operation fails
+pub fn remove_nwc_uri(pubkey: &str, data_dir: &Path) -> Result<()> {
+    let mut secrets = read_secrets_file(data_dir)?;
+    let key = format!("nwc:{}", pubkey);
+    secrets.as_object_mut().map(|obj| obj.remove(&key));
+    write_secrets_file(data_dir, &secrets)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -486,6 +541,30 @@ mod tests {
         let secrets = read_secrets_file(temp_dir.path())?;
         let key = format!("{group_id}:{epoch}");
         assert!(secrets.get(&key).is_some());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_store_and_retrieve_nwc_uri() -> Result<()> {
+        let temp_dir = setup_temp_dir();
+        let pubkey = "test_pubkey";
+        let nwc_uri = "nostr+walletconnect://abcdef1234567890?secret=mysecret";
+
+        // Store the NWC URI
+        store_nwc_uri(pubkey, nwc_uri, temp_dir.path())?;
+
+        // Retrieve the NWC URI
+        let retrieved_uri = get_nwc_uri(pubkey, temp_dir.path())?;
+
+        assert_eq!(nwc_uri, retrieved_uri);
+
+        // Clean up
+        remove_nwc_uri(pubkey, temp_dir.path())?;
+
+        // Verify removal
+        let result = get_nwc_uri(pubkey, temp_dir.path());
+        assert!(result.is_err());
 
         Ok(())
     }

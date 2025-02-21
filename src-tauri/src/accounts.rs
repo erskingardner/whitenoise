@@ -684,4 +684,22 @@ impl Account {
         txn.commit().await?;
         Ok(())
     }
+
+    /// Stores a Nostr Wallet Connect URI for this account
+    pub fn store_nwc_uri(&self, nwc_uri: &str, wn: tauri::State<'_, Whitenoise>) -> Result<()> {
+        secrets_store::store_nwc_uri(&self.pubkey.to_hex(), nwc_uri, &wn.data_dir)
+            .map_err(AccountError::SecretsStoreError)
+    }
+
+    /// Retrieves the Nostr Wallet Connect URI for this account
+    pub fn get_nwc_uri(&self, wn: tauri::State<'_, Whitenoise>) -> Result<String> {
+        secrets_store::get_nwc_uri(&self.pubkey.to_hex(), &wn.data_dir)
+            .map_err(AccountError::SecretsStoreError)
+    }
+
+    /// Removes the Nostr Wallet Connect URI for this account
+    pub fn remove_nwc_uri(&self, wn: tauri::State<'_, Whitenoise>) -> Result<()> {
+        secrets_store::remove_nwc_uri(&self.pubkey.to_hex(), &wn.data_dir)
+            .map_err(AccountError::SecretsStoreError)
+    }
 }
