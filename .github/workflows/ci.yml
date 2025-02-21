@@ -99,5 +99,8 @@ jobs:
       - name: Run tests
         run: cd src-tauri && cargo test ${{ matrix.args }}
 
+      - name: Run frontend tests
+        run: bun test
+
       - name: Run clippy
         run: cd src-tauri && cargo clippy ${{ matrix.args }} -- -D warnings
