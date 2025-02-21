@@ -4,8 +4,12 @@ use crate::groups::{Group, GroupType, GroupWithRelays};
 use crate::key_packages::fetch_key_packages_for_members;
 use crate::secrets_store;
 use crate::whitenoise::Whitenoise;
+use lightning_invoice::SignedRawBolt11Invoice;
 use nostr_sdk::prelude::*;
+use nostr_sdk::NostrSigner;
 use std::ops::Add;
+use std::str::FromStr;
+use std::sync::Arc;
 use tauri::Emitter;
 
 /// Gets all MLS groups that the active account is a member of
@@ -413,18 +417,10 @@ pub async fn send_mls_message(
 ) -> Result<UnsignedEvent, String> {
     let nostr_keys = wn.nostr.client.signer().await.map_err(|e| e.to_string())?;
 
-    // Create an unsigned nostr event with the message
-    let mut inner_event = UnsignedEvent::new(
-        nostr_keys
-            .get_public_key()
-            .await
-            .map_err(|e| e.to_string())?,
-        Timestamp::now(),
-        kind.into(),
-        tags.unwrap_or_default(),
-        message,
-    );
-    inner_event.ensure_id();
+    let inner_event = create_unsigned_nostr_event(&nostr_keys, message, kind, tags)
+        .await
+        .map_err(|e| e.to_string())?;
+
     let json_event_string = serde_json::to_string(&inner_event).map_err(|e| e.to_string())?;
 
     let serialized_message;
@@ -501,6 +497,61 @@ pub async fn send_mls_message(
     Ok(inner_event)
 }
 
+/// Creates an unsigned nostr event with the given parameters
+async fn create_unsigned_nostr_event(
+    nostr_keys: &Arc<dyn NostrSigner>,
+    message: String,
+    kind: u16,
+    tags: Option<Vec<Tag>>,
+) -> Result<UnsignedEvent, Error> {
+    let mut final_tags = tags.unwrap_or_default();
+    final_tags.extend(bolt11_invoice_tags(&message));
+
+    let mut inner_event = UnsignedEvent::new(
+        nostr_keys.get_public_key().await?,
+        Timestamp::now(),
+        kind.into(),
+        final_tags,
+        message,
+    );
+    inner_event.ensure_id();
+    Ok(inner_event)
+}
+
+/// Parses a message for BOLT11 invoices and returns corresponding tags
+fn bolt11_invoice_tags(message: &str) -> Vec<Tag> {
+    let mut tags = Vec::new();
+
+    // Bitcoin network prefixes according to BOLT-11 spec
+    const NETWORK_PREFIXES: [&str; 4] = ["lnbc", "lntb", "lntbs", "lnbcrt"];
+
+    // Check if message contains what looks like a bolt11 invoice
+    if let Some(word) = message
+        .split_whitespace()
+        .find(|w| {
+            let w_lower = w.to_lowercase();
+            NETWORK_PREFIXES.iter().any(|prefix| w_lower.starts_with(prefix))
+        })
+    {
+        // Try to parse as BOLT11 invoice
+        if let Ok(invoice) = SignedRawBolt11Invoice::from_str(word) {
+            let amount_msats = invoice
+                .raw_invoice()
+                .amount_pico_btc()
+                .map(|pico_btc| (pico_btc as f64 * 0.1) as u64);
+
+            if let Some(msats) = amount_msats {
+                tags.push(Tag::custom(
+                    TagKind::from("bolt11"),
+                    vec![word.to_string(), msats.to_string()],
+                ));
+            }
+        }
+    }
+
+    tags
+}
+
 /// Gets the list of members in an MLS group
 ///
 /// # Arguments
@@ -574,4 +625,170 @@ pub async fn rotate_key_in_group(
         .await
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_create_unsigned_nostr_event_basic() {
+        let keys =
+            Keys::from_str("nsec1d4ed5x49d7p24xn63flj4985dc4gpfngdhtqcxpth0ywhm6czxcs5l2exj")
+                .unwrap();
+        let signer: Arc<dyn NostrSigner> = Arc::new(keys.clone());
+        let message = "Stay humble & stack sats!".to_string();
+        let kind = 1;
+        let tags = None;
+
+        let result = create_unsigned_nostr_event(&signer, message.clone(), kind, tags).await;
+
+        assert!(result.is_ok());
+        let event = result.unwrap();
+        assert_eq!(event.content, message);
+        assert!(event.tags.is_empty());
+        assert_eq!(event.kind, kind.into());
+        assert_eq!(event.pubkey, keys.public_key());
+    }
+
+    #[tokio::test]
+    async fn test_create_unsigned_nostr_event_with_tags() {
+        let keys =
+            Keys::from_str("nsec1d4ed5x49d7p24xn63flj4985dc4gpfngdhtqcxpth0ywhm6czxcs5l2exj")
+                .unwrap();
+        let signer: Arc<dyn NostrSigner> = Arc::new(keys.clone());
+        let message = "Stay humble & stack sats!".to_string();
+        let kind = 1;
+        let tags = Some(vec![Tag::reference("test_id")]);
+
+        let result =
+            create_unsigned_nostr_event(&signer, message.clone(), kind, tags.clone()).await;
+
+        assert!(result.is_ok());
+        let event = result.unwrap();
+        assert_eq!(event.content, message);
+        assert_eq!(event.tags.to_vec(), tags.unwrap());
+        assert_eq!(event.kind, kind.into());
+        assert_eq!(event.pubkey, keys.public_key());
+    }
+
+    #[tokio::test]
+    async fn test_create_unsigned_nostr_event_with_bolt11() {
+        let keys =
+            Keys::from_str("nsec1d4ed5x49d7p24xn63flj4985dc4gpfngdhtqcxpth0ywhm6czxcs5l2exj")
+                .unwrap();
+        let signer: Arc<dyn NostrSigner> = Arc::new(keys.clone());
+
+        // Test case 1: Message with invoice and existing tags
+        let invoice = "lnbc15u1p3xnhl2pp5jptserfk3zk4qy42tlucycrfwxhydvlemu9pqr93tuzlv9cc7g3sdqsvfhkcap3xyhx7un8cqzpgxqzjcsp5f8c52y2stc300gl6s4xswtjpc37hrnnr3c9wvtgjfuvqmpm35evq9qyyssqy4lgd8tj637qcjp05rdpxxykjenthxftej7a2zzmwrmrl70fyj9hvj0rewhzj7jfyuwkwcg9g2jpwtk3wkjtwnkdks84hsnu8xps5vsq4gj5hs";
+        let message: String = "Please pay me here: ".to_string() + &invoice;
+        let existing_tag = Tag::reference("test_id");
+        let result = create_unsigned_nostr_event(
+            &signer,
+            message,
+            1,
+            Some(vec![existing_tag.clone()]),
+        )
+        .await;
+
+        assert!(result.is_ok());
+        let event = result.unwrap();
+        let tags_vec = event.tags.to_vec();
+
+        // Check that original tag is preserved
+        assert!(tags_vec.contains(&existing_tag));
+
+        // Check bolt11 tag content
+        let bolt11_tags: Vec<_> = tags_vec
+            .iter()
+            .filter(|tag| *tag != &existing_tag)
+            .collect();
+        assert_eq!(bolt11_tags.len(), 1);
+
+        let tag = &bolt11_tags[0];
+        let content = (*tag).clone().to_vec();
+        assert_eq!(content[0], "bolt11");
+        assert_eq!(content[1], invoice);
+        assert!(!content[2].is_empty());
+
+        // Test case 2: Regular message with tags
+        let result = create_unsigned_nostr_event(
+            &signer,
+            "Just a regular message".to_string(),
+            1,
+            Some(vec![existing_tag.clone()]),
+        )
+        .await;
+
+        assert!(result.is_ok());
+        let event = result.unwrap();
+        let tags_vec = event.tags.to_vec();
+        assert!(tags_vec.contains(&existing_tag));
+        assert_eq!(tags_vec.len(), 1); // Only the existing tag, no bolt11 tag
+
+        // Test case 3: Invalid invoice
+        let result = create_unsigned_nostr_event(
+            &signer,
+            "lnbc1invalid".to_string(),
+            1,
+            Some(vec![existing_tag.clone()]),
+        )
+        .await;
+
+        assert!(result.is_ok());
+        let event = result.unwrap();
+        let tags_vec = event.tags.to_vec();
+        assert!(tags_vec.contains(&existing_tag));
+        assert_eq!(tags_vec.len(), 1); // Only the existing tag, no bolt11 tag
+    }
+
+    #[tokio::test]
+    async fn test_create_unsigned_nostr_event_with_bolt11_networks() {
+        let keys = Keys::from_str("nsec1d4ed5x49d7p24xn63flj4985dc4gpfngdhtqcxpth0ywhm6czxcs5l2exj").unwrap();
+        let signer: Arc<dyn NostrSigner> = Arc::new(keys.clone());
+        let existing_tag = Tag::reference("test_id");
+
+        // Test cases for different network prefixes
+        let test_cases = vec![
+            // Mainnet invoice (lnbc)
+            "lnbc15u1p3xnhl2pp5jptserfk3zk4qy42tlucycrfwxhydvlemu9pqr93tuzlv9cc7g3sdqsvfhkcap3xyhx7un8cqzpgxqzjcsp5f8c52y2stc300gl6s4xswtjpc37hrnnr3c9wvtgjfuvqmpm35evq9qyyssqy4lgd8tj637qcjp05rdpxxykjenthxftej7a2zzmwrmrl70fyj9hvj0rewhzj7jfyuwkwcg9g2jpwtk3wkjtwnkdks84hsnu8xps5vsq4gj5hs",
+            // Testnet invoice (lntb)
+            "lntb20m1pvjluezsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygshp58yjmdan79s6qqdhdzgynm4zwqd5d7xmw5fk98klysy043l2ahrqspp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqfpp3x9et2e20v6pu37c5d9vax37wxq72un989qrsgqdj545axuxtnfemtpwkc45hx9d2ft7x04mt8q7y6t0k2dge9e7h8kpy9p34ytyslj3yu569aalz2xdk8xkd7ltxqld94u8h2esmsmacgpghe9k8",
+            // Signet invoice (lntbs)
+            "lntbs4320n1pnm35s8dqqnp4qg62h96f9rsq0fwq0wff6q2444j8ylp7984srtvxtdth8mmw008qgpp5uad7pp9cjtvde5l67dtakznj9x3fd4qggmeg4z6j5za6zxz0areqsp5dgdv4ugpfsgqmp7vuxpq5s06jxaesg9e7hu32ffjdc2va6cwpt4s9qyysgqcqpcxqyz5vqn94eujdlwdtjxqzu9tycyujzgwsq6xnjw3ycpqfvzk6dl3pk2wrjyja4645xftw7x4m4h9jl3wugczsdn9jeyhv75g63nk83y2848zqpsdqdx7",
+            // Regtest invoice (lnbcrt)
+            "lnbcrt12340n1pnm35h8pp5dz8c9ytfv0s6h97vp0mwdhmxm4c9jn5wjnyeez9th06t5lag6q4qdqqcqzzsxqyz5vqsp5v6jg8wrl37s6ggf0sc2jd0g6a2axnemyet227ckfwlxgrykclw8s9qxpqysgqy6966qlpgc2frw5307wy2a9f966ksv2f8zx6tatcmdcqpwxn9vp3m9s6eg4cewuprn0wljs3vkfs5cny5nq3n8slme2lvfxf70pzdlsqztw8hc",
+        ];
+
+        for invoice in test_cases {
+            let message = format!("Please pay me here: {}", invoice);
+            let result = create_unsigned_nostr_event(
+                &signer,
+                message,
+                1,
+                Some(vec![existing_tag.clone()]),
+            )
+            .await;
+
+            assert!(result.is_ok());
+            let event = result.unwrap();
+            let tags_vec = event.tags.to_vec();
+
+            // Check that original tag is preserved
+            assert!(tags_vec.contains(&existing_tag));
+
+            // Check bolt11 tag content
+            let bolt11_tags: Vec<_> = tags_vec
+                .iter()
+                .filter(|tag| *tag != &existing_tag)
+                .collect();
+            assert_eq!(bolt11_tags.len(), 1);
+
+            let tag = &bolt11_tags[0];
+            let content = (*tag).clone().to_vec();
+            assert_eq!(content[0], "bolt11");
+            assert_eq!(content[1], invoice);
+            assert!(!content[2].is_empty());
+        }
+    }
 }

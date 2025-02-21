@@ -2927,6 +2927,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "lightning-invoice"
+version = "0.33.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d4254e7d05961a3728bc90737c522e7091735ba6f2f71014096d4b3eb4ee5d89"
+dependencies = [
+ "bech32",
+ "bitcoin",
+ "lightning-types",
+]
+
+[[package]]
+name = "lightning-types"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2cd84d4e71472035903e43caded8ecc123066ce466329ccd5ae537a8d5488c7"
+dependencies = [
+ "bitcoin",
+]
+
+[[package]]
 name = "linux-keyutils"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3307,6 +3327,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "nostr-zapper"
+version = "0.38.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd3bbf929197f1d762c2ba21a5150d69a2eef2f7e8ba5c14bd2bcdbcd65ba994"
+dependencies = [
+ "async-trait",
+ "nostr",
+]
+
+[[package]]
 name = "nostrdb"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3419,6 +3449,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.96",
+]
+
+[[package]]
+name = "nwc"
+version = "0.38.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "478b0f3b11cda07160a73e38733faadd3149e470f8ee1824dbbd1cdf78af2010"
+dependencies = [
+ "async-trait",
+ "async-utility",
+ "nostr",
+ "nostr-relay-pool",
+ "nostr-zapper",
 ]
 
 [[package]]
@@ -6803,8 +6846,10 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "keyring",
+ "lightning-invoice",
  "nostr-openmls",
  "nostr-sdk",
+ "nwc",
  "once_cell",
  "serde",
  "serde_json",

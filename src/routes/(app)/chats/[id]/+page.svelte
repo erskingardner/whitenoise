@@ -1,11 +1,12 @@
 <script lang="ts">
 import { goto } from "$app/navigation";
 import { page } from "$app/state";
+import { getToastState } from "$lib/stores/toast-state.svelte";
 import GroupAvatar from "$lib/components/GroupAvatar.svelte";
 import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
 import MessageBar from "$lib/components/MessageBar.svelte";
 import RepliedTo from "$lib/components/RepliedTo.svelte";
-import { activeAccount } from "$lib/stores/accounts";
+import { activeAccount, hasNostrWalletConnectUri, NostrWalletConnectError } from "$lib/stores/accounts";
 import {
     type EnrichedContact,
     type NEvent,
@@ -25,6 +26,7 @@ import {
     CircleDashed,
     CopySimple,
     DotsThree,
+    Lightning,
 } from "phosphor-svelte";
 import { onDestroy, onMount, tick } from "svelte";
 import { type PressCustomEvent, press } from "svelte-gestures";
@@ -39,9 +41,12 @@ let groupName = $state("");
 let messages: NEvent[] = $state([]);
 let showMessageMenu = $state(false);
 let selectedMessageId: string | null | undefined = $state(undefined);
+let isSelectedMessageBolt11: boolean | null | undefined = $state(false);
 let messageMenuPosition = $state({ x: 0, y: 0 });
 let messageMenuExtendedPosition = $state({ x: 0, y: 0 });
 let replyToMessageEvent: NEvent | undefined = $state(undefined);
+let toastState = getToastState();
+let accountHasNostrWalletConnectUri: boolean | undefined = $state(undefined);
 
 $effect(() => {
     if (
@@ -90,6 +95,16 @@ async function scrollToBottom() {
     }
 }
 
+async function checkWalletStatus() {
+    try {
+        accountHasNostrWalletConnectUri = await hasNostrWalletConnectUri();
+    } catch (e) {
+        if (e instanceof NostrWalletConnectError) {
+            console.error(e);
+        }
+    }
+}
+
 onMount(async () => {
     if (!unlistenMlsMessageProcessed) {
         unlistenMlsMessageProcessed = await listen<[NostrMlsGroup, NEvent]>(
@@ -115,6 +130,7 @@ onMount(async () => {
         );
     }
 
+    await checkWalletStatus();
     await loadGroup();
 });
 
@@ -125,6 +141,13 @@ function handleNewMessage(message: NEvent, replaceTemp: boolean) {
     messages = [...messages, message].sort((a, b) => a.created_at - b.created_at);
     scrollToBottom();
 }
+function findBolt11Tag(message: NEvent): string | undefined {
+    return message.tags.find((t) => t[0] === "bolt11")?.[1];
+}
+
+function doesMessageHaveBolt11Tag(message: NEvent): boolean {
+    return findBolt11Tag(message) !== undefined;
+}
 
 function handlePress(event: PressCustomEvent | MouseEvent) {
     const target = event.target as HTMLElement;
@@ -132,7 +155,10 @@ function handlePress(event: PressCustomEvent | MouseEvent) {
     const messageId = messageContainer?.getAttribute("data-message-id");
     const isCurrentUser = messageContainer?.getAttribute("data-is-current-user") === "true";
     selectedMessageId = messageId;
-
+    const message = messages.find((m) => m.id === messageId);
+    if(message) {
+       isSelectedMessageBolt11 = doesMessageHaveBolt11Tag(message);
+    }
     const messageBubble = messageContainer?.parentElement?.querySelector(
         "[data-message-container]:not(button)"
     );
@@ -197,6 +223,7 @@ function handlePress(event: PressCustomEvent | MouseEvent) {
 function handleOutsideClick() {
     showMessageMenu = false;
     selectedMessageId = undefined;
+    isSelectedMessageBolt11 = undefined;
 }
 
 async function sendReaction(reaction: string, messageId: string | null | undefined) {
@@ -248,6 +275,59 @@ async function copyMessage() {
     }
 }
 
+async function payInvoice() {
+    if (!group) {
+        console.error("no group found");
+        return;
+    }
+    if (!selectedMessageId) {
+        console.error("no message selected");
+        return;
+    }
+    const message = messages.find((m) => m.id === selectedMessageId);
+    if (!message) {
+        console.error("message not found");
+        return;
+    }
+    
+    if (!isSelectedMessageBolt11) {
+        console.error("message is not a bolt11 invoice");
+        return;
+    }
+
+    if (!accountHasNostrWalletConnectUri) {
+        console.error("Nostr Wallet Connect URI not found");
+        return;
+    }
+
+    const invoice = findBolt11Tag(message);
+    // Filter out tags that are not "e" or "p" (or invalid)
+    let tags = message.tags.filter((t) => t.length >= 2 && (t[0] === "e" || t[0] === "p"));
+    // Now add our own tags for the reaction
+    tags = [...tags, ["e", selectedMessageId], ["p", message.pubkey], ["k", message.kind.toString()]];
+    console.log("Sending payment", tags);
+    invoke("pay_invoice", {
+        group,
+        tags: tags,
+        bolt11: invoice
+    })
+        .then((reactionEvent) => {
+            console.log("reaction sent", reactionEvent);
+            toastState.add("Payment success", "Successfully sent payment to invoice", "success");
+            handleNewMessage(reactionEvent as NEvent, false);
+        }, (e) => {
+            toastState.add(
+                "Error sending payment",
+                `Failed to send payment: ${e.message}`,
+                "error"
+            );
+            console.error("Error sending payment", e);
+        })
+        .finally(() => {
+            showMessageMenu = false;
+        });
+}
+
 function replyToMessage() {
     replyToMessageEvent = messages.find((m) => m.id === selectedMessageId);
     document.getElementById("newMessageInput")?.focus();
@@ -291,6 +371,7 @@ function reactionsForMessage(message: NEvent): { content: string; count: number 
 onDestroy(() => {
     unlistenMlsMessageProcessed();
     unlistenMlsMessageReceived();
+    toastState.cleanup();
 });
 </script>
 
@@ -412,13 +493,16 @@ onDestroy(() => {
 
 <div
     id="messageMenuExtended"
-    class="{showMessageMenu ? 'visible' : 'invisible'} fixed bg-gray-900/90 backdrop-blur-sm drop-shadow-md drop-shadow-black rounded-md ring-1 ring-gray-700 z-30 translate-x-0"
+    class="{showMessageMenu ? 'opacity-100 visible' : 'opacity-0 invisible'} fixed bg-gray-900/90 backdrop-blur-sm drop-shadow-md drop-shadow-black rounded-md ring-1 ring-gray-700 z-30 translate-x-0 transition-opacity duration-200"
     style="left: {messageMenuExtendedPosition.x}px; top: {messageMenuExtendedPosition.y}px;"
     role="menu"
 >
     <div class="flex flex-col justify-start items-between divide-y divide-gray-800">
         <button data-copy-button onclick={copyMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Copy <CopySimple size={20} /></button>
         <button onclick={replyToMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Reply <ArrowBendUpLeft size={20} /></button>
+        {#if isSelectedMessageBolt11 && accountHasNostrWalletConnectUri}
+            <button onclick={payInvoice} class="glow-button px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Pay<Lightning size={20} weight="fill" /></button>
+        {/if}
         <!-- <button onclick={editMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between">Edit <PencilSimple size={20} /></button>
         <button onclick={deleteMessage} class="text-red-500 px-4 py-2 flex flex-row gap-20 items-center justify-between">Delete <TrashSimple size={20} /></button> -->
     </div>
@@ -435,5 +519,32 @@ onDestroy(() => {
     .copy-success {
         color: rgb(34 197 94); /* text-green-500 */
         transition: color 0.2s ease-in-out;
+    }
+
+    .glow-button {
+        position: relative;
+        color: #fff;
+        transition: all 0.3s ease;
+        background: rgba(173, 0, 255, 0.1);
+    }
+
+    .glow-button::before {
+        content: '';
+        position: absolute;
+        inset: -1px;
+        background: linear-gradient(90deg, #ff00ea 0%, #ad00ff 100%);
+        z-index: -1;
+        opacity: 0.15;
+        filter: blur(8px);
+        border-radius: 0.375rem;
+    }
+
+    .glow-button:hover {
+        background: rgba(173, 0, 255, 0.2);
+    }
+
+    /* Ensure immediate visibility state change */
+    .invisible {
+        display: none;
     }
 </style>

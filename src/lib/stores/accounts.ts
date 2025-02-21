@@ -54,6 +54,14 @@ export class LogoutError extends Error {
     }
 }
 
+/** Custom error class for NWC-related errors */
+export class NostrWalletConnectError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = "NostrWalletConnectError";
+    }
+}
+
 export async function setActiveAccount(pubkey: string): Promise<void> {
     if (
         !get(accounts)
@@ -130,5 +138,88 @@ export function colorForRelayStatus(status: string): string {
             return "text-red-500";
         default:
             return "";
+    }
+}
+
+export async function hasNostrWalletConnectUri(): Promise<boolean> {
+    try {
+        return await invoke("has_nostr_wallet_connect_uri");
+    } catch (error) {
+        throw new NostrWalletConnectError(`Failed to check NWC URI: ${error}`);
+    }
+}
+
+/** Validates a Nostr Wallet Connect URI and returns detailed error messages */
+export function nostrWalletConnectUriError(uri: string): string | null {
+    if (!validateNostrWalletConnectProtocol(uri)) {
+        return "Invalid URI format: must start with 'nostr+walletconnect://'";
+    }
+
+    try {
+        const url = new URL(uri);
+
+        const relayError = relaysValidationError(url);
+        if (relayError) return relayError;
+
+        if (!url.searchParams.get("secret")) {
+            return "Missing required 'secret' parameter";
+        }
+
+        return null;
+    } catch {
+        return "Missing required 'secret' parameter";
+    }
+}
+
+function validateNostrWalletConnectProtocol(uri: string): boolean {
+    return uri.startsWith("nostr+walletconnect://");
+}
+
+function relaysValidationError(url: URL): string | null{
+    const relays = url.searchParams.getAll("relay");
+    if (relays.length === 0) {
+        return "Missing required 'relay' parameter";
+    }
+
+    for (const relay of relays) {
+        const relayError = relayUrlValidationError(relay);
+        if (relayError) {
+            return relayError;
+        }
+    }
+    return null;
+}
+
+function relayUrlValidationError(relay: string): string | null {
+    try {
+        const relayUrl = new URL(relay);
+        if (relayUrl.protocol !== "wss:" && relayUrl.protocol !== "ws:") {
+            return "Relay must use either WSS or WS protocol";
+        }
+        return null;
+    } catch {
+        return "Invalid relay URL format";
+    }
+}
+
+
+export async function setNostrWalletConnectUri(uri: string): Promise<void> {
+    const validationError = nostrWalletConnectUriError(uri);
+    if (validationError) {
+        throw new NostrWalletConnectError(validationError || "Invalid Nostr Wallet Connect URI");
+    }
+
+    try {
+        await invoke("set_nostr_wallet_connect_uri", { nostrWalletConnectUri: uri });
+    } catch (error) {
+        throw new NostrWalletConnectError(`Failed to set NWC URI: ${error}`);
+    }
+}
+
+export async function removeNostrWalletConnectUri(): Promise<void> {
+    try {
+        await invoke("remove_nostr_wallet_connect_uri");
+    } catch (error) {
+        throw new NostrWalletConnectError(`Failed to remove NWC URI: ${error}`);
     }
 }
