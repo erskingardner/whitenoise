@@ -54,6 +54,14 @@ export class LogoutError extends Error {
     }
 }
 
+/** Custom error class for NWC-related errors */
+export class NostrWalletConnectError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = "NostrWalletConnectError";
+    }
+}
+
 export async function setActiveAccount(pubkey: string): Promise<void> {
     if (
         !get(accounts)
@@ -130,5 +138,33 @@ export function colorForRelayStatus(status: string): string {
             return "text-red-500";
         default:
             return "";
+    }
+}
+
+export async function hasNostrWalletConnectUri(): Promise<boolean> {
+    try {
+        return await invoke("has_nostr_wallet_connect_uri");
+    } catch (error) {
+        throw new NostrWalletConnectError(`Failed to check NWC URI: ${error}`);
+    }
+}
+
+export async function setNostrWalletConnectUri(uri: string): Promise<void> {
+    if (!uri || !uri.startsWith("nostr+walletconnect://")) {
+        throw new NostrWalletConnectError("Invalid Nostr Wallet Connect URI");
+    }
+
+    try {
+        await invoke("set_nostr_wallet_connect_uri", { nostrWalletConnectUri: uri });
+    } catch (error) {
+        throw new NostrWalletConnectError(`Failed to set NWC URI: ${error}`);
+    }
+}
+
+export async function removeNostrWalletConnectUri(): Promise<void> {
+    try {
+        await invoke("remove_nostr_wallet_connect_uri");
+    } catch (error) {
+        throw new NostrWalletConnectError(`Failed to remove NWC URI: ${error}`);
     }
 }
