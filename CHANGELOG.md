@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Copy npub button in settings page([josefinalliende])
 - Basic NWC support for paying invoices in messages ([a-mpch], [F3r10], [jgmontoya], [josefinalliende])
 - Show invoice payments as a system message reply rather than as a reaction ([a-mpch], [jgmontoya])
+- Blur QRs and hide pay button for paid invoices in messages ([a-mpch], [jgmontoya], [josefinalliende])
+- Truncate invoice content in messages ([a-mpch], [jgmontoya], [josefinalliende])
 
 ### Changed
 
