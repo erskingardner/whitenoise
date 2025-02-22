@@ -535,15 +535,23 @@ fn bolt11_invoice_tags(message: &str) -> Vec<Tag> {
     {
         // Try to parse as BOLT11 invoice
         if let Ok(invoice) = SignedRawBolt11Invoice::from_str(word) {
-            let amount_msats = invoice
-                .raw_invoice()
+            let raw_invoice = invoice.raw_invoice();
+            let amount_msats = raw_invoice
                 .amount_pico_btc()
                 .map(|pico_btc| (pico_btc as f64 * 0.1) as u64);
 
+            // Add the invoice, amount, and description tag
             if let Some(msats) = amount_msats {
+                let mut tag_values = vec![word.to_string(), msats.to_string()];
+
+                // Add description if present
+                if let Some(description) = raw_invoice.description() {
+                    tag_values.push(description.to_string());
+                }
+
                 tags.push(Tag::custom(
                     TagKind::from("bolt11"),
-                    vec![word.to_string(), msats.to_string()],
+                    tag_values,
                 ));
             }
         }
@@ -710,6 +718,7 @@ mod tests {
         assert_eq!(content[0], "bolt11");
         assert_eq!(content[1], invoice);
         assert!(!content[2].is_empty());
+        assert_eq!(content[3], "bolt11.org");
 
         // Test case 2: Regular message with tags
         let result = create_unsigned_nostr_event(

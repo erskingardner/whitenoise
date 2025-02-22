@@ -391,27 +391,33 @@ function isBolt11Paid(message: NEvent): boolean {
     return replies.length > 0;
 }
 
-let invoiceDataMap = $state(new Map<string, { invoice: string; amount: number; qrCodeUrl?: string }>());
+type InvoiceData = { invoice: string; amount: number; description?: string; qrCodeUrl?: string };
+let invoiceDataMap = $state(new Map<string, InvoiceData>());
 
 $effect(() => {
     computeInvoices();
 });
 
 async function computeInvoices() {
-    const newMap = new Map<string, { invoice: string; amount: number; qrCodeUrl?: string }>();
+    const newMap = new Map<string, InvoiceData>();
 
     await Promise.all(messages.map(async (message) => {
         const bolt11Tag = message.tags.find((t) => t[0] === "bolt11");
         if (bolt11Tag) {
             const invoice = bolt11Tag[1];
             const amount = Number(bolt11Tag[2] || 0) / 1000;
+            let invoiceData: InvoiceData = { invoice, amount };
+            if (bolt11Tag[3]) {
+                invoiceData.description = bolt11Tag[3];
+            }
             try {
                 const qrCodeUrl = await toDataURL(`lightning:${bolt11Tag[1]}`);
-                newMap.set(message.id, { invoice, amount, qrCodeUrl });
+                invoiceData.qrCodeUrl = qrCodeUrl;
             } catch (error) {
                 console.error("Error generating QR code:", error);
-                newMap.set(message.id, { invoice, amount });
             }
+
+            newMap.set(message.id, invoiceData);
         }
     }));
 
@@ -505,12 +511,15 @@ onDestroy(() => {
                                     {/if}
                                     {#if invoiceDataMap.has(message.id)}
                                         <div class="flex flex-col items-start mt-4 gap-4">
-                                            <div class="relative">
+                                            <div class="relative bg-slate-200 p-1 rounded-lg">
                                                 <img
                                                     src={invoiceDataMap.get(message.id)?.qrCodeUrl}
                                                     alt="QR Code"
                                                     class="w-64 h-64 rounded-lg shadow-lg {isBolt11Paid(message) ? 'blur-sm' : ''}"
                                                 />
+                                                {#if invoiceDataMap.get(message.id)?.description}
+                                                    <span class="text-sm text-blue-900 mx-1">{invoiceDataMap.get(message.id)?.description}</span>
+                                                {/if}
                                                 {#if isBolt11Paid(message)}
                                                     <CheckCircle
                                                         size={48}
