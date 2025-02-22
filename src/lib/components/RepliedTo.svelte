@@ -29,7 +29,7 @@ onMount(() => {
                 <Name pubkey={message.pubkey} unstyled={true} />
             {/if}
         </span>
-        <span>{message.content}</span>
+        <span class="break-words-smart">{message.content}</span>
     </div>
 {:else}
     <div class="flex flex-col gap-1 bg-blue-900/80 rounded-lg p-2 border-l-4 border-l-white/50 pl-4 mb-2 text-sm">

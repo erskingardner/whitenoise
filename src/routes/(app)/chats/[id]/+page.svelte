@@ -12,6 +12,7 @@ import {
     type NEvent,
     type NostrMlsGroup,
     NostrMlsGroupType,
+    type NostrMlsGroupWithRelays,
 } from "$lib/types/nostr";
 import { hexMlsGroupId } from "$lib/utils/group";
 import { nameFromMetadata } from "$lib/utils/nostr";
@@ -141,6 +142,23 @@ function handleNewMessage(message: NEvent, replaceTemp: boolean) {
     messages = [...messages, message].sort((a, b) => a.created_at - b.created_at);
     scrollToBottom();
 }
+
+function findQTagReplyTo(message: NEvent): string | undefined {
+    return message.tags.find((t) => t[0] === "q")?.[1]
+}
+
+function doesMessageHaveQTag(message: NEvent): boolean {
+    return findQTagReplyTo(message) !== undefined;
+}
+
+function findPreimageTagReplyTo(message: NEvent): string | undefined {
+    return message.tags.find((t) => t[0] === "preimage")?.[1]
+}
+
+function doesMessageHavePreimageTag(message: NEvent): boolean {
+    return findPreimageTagReplyTo(message) !== undefined;
+}
+
 function findBolt11Tag(message: NEvent): string | undefined {
     return message.tags.find((t) => t[0] === "bolt11")?.[1];
 }
@@ -289,7 +307,7 @@ async function payInvoice() {
         console.error("message not found");
         return;
     }
-    
+
     if (!isSelectedMessageBolt11) {
         console.error("message is not a bolt11 invoice");
         return;
@@ -299,12 +317,11 @@ async function payInvoice() {
         console.error("Nostr Wallet Connect URI not found");
         return;
     }
-
+    let groupWithRelays: NostrMlsGroupWithRelays = await invoke("get_group", {
+        groupId: hexMlsGroupId(group.mls_group_id),
+    });
     const invoice = findBolt11Tag(message);
-    // Filter out tags that are not "e" or "p" (or invalid)
-    let tags = message.tags.filter((t) => t.length >= 2 && (t[0] === "e" || t[0] === "p"));
-    // Now add our own tags for the reaction
-    tags = [...tags, ["e", selectedMessageId], ["p", message.pubkey], ["k", message.kind.toString()]];
+    let tags = [["q", message.id, groupWithRelays.relays[0], message.pubkey]];
     console.log("Sending payment", tags);
     invoke("pay_invoice", {
         group,
@@ -421,20 +438,24 @@ onDestroy(() => {
                             data-message-container
                             data-message-id={message.id}
                             data-is-current-user={message.pubkey === $activeAccount?.pubkey}
-                            class={`relative max-w-[70%] ${!isSingleEmoji(message.content) ? `rounded-lg ${message.pubkey === $activeAccount?.pubkey ? "bg-chat-bg-me text-gray-50 rounded-br" : "bg-chat-bg-other text-gray-50 rounded-bl"} p-3` : ''} ${showMessageMenu && message.id === selectedMessageId ? 'relative z-20' : ''}`}
+                            class={`relative max-w-[70%] ${doesMessageHavePreimageTag(message) ? "bg-opacity-10" : ""} ${!isSingleEmoji(message.content) ? `rounded-lg ${message.pubkey === $activeAccount?.pubkey ? `bg-chat-bg-me text-gray-50 rounded-br` : `bg-chat-bg-other text-gray-50 rounded-bl`} p-3` : ''} ${showMessageMenu && message.id === selectedMessageId ? 'relative z-20' : ''}`}
                         >
-                            {#if message.tags.find((t) => t[0] === "q")?.[1]}
-                                <RepliedTo messageId={message.tags.find((t) => t[0] === "q")?.[1]} />
+                            {#if doesMessageHaveQTag(message)}
+                                <RepliedTo messageId={findQTagReplyTo(message)} />
                             {/if}
-                            <div class="flex {message.content.trim().length < 50 && !isSingleEmoji(message.content) ? "flex-row gap-6" : "flex-col gap-2 justify-end w-full"} items-end {isSingleEmoji(message.content) ? 'mb-4 my-6' : ''}">
-                                <div class="break-words-smart {isSingleEmoji(message.content) ? 'text-7xl leading-none' : ''}">
+                            <div class="flex {message.content.trim().length < 50 && !isSingleEmoji(message.content) ? "flex-row gap-6" : "flex-col gap-2"} w-full {doesMessageHavePreimageTag(message) ? "items-center justify-center" : "items-end"}  {isSingleEmoji(message.content) ? 'mb-4 my-6' : ''}">
+                                <div class="break-words-smart w-full {doesMessageHavePreimageTag(message) ? 'flex justify-center' : ''} {isSingleEmoji(message.content) ? 'text-7xl leading-none' : ''}">
                                     {#if message.content.trim().length > 0}
                                         {message.content}
+                                    {:else if doesMessageHavePreimageTag(message)}
+                                        <div class="inline-flex flex-row items-center gap-2 bg-orange-400 rounded-full px-2 py-0 w-fit">
+                                            <span>⚡️</span><span class="italic font-bold">Invoice paid</span><span>⚡️</span>
+                                        </div>
                                     {:else}
                                         <span class="italic opacity-60">No message content</span>
                                     {/if}
                                 </div>
-                                <div class={`flex flex-row gap-2 items-center ${message.pubkey === $activeAccount?.pubkey ? "text-gray-300" : "text-gray-400"} ${message.content.trim().length < 50 ? "flex-shrink-0" : "justify-end w-full shrink"}`}>
+                                <div class="flex flex-row gap-2 items-center ml-auto {message.pubkey === $activeAccount?.pubkey ? "text-gray-300" : "text-gray-400"}">
                                     {#if message.id !== "temp"}
                                         <span><CheckCircle size={18} weight="light" /></span>
                                     {:else}
