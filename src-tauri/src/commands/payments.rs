@@ -44,8 +44,8 @@ pub async fn pay_invoice(
     let preimage = payments::pay_bolt11_invoice(&bolt11, &nwc_uri)
         .await
         .map_err(CommandError::from)?;
-    let message = "⚡".to_string();
-    let kind = 7;
+    let message = "".to_string();
+    let kind = 9;
     let mut final_tags = tags.unwrap_or_default();
     final_tags.push(Tag::custom(
         TagKind::Custom("preimage".into()),

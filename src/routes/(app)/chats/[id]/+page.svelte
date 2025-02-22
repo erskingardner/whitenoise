@@ -12,6 +12,7 @@ import {
     type NEvent,
     type NostrMlsGroup,
     NostrMlsGroupType,
+    type NostrMlsGroupWithRelays,
 } from "$lib/types/nostr";
 import { hexMlsGroupId } from "$lib/utils/group";
 import { nameFromMetadata } from "$lib/utils/nostr";
@@ -141,6 +142,23 @@ function handleNewMessage(message: NEvent, replaceTemp: boolean) {
     messages = [...messages, message].sort((a, b) => a.created_at - b.created_at);
     scrollToBottom();
 }
+
+function findQTagReplyTo(message: NEvent): string | undefined {
+    return message.tags.find((t) => t[0] === "q")?.[1]
+}
+
+function doesMessageHaveQTag(message: NEvent): boolean {
+    return findQTagReplyTo(message) !== undefined;
+}
+
+function findPreimageTagReplyTo(message: NEvent): string | undefined {
+    return message.tags.find((t) => t[0] === "preimage")?.[1]
+}
+
+function doesMessageHavePreimageTag(message: NEvent): boolean {
+    return findPreimageTagReplyTo(message) !== undefined;
+}
+
 function findBolt11Tag(message: NEvent): string | undefined {
     return message.tags.find((t) => t[0] === "bolt11")?.[1];
 }
@@ -299,12 +317,11 @@ async function payInvoice() {
         console.error("Nostr Wallet Connect URI not found");
         return;
     }
-
+    let groupWithRelays: NostrMlsGroupWithRelays = await invoke("get_group", {
+        groupId: hexMlsGroupId(group.mls_group_id),
+    });
     const invoice = findBolt11Tag(message);
-    // Filter out tags that are not "e" or "p" (or invalid)
-    let tags = message.tags.filter((t) => t.length >= 2 && (t[0] === "e" || t[0] === "p"));
-    // Now add our own tags for the reaction
-    tags = [...tags, ["e", selectedMessageId], ["p", message.pubkey], ["k", message.kind.toString()]];
+    let tags = [["q", message.id, groupWithRelays.relays[0], message.pubkey]];
     console.log("Sending payment", tags);
     invoke("pay_invoice", {
         group,
@@ -402,7 +419,13 @@ onDestroy(() => {
             class="flex-1 px-8 flex flex-col gap-2 pt-10 pb-40 overflow-y-auto opacity-100 transition-opacity ease-in-out duration-50"
         >
             {#each messages as message (message.id)}
-                {#if message.kind === 9}
+                {#if message.kind === 9 && doesMessageHavePreimageTag(message)}
+                    <div class="flex py-4 justify-center items-center">
+                        <div class="text-center w-1/2 bg-chat-bg-me text-gray-50 rounded-br rounded-md gap-4 group mb-6">
+                        <p>Payment received</p>
+                        </div>
+                    </div>
+                {:else if message.kind === 9}
                     <div
                         class={`flex justify-end ${message.pubkey === $activeAccount?.pubkey ? "" : "flex-row-reverse"} items-center gap-4 group ${reactionsForMessage(message).length > 0 ? "mb-6" : ""}`}
                     >
@@ -423,8 +446,8 @@ onDestroy(() => {
                             data-is-current-user={message.pubkey === $activeAccount?.pubkey}
                             class={`relative max-w-[70%] ${!isSingleEmoji(message.content) ? `rounded-lg ${message.pubkey === $activeAccount?.pubkey ? "bg-chat-bg-me text-gray-50 rounded-br" : "bg-chat-bg-other text-gray-50 rounded-bl"} p-3` : ''} ${showMessageMenu && message.id === selectedMessageId ? 'relative z-20' : ''}`}
                         >
-                            {#if message.tags.find((t) => t[0] === "q")?.[1]}
-                                <RepliedTo messageId={message.tags.find((t) => t[0] === "q")?.[1]} />
+                            {#if doesMessageHaveQTag(message)}
+                                <RepliedTo messageId={findQTagReplyTo(message)} />
                             {/if}
                             <div class="flex {message.content.trim().length < 50 && !isSingleEmoji(message.content) ? "flex-row gap-6" : "flex-col gap-2 justify-end w-full"} items-end {isSingleEmoji(message.content) ? 'mb-4 my-6' : ''}">
                                 <div class="break-words-smart {isSingleEmoji(message.content) ? 'text-7xl leading-none' : ''}">
