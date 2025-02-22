@@ -22,13 +22,13 @@ onMount(() => {
 
 {#if message}
     <div class="flex flex-col gap-1 bg-blue-900/80 rounded-r-lg p-2 border-l-4 border-l-white/50 pl-4 mb-2 text-sm">
-        <span class="font-bold">
             {#if message.pubkey === $activeAccount?.pubkey}
-                You
+                <span class="font-bold">You</span>
             {:else}
-                <Name pubkey={message.pubkey} unstyled={true} />
+                <span class="font-bold truncate">
+                    <Name pubkey={message.pubkey} unstyled={true} />
+                </span>
             {/if}
-        </span>
         <span class="break-words-smart">{message.content}</span>
     </div>
 {:else}
