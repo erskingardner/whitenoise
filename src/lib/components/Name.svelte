@@ -20,6 +20,17 @@ let name = $derived(userMetadata?.display_name || userMetadata?.name || npubFrom
 let isNpub = $derived(!userMetadata?.display_name && !userMetadata?.name);
 let userFetched: boolean = $state(false);
 
+// Watch for prop changes
+$effect(() => {
+    const currentPubkey = pubkey;
+    const currentMetadata = metadata;
+
+    // Only reset when props actually change
+    user = undefined;
+    userFetched = false;
+});
+
+// Handle fetching
 $effect(() => {
     if (!userMetadata && !userFetched) {
         invoke("query_enriched_contact", {

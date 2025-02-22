@@ -94,11 +94,16 @@ pub struct Account {
 
 impl Account {
     /// Generates a new keypair and saves the mostly blank account to the database
-    pub async fn new(wn: tauri::State<'_, Whitenoise>) -> Result<Account> {
+    pub async fn new(name: String, wn: tauri::State<'_, Whitenoise>) -> Result<Account> {
         let keys = Keys::generate();
+
+        let mut metadata = Metadata::new();
+        metadata.name = Some(name.clone());
+        metadata.display_name = Some(name.clone());
+
         let account = Account {
             pubkey: keys.public_key(),
-            metadata: Metadata::default(),
+            metadata: metadata.clone(),
             settings: AccountSettings::default(),
             onboarding: AccountOnboarding::default(),
             last_used: Timestamp::now(),
@@ -109,6 +114,19 @@ impl Account {
 
         // If the record saves, add the keys to the secret store
         secrets_store::store_private_key(&keys, &wn.data_dir)?;
+
+        // Publish the kind:0
+        let event_builder = EventBuilder::metadata(&metadata);
+        let event_result = wn.nostr.client.send_event_builder(event_builder).await;
+
+        match event_result {
+            Ok(event) => {
+                tracing::debug!(target: "whitenoise::accounts", "Published metadata event for new user: {}", event.id().to_hex());
+            }
+            Err(e) => {
+                tracing::error!(target: "whitenoise::accounts", "Error publishing metadata event for new user: {}", e);
+            }
+        }
 
         Ok(account)
     }

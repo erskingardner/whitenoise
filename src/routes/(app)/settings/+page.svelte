@@ -4,6 +4,7 @@ import Alert from "$lib/components/Alert.svelte";
 import Avatar from "$lib/components/Avatar.svelte";
 import Header from "$lib/components/Header.svelte";
 import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
+import SettingsHeader from "$lib/components/SettingsHeader.svelte";
 import {
     type Account,
     LogoutError,
@@ -18,8 +19,8 @@ import {
 } from "$lib/stores/accounts";
 import { getToastState } from "$lib/stores/toast-state.svelte";
 import { isValidHexPubkey, isValidNsec } from "$lib/types/nostr";
-import { nameFromMetadata, npubFromPubkey } from "$lib/utils/nostr";
 import { copyToClipboard } from "$lib/utils/clipboard";
+import { nameFromMetadata, npubFromPubkey } from "$lib/utils/nostr";
 import { invoke } from "@tauri-apps/api/core";
 import { type UnlistenFn, listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -31,14 +32,16 @@ import {
 import {
     Bell,
     CaretRight,
+    CopySimple,
     HardDrives,
     Key,
     PlusCircle,
     SignIn,
+    SignOut,
     Skull,
     Trash,
+    User,
     UserPlus,
-    CopySimple
 } from "phosphor-svelte";
 import { onDestroy, onMount } from "svelte";
 
@@ -71,57 +74,6 @@ onDestroy(() => {
     unlisten?.();
     toastState.cleanup();
 });
-
-async function handleLogin() {
-    if (isValidNsec(nsecOrHex) || isValidHexPubkey(nsecOrHex)) {
-        showLoginError = false;
-        login(nsecOrHex)
-            .then(() => {
-                toastState.add("Logged in", "Successfully logged in", "success");
-                nsecOrHex = "";
-            })
-            .catch((e) => {
-                console.error(e);
-                showLoginError = true;
-                loginError = "Failed to log in";
-            });
-    } else {
-        showLoginError = true;
-        loginError = "Invalid nsec or private key";
-    }
-}
-
-async function handleCreateAccount() {
-    showLoginError = false;
-    createAccount()
-        .then(() => {
-            toastState.add("Created new account", "Successfully created new account", "success");
-        })
-        .catch((e) => {
-            toastState.add(
-                "Error creating account",
-                `Failed to create a new account: ${e.message}`,
-                "error"
-            );
-            console.error(e);
-        });
-}
-
-async function handleLogout(pubkey: string): Promise<void> {
-    showLoginError = false;
-    logout(pubkey)
-        .then(() => {
-            toastState.add("Logged out", "Successfully logged out", "success");
-        })
-        .catch((e) => {
-            if (e instanceof LogoutError) {
-                goto("/");
-            } else {
-                toastState.add("Logout Error", `Failed to log out: ${e.message}`, "error");
-                console.error(e);
-            }
-        });
-}
 
 async function testNotification() {
     let permissionGranted = await isPermissionGranted();
@@ -202,47 +154,24 @@ async function toggleInspectInvites() {
     }
 }
 
-async function copyNsec(account: Account) {
-    try {
-        const nsec = await invoke("export_nsec", { pubkey: account.pubkey });
-        if (await copyToClipboard(nsec as string, "nsec")) {
-            highlightButton(`[id="nsec-copy-${account.pubkey}"]`);
-        } else {
-          toastCopyErrorMessage("nsec");
-        }
-    } catch (e) {
-        console.error(e);
-        toastState.add("Error exporting nsec", "There was an error exporting your nsec, please try again.", "error");
+async function handleLogout(): Promise<void> {
+    if (!$activeAccount) {
+        return;
     }
+    showLoginError = false;
+    logout($activeAccount.pubkey)
+        .then(() => {
+            toastState.add("Logged out", "Successfully logged out", "success");
+        })
+        .catch((e) => {
+            if (e instanceof LogoutError) {
+                goto("/");
+            } else {
+                toastState.add("Logout Error", `Failed to log out: ${e.message}`, "error");
+                console.error(e);
+            }
+        });
 }
-
-async function copyNpub(account: Account) {
-    const npub = npubFromPubkey(account.pubkey);
-    if (await copyToClipboard(npub, "npub")) {
-        highlightButton(`[id="npub-copy-${account.pubkey}"]`);
-    } else {
-        toastCopyErrorMessage("npub");
-    }
-}
-
-function highlightButton(selector: string) {
-    const button = document.querySelector(selector);
-    if (!button) return;
-
-    button.classList.add("text-green-500");
-    setTimeout(() => {
-        button.classList.remove("text-green-500");
-    }, 1000);
-}
-
-function toastCopyErrorMessage(errorMessage: string) {
-    toastState.add(
-        `Error copying ${errorMessage}`,
-        `There was an error copying your ${errorMessage}, please try again.`,
-      "error"
-    );
-}
-
 </script>
 
 {#if showDeleteAlert}
@@ -308,88 +237,31 @@ function toastCopyErrorMessage(errorMessage: string) {
     {/snippet}
 </HeaderToolbar>
 
-<Header title="Settings" />
+<SettingsHeader />
 <main class="px-4 flex flex-col pb-32">
-    <h2 class="section-title">Accounts</h2>
-    <div class="section w-full">
-        {#each $accounts as account (account.pubkey)}
-            <div class="flex flex-row gap-4 items-center border-b border-gray-700 py-3 min-w-0 w-full">
-                <div class="flex flex-row items-center flex-1 min-w-0">
-                    <button
-                      onclick={() => setActiveAccount(account.pubkey)}
-                    >
-                      <Avatar
-                          pubkey={account.pubkey}
-                          picture={account.metadata?.picture}
-                          pxSize={40}
-                          showRing={$activeAccount?.pubkey === account.pubkey}
-                      />
-                    </button>
-                    <div class="flex flex-col gap-1 min-w-0 justify-start text-left pl-4 truncate">
-                        <div class="truncate">
-                            {nameFromMetadata(account.metadata, account.pubkey)}
-                        </div>
-                        <div class="flex gap-2 items-center">
-                          <p class="font-mono truncate">
-                            {npubFromPubkey(account.pubkey)}
-                          </p>
-                          <button
-                            class="transition-colors duration-200"
-                            id={`npub-copy-${account.pubkey}`}
-                            onclick={() => copyNpub(account)}
-                          >
-                            <CopySimple size={24} />
-                          </button>
-                        </div>
-                    </div>
-                </div>
-                <button
-                  class="export-nsec-butto min-w-fit text-sm button-outline shrink-0 transition-colors duration-200"
-                  id={`nsec-copy-${account.pubkey}`}
-                  onclick={() => copyNsec(account)}
-                >
-                  Copy nsec
+    <div class="section">
+        <ul class="section-list">
+            <li class="section-list-item">
+                <button onclick={() => goto("/settings/profile/")} class="row-button">
+                    <User size={24} class="shrink-0" />
+                    <span>Profile</span>
+                    <CaretRight size={24} class="ml-auto mr-0 shrink-0" />
                 </button>
-                <button class="min-w-fit text-sm button-outline shrink-0" onclick={() => handleLogout(account.pubkey)}>
-                    Log out
+            </li>
+            <li class="section-list-item">
+                <button onclick={() => goto("/settings/network/")} class="row-button">
+                    <HardDrives size={24} class="shrink-0" />
+                    <span>Network</span>
+                    <CaretRight size={24} class="ml-auto mr-0 shrink-0" />
                 </button>
-            </div>
-        {/each}
-        <div class="section-list-item !mt-6">
-            <button onclick={() => (showLogin = !showLogin)} class="button-primary">
-                <UserPlus size={24} />
-                Add another account
-            </button>
-        </div>
-        <div class="{showLogin ? 'flex' : 'hidden'} flex-col gap-8 items-start w-full mt-4 py-4">
-            <div class="flex flex-col gap-4 items-start w-full">
-                <label for="nsec" class="flex flex-col gap-2 text-lg items-start font-medium w-full">
-                    Add another account?
-                    <input
-                        type="password"
-                        id="nsec"
-                        bind:value={nsecOrHex}
-                        placeholder="nsec1&hellip;"
-                        autocapitalize="off"
-                        autocorrect="off"
-                        class="w-full px-3 py-2 bg-transparent ring-1 ring-gray-700 rounded-md"
-                    />
-                </label>
-                {#if showLoginError}
-                    <span class="text-red-500 text-sm">
-                        {loginError}
-                    </span>
-                {/if}
-                <button type="submit" onclick={handleLogin} class="button-primary w-full !justify-start">
-                    <SignIn size="20" />
-                    Log In
+            </li>
+            <li class="section-list-item">
+                <button onclick={handleLogout} class="row-button">
+                    <SignOut size={24} class="shrink-0" />
+                    <span class="truncate">Sign out</span>
                 </button>
-            </div>
-            <button onclick={handleCreateAccount} class="button-outline w-full !justify-start">
-                <PlusCircle size="20" />
-                Create New Nostr Identity
-            </button>
-        </div>
+            </li>
+        </ul>
     </div>
     <h2 class="section-title">Privacy & Security</h2>
     <div class="section">
@@ -413,13 +285,6 @@ function toastCopyErrorMessage(errorMessage: string) {
     <h2 class="section-title">Developer Settings</h2>
     <div class="section">
         <ul class="section-list">
-            <li class="section-list-item">
-                <button onclick={() => goto("/settings/network/")} class="row-button">
-                    <HardDrives size={24} class="shrink-0" />
-                    <span>Network</span>
-                    <CaretRight size={24} class="ml-auto mr-0 shrink-0" />
-                </button>
-            </li>
             <li class="section-list-item">
                 <button onclick={launchKeyPackage} class="row-button">
                     <Key size={24} />

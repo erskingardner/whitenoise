@@ -54,6 +54,14 @@ export class LogoutError extends Error {
     }
 }
 
+/** Custom error class for signup-related errors */
+export class SignupError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = "SignupError";
+    }
+}
+
 export async function setActiveAccount(pubkey: string): Promise<void> {
     if (
         !get(accounts)
@@ -69,11 +77,12 @@ export async function setActiveAccount(pubkey: string): Promise<void> {
     });
 }
 
-export async function createAccount(): Promise<void> {
-    return invoke("create_identity").then(async (account) => {
-        activeAccount.set(account as Account);
-        await fetchRelays();
+export async function createAccount(name: string): Promise<void> {
+    const account = await invoke("create_identity", { name }).catch((e) => {
+        throw new SignupError(e);
     });
+    activeAccount.set(account as Account);
+    await fetchRelays();
 }
 
 export async function logout(pubkey: string): Promise<void> {

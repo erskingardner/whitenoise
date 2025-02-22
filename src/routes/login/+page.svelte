@@ -3,6 +3,7 @@ import { goto } from "$app/navigation";
 import Loader from "$lib/components/Loader.svelte";
 import {
     LoginError,
+    SignupError,
     activeAccount,
     createAccount,
     login,
@@ -11,13 +12,16 @@ import {
 import { isValidHexPubkey } from "$lib/types/nostr";
 import { invoke } from "@tauri-apps/api/core";
 import { type UnlistenFn, listen } from "@tauri-apps/api/event";
+import { SignIn, UserPlus } from "phosphor-svelte";
 import { onDestroy, onMount } from "svelte";
 import { expoInOut } from "svelte/easing";
 import { type FlyParams, fly } from "svelte/transition";
 
 let nsecOrHex = $state("");
+let name = $state("");
 let loading = $state(true);
 let loginError = $state<LoginError | null>(null);
+let signupError = $state<SignupError | null>(null);
 let flyParams: FlyParams = { duration: 150, easing: expoInOut, y: window.innerHeight };
 
 let unlistenAccountChanged: UnlistenFn;
@@ -66,9 +70,13 @@ async function handleLogin(e: Event) {
 
 async function handleCreateAccount() {
     if (loading) return;
+    if (!name) {
+        signupError = new SignupError("Please enter a display name");
+        return;
+    }
     loading = true;
-    createAccount().catch((error) => {
-        loginError = error;
+    createAccount(name).catch((error) => {
+        signupError = error;
         loading = false;
     });
 }
@@ -83,6 +91,10 @@ async function handleCreateAccount() {
                 <Loader size={40} fullscreen={false} />
             {/if}
         </div>
+        <h3 class="text-lg text-gray-400 font-medium flex flex-row gap-3 items-center w-full md:w-4/5 text-gray-300 mt-10">
+            <SignIn size="24" weight="fill" />
+            Log in with an existing Nostr identity
+        </h3>
         <form onsubmit={handleLogin} class="w-full md:w-4/5 flex flex-col gap-4">
             <input
                 bind:value={nsecOrHex}
@@ -104,13 +116,30 @@ async function handleCreateAccount() {
             </button>
         </form>
 
-        <h3 class="font-semibold text-gray-400">OR</h3>
-        <button
-            disabled={loading}
-            class="p-3 w-full md:w-4/5 font-semibold bg-indigo-700 hover:bg-indigo-600 rounded-md ring-1 ring-indigo-500"
-            onclick={handleCreateAccount}
-        >
+
+        <h3 class="text-lg text-gray-400 font-medium flex flex-row gap-3 items-center w-full md:w-4/5 text-gray-300 mt-10">
+            <UserPlus size="24" weight="fill" />
             Create a new Nostr identity
-        </button>
+        </h3>
+        <form onsubmit={handleCreateAccount} class="w-full md:w-4/5 flex flex-col gap-4">
+            <input
+                bind:value={name}
+                type="text"
+                placeholder="What should we call you?"
+                autocorrect="off"
+                autocapitalize="off"
+                class="text-lg px-3 py-2 bg-transparent ring-1 ring-gray-700 rounded-md"
+            />
+            {#if signupError}
+                <p class="text-red-500">{signupError.message}</p>
+            {/if}
+            <button
+                type="submit"
+                disabled={loading}
+                class="p-3 font-semibold bg-indigo-700 hover:bg-indigo-600 rounded-md ring-1 ring-indigo-500"
+            >
+                Create a new Nostr identity
+            </button>
+        </form>
     </div>
 </div>

@@ -34,10 +34,11 @@ pub async fn get_accounts(wn: tauri::State<'_, Whitenoise>) -> Result<Vec<Accoun
 /// * `Err(String)` - An error message if there was an issue creating the identity.
 #[tauri::command]
 pub async fn create_identity(
+    name: String,
     wn: tauri::State<'_, Whitenoise>,
     app_handle: tauri::AppHandle,
 ) -> Result<Account, String> {
-    let account = Account::new(wn.clone())
+    let account = Account::new(name, wn.clone())
         .await
         .map_err(|e| format!("Error creating account: {}", e))?;
     account

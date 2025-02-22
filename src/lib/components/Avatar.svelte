@@ -15,6 +15,18 @@ let user: EnrichedContact | undefined = $state(undefined);
 let avatarImage: string | undefined = $state(picture);
 let userFetched: boolean = $state(false);
 
+// Watch for prop changes
+$effect(() => {
+    const currentPubkey = pubkey;
+    const currentPicture = picture;
+
+    // Only reset when props actually change
+    user = undefined;
+    userFetched = false;
+    avatarImage = currentPicture;
+});
+
+// Handle fetching
 $effect(() => {
     if (!avatarImage && !userFetched) {
         invoke("query_enriched_contact", {
