@@ -49,15 +49,15 @@ html {
 }
 
 .button-primary {
-    @apply px-3 py-1.5 text-center flex flex-row shrink items-center justify-center gap-2 bg-blue-700 hover:bg-blue-600 rounded-md ring-1 ring-blue-500;
+    @apply px-3 py-1.5 text-center flex flex-row shrink items-center justify-center gap-2 bg-blue-700 hover:bg-blue-600 rounded-md ring-1 ring-blue-500 transition-colors;
 }
 
 .button-warning {
-    @apply px-3 py-1.5 text-center flex flex-row shrink items-center justify-center gap-2 bg-red-700 hover:bg-red-600 rounded-md ring-1 ring-red-500;
+    @apply px-3 py-1.5 text-center flex flex-row shrink items-center justify-center gap-2 bg-red-700 hover:bg-red-600 rounded-md ring-1 ring-red-500 transition-colors;
 }
 
 .button-outline {
-    @apply px-3 py-1.5 text-center flex flex-row items-center justify-center gap-2 rounded-md bg-gray-700 hover:bg-gray-600 ring-1 ring-gray-500;
+    @apply px-3 py-1.5 text-center flex flex-row items-center justify-center gap-2 rounded-md bg-gray-700 hover:bg-gray-600 ring-1 ring-gray-500 transition-colors;
 }
 
 .section {

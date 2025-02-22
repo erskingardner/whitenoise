@@ -249,6 +249,13 @@ async function handleLogout(): Promise<void> {
                 </button>
             </li>
             <li class="section-list-item">
+                <button onclick={() => goto("/settings/keys/")} class="row-button">
+                    <Key size={24} class="shrink-0" />
+                    <span>Your Nostr Keys</span>
+                    <CaretRight size={24} class="ml-auto mr-0 shrink-0" />
+                </button>
+            </li>
+            <li class="section-list-item">
                 <button onclick={() => goto("/settings/network/")} class="row-button">
                     <HardDrives size={24} class="shrink-0" />
                     <span>Network</span>
