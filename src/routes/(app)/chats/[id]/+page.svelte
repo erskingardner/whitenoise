@@ -17,6 +17,7 @@ import {
 import { hexMlsGroupId } from "$lib/utils/group";
 import { nameFromMetadata } from "$lib/utils/nostr";
 import { formatMessageTime } from "$lib/utils/time";
+import { copyToClipboard } from "$lib/utils/clipboard";
 import { invoke } from "@tauri-apps/api/core";
 import { type UnlistenFn, listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -31,6 +32,7 @@ import {
 } from "phosphor-svelte";
 import { onDestroy, onMount, tick } from "svelte";
 import { type PressCustomEvent, press } from "svelte-gestures";
+import { toDataURL } from 'qrcode';
 
 let unlistenMlsMessageReceived: UnlistenFn;
 let unlistenMlsMessageProcessed: UnlistenFn;
@@ -293,22 +295,13 @@ async function copyMessage() {
     }
 }
 
-async function payInvoice() {
+async function payInvoice(message: NEvent) {
     if (!group) {
         console.error("no group found");
         return;
     }
-    if (!selectedMessageId) {
-        console.error("no message selected");
-        return;
-    }
-    const message = messages.find((m) => m.id === selectedMessageId);
-    if (!message) {
-        console.error("message not found");
-        return;
-    }
-
-    if (!isSelectedMessageBolt11) {
+    
+    if (!doesMessageHaveBolt11Tag(message)) {
         console.error("message is not a bolt11 invoice");
         return;
     }
@@ -343,6 +336,11 @@ async function payInvoice() {
         .finally(() => {
             showMessageMenu = false;
         });
+}
+
+async function copyInvoice(messageId: string) {
+    const invoice = invoiceDataMap.get(messageId)?.invoice;
+    if (invoice) await copyToClipboard(invoice, 'bolt11 invoice');
 }
 
 function replyToMessage() {
@@ -383,6 +381,37 @@ function reactionsForMessage(message: NEvent): { content: string; count: number 
         },
         [] as { content: string; count: number }[]
     );
+}
+
+let invoiceDataMap = $state(new Map<string, { invoice: string; amount: number; qrCodeUrl?: string }>());
+
+$effect(() => {
+    computeInvoices();
+});
+
+async function computeInvoices() {
+    const newMap = new Map<string, { invoice: string; amount: number; qrCodeUrl?: string }>();
+
+    await Promise.all(messages.map(async (message) => {
+        const bolt11Tag = message.tags.find((t) => t[0] === "bolt11");
+        if (bolt11Tag) {
+            const invoice = bolt11Tag[1];
+            const amount = Number(bolt11Tag[2] || 0) / 1000;
+            try {
+                const qrCodeUrl = await toDataURL(`lightning:${bolt11Tag[1]}`);
+                newMap.set(message.id, { invoice, amount, qrCodeUrl });
+            } catch (error) {
+                console.error("Error generating QR code:", error);
+                newMap.set(message.id, { invoice, amount });
+            }
+        }
+    }));
+
+    invoiceDataMap = newMap;
+}
+
+function isMyMessage(message: NEvent) {
+  return message.pubkey === $activeAccount?.pubkey;
 }
 
 onDestroy(() => {
@@ -454,6 +483,31 @@ onDestroy(() => {
                                     {:else}
                                         <span class="italic opacity-60">No message content</span>
                                     {/if}
+                                    {#if invoiceDataMap.has(message.id)}
+                                        <div class="flex flex-col items-start mt-4 gap-4">
+                                            <img
+                                                src={invoiceDataMap.get(message.id)?.qrCodeUrl}
+                                                alt="QR Code"
+                                                class="w-64 h-64 rounded-lg shadow-lg"
+                                            />
+                                            <div class="flex flex-col gap-4">
+                                                <button
+                                                    onclick={() => copyInvoice(message.id)}
+                                                    class={`transition-all hover:shadow-xl duration-300 rounded-md px-6 py-2 flex flex-row gap-4 items-center justify-center font-semibold grow ${isMyMessage(message) ? "bg-gray-200 hover:bg-gray-300 text-blue-600" : "bg-blue-500 hover:bg-blue-600"}`}
+                                                >
+                                                   Copy invoice  <CopySimple size={20} />
+                                                </button>
+                                                {#if accountHasNostrWalletConnectUri}
+                                                    <button
+                                                        onclick={() => payInvoice(message)}
+                                                        class="transition-all bg-gradient-to-bl from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-500  hover:shadow-xl duration-300 rounded-md px-6 py-2 flex flex-row gap-4 items-center justify-center font-semibold grow"
+                                                    >
+                                                    Pay {invoiceDataMap.get(message.id)?.amount} sats
+                                                    </button>
+                                                {/if}
+                                            </div>
+                                        </div>
+                                    {/if}
                                 </div>
                                 <div class="flex flex-row gap-2 items-center ml-auto {message.pubkey === $activeAccount?.pubkey ? "text-gray-300" : "text-gray-400"}">
                                     {#if message.id !== "temp"}
@@ -521,9 +575,6 @@ onDestroy(() => {
     <div class="flex flex-col justify-start items-between divide-y divide-gray-800">
         <button data-copy-button onclick={copyMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Copy <CopySimple size={20} /></button>
         <button onclick={replyToMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Reply <ArrowBendUpLeft size={20} /></button>
-        {#if isSelectedMessageBolt11 && accountHasNostrWalletConnectUri}
-            <button onclick={payInvoice} class="glow-button px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Pay<Lightning size={20} weight="fill" /></button>
-        {/if}
         <!-- <button onclick={editMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between">Edit <PencilSimple size={20} /></button>
         <button onclick={deleteMessage} class="text-red-500 px-4 py-2 flex flex-row gap-20 items-center justify-between">Delete <TrashSimple size={20} /></button> -->
     </div>
@@ -553,7 +604,7 @@ onDestroy(() => {
         content: '';
         position: absolute;
         inset: -1px;
-        background: linear-gradient(90deg, #ff00ea 0%, #ad00ff 100%);
+        background: linear-gradient(90deg, #f97316 0%, #ea580c 100%);
         z-index: -1;
         opacity: 0.15;
         filter: blur(8px);
@@ -561,7 +612,7 @@ onDestroy(() => {
     }
 
     .glow-button:hover {
-        background: rgba(173, 0, 255, 0.2);
+        background: rgba(21, 132, 79, 0.2);
     }
 
     /* Ensure immediate visibility state change */
