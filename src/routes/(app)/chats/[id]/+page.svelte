@@ -27,8 +27,7 @@ import {
     CheckCircle,
     CircleDashed,
     CopySimple,
-    DotsThree,
-    Lightning,
+    DotsThree
 } from "phosphor-svelte";
 import { onDestroy, onMount, tick } from "svelte";
 import { type PressCustomEvent, press } from "svelte-gestures";
@@ -506,11 +505,20 @@ onDestroy(() => {
                                     {/if}
                                     {#if invoiceDataMap.has(message.id)}
                                         <div class="flex flex-col items-start mt-4 gap-4">
-                                            <img
-                                                src={invoiceDataMap.get(message.id)?.qrCodeUrl}
-                                                alt="QR Code"
-                                                class="w-64 h-64 rounded-lg shadow-lg {isBolt11Paid(message) ? 'blur-sm' : ''}"
-                                            />
+                                            <div class="relative">
+                                                <img
+                                                    src={invoiceDataMap.get(message.id)?.qrCodeUrl}
+                                                    alt="QR Code"
+                                                    class="w-64 h-64 rounded-lg shadow-lg {isBolt11Paid(message) ? 'blur-sm' : ''}"
+                                                />
+                                                {#if isBolt11Paid(message)}
+                                                    <CheckCircle
+                                                        size={48}
+                                                        weight="fill"
+                                                        class="text-green-500 bg-white rounded-full opacity-80 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" 
+                                                    />
+                                                {/if}
+                                            </div>
                                             <div class="flex flex-col gap-4">
                                                 <button
                                                     onclick={() => copyInvoice(message.id)}
