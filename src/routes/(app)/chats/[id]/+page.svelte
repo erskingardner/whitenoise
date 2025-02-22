@@ -12,10 +12,12 @@ import {
     type NEvent,
     type NostrMlsGroup,
     NostrMlsGroupType,
+    type NostrMlsGroupWithRelays,
 } from "$lib/types/nostr";
 import { hexMlsGroupId } from "$lib/utils/group";
 import { nameFromMetadata } from "$lib/utils/nostr";
 import { formatMessageTime } from "$lib/utils/time";
+import { copyToClipboard } from "$lib/utils/clipboard";
 import { invoke } from "@tauri-apps/api/core";
 import { type UnlistenFn, listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -25,11 +27,11 @@ import {
     CheckCircle,
     CircleDashed,
     CopySimple,
-    DotsThree,
-    Lightning,
+    DotsThree
 } from "phosphor-svelte";
 import { onDestroy, onMount, tick } from "svelte";
 import { type PressCustomEvent, press } from "svelte-gestures";
+import { toDataURL } from 'qrcode';
 
 let unlistenMlsMessageReceived: UnlistenFn;
 let unlistenMlsMessageProcessed: UnlistenFn;
@@ -141,6 +143,23 @@ function handleNewMessage(message: NEvent, replaceTemp: boolean) {
     messages = [...messages, message].sort((a, b) => a.created_at - b.created_at);
     scrollToBottom();
 }
+
+function findQTagReplyTo(message: NEvent): string | undefined {
+    return message.tags.find((t) => t[0] === "q")?.[1]
+}
+
+function doesMessageHaveQTag(message: NEvent): boolean {
+    return findQTagReplyTo(message) !== undefined;
+}
+
+function findPreimageTagReplyTo(message: NEvent): string | undefined {
+    return message.tags.find((t) => t[0] === "preimage")?.[1]
+}
+
+function doesMessageHavePreimageTag(message: NEvent): boolean {
+    return findPreimageTagReplyTo(message) !== undefined;
+}
+
 function findBolt11Tag(message: NEvent): string | undefined {
     return message.tags.find((t) => t[0] === "bolt11")?.[1];
 }
@@ -275,22 +294,13 @@ async function copyMessage() {
     }
 }
 
-async function payInvoice() {
+async function payInvoice(message: NEvent) {
     if (!group) {
         console.error("no group found");
         return;
     }
-    if (!selectedMessageId) {
-        console.error("no message selected");
-        return;
-    }
-    const message = messages.find((m) => m.id === selectedMessageId);
-    if (!message) {
-        console.error("message not found");
-        return;
-    }
-    
-    if (!isSelectedMessageBolt11) {
+
+    if (!doesMessageHaveBolt11Tag(message)) {
         console.error("message is not a bolt11 invoice");
         return;
     }
@@ -299,12 +309,11 @@ async function payInvoice() {
         console.error("Nostr Wallet Connect URI not found");
         return;
     }
-
+    let groupWithRelays: NostrMlsGroupWithRelays = await invoke("get_group", {
+        groupId: hexMlsGroupId(group.mls_group_id),
+    });
     const invoice = findBolt11Tag(message);
-    // Filter out tags that are not "e" or "p" (or invalid)
-    let tags = message.tags.filter((t) => t.length >= 2 && (t[0] === "e" || t[0] === "p"));
-    // Now add our own tags for the reaction
-    tags = [...tags, ["e", selectedMessageId], ["p", message.pubkey], ["k", message.kind.toString()]];
+    let tags = [["q", message.id, groupWithRelays.relays[0], message.pubkey]];
     console.log("Sending payment", tags);
     invoke("pay_invoice", {
         group,
@@ -326,6 +335,11 @@ async function payInvoice() {
         .finally(() => {
             showMessageMenu = false;
         });
+}
+
+async function copyInvoice(messageId: string) {
+    const invoice = invoiceDataMap.get(messageId)?.invoice;
+    if (invoice) await copyToClipboard(invoice, 'bolt11 invoice');
 }
 
 function replyToMessage() {
@@ -366,6 +380,58 @@ function reactionsForMessage(message: NEvent): { content: string; count: number 
         },
         [] as { content: string; count: number }[]
     );
+}
+
+function isBolt11Paid(message: NEvent): boolean {
+    const replies = messages.filter(
+        (m) => m.kind === 9 &&
+            m.tags.some((t) => t[0] === "q" && t[1] === message.id) &&
+            m.tags.some((t) => t[0] === "preimage")
+    )
+    return replies.length > 0;
+}
+
+let invoiceDataMap = $state(new Map<string, { invoice: string; amount: number; qrCodeUrl?: string }>());
+
+$effect(() => {
+    computeInvoices();
+});
+
+async function computeInvoices() {
+    const newMap = new Map<string, { invoice: string; amount: number; qrCodeUrl?: string }>();
+
+    await Promise.all(messages.map(async (message) => {
+        const bolt11Tag = message.tags.find((t) => t[0] === "bolt11");
+        if (bolt11Tag) {
+            const invoice = bolt11Tag[1];
+            const amount = Number(bolt11Tag[2] || 0) / 1000;
+            try {
+                const qrCodeUrl = await toDataURL(`lightning:${bolt11Tag[1]}`);
+                newMap.set(message.id, { invoice, amount, qrCodeUrl });
+            } catch (error) {
+                console.error("Error generating QR code:", error);
+                newMap.set(message.id, { invoice, amount });
+            }
+        }
+    }));
+
+    invoiceDataMap = newMap;
+}
+
+function contentToShow(message: NEvent) {
+    const bolt11_tag = findBolt11Tag(message);
+    if (!bolt11_tag) {
+        return message.content;
+    }
+
+    const invoice = bolt11_tag;
+    const firstPart = invoice.substring(0, 15);
+    const lastPart = invoice.substring(invoice.length - 15);
+    return message.content.replace(invoice, `${firstPart}...${lastPart}`);
+}
+
+function isMyMessage(message: NEvent) {
+  return message.pubkey === $activeAccount?.pubkey;
 }
 
 onDestroy(() => {
@@ -421,20 +487,58 @@ onDestroy(() => {
                             data-message-container
                             data-message-id={message.id}
                             data-is-current-user={message.pubkey === $activeAccount?.pubkey}
-                            class={`relative max-w-[70%] ${!isSingleEmoji(message.content) ? `rounded-lg ${message.pubkey === $activeAccount?.pubkey ? "bg-chat-bg-me text-gray-50 rounded-br" : "bg-chat-bg-other text-gray-50 rounded-bl"} p-3` : ''} ${showMessageMenu && message.id === selectedMessageId ? 'relative z-20' : ''}`}
+                            class={`relative max-w-[70%] ${doesMessageHavePreimageTag(message) ? "bg-opacity-10" : ""} ${!isSingleEmoji(message.content) ? `rounded-lg ${message.pubkey === $activeAccount?.pubkey ? `bg-chat-bg-me text-gray-50 rounded-br` : `bg-chat-bg-other text-gray-50 rounded-bl`} p-3` : ''} ${showMessageMenu && message.id === selectedMessageId ? 'relative z-20' : ''}`}
                         >
-                            {#if message.tags.find((t) => t[0] === "q")?.[1]}
-                                <RepliedTo messageId={message.tags.find((t) => t[0] === "q")?.[1]} />
+                            {#if doesMessageHaveQTag(message)}
+                                <RepliedTo messageId={findQTagReplyTo(message)} />
                             {/if}
-                            <div class="flex {message.content.trim().length < 50 && !isSingleEmoji(message.content) ? "flex-row gap-6" : "flex-col gap-2 justify-end w-full"} items-end {isSingleEmoji(message.content) ? 'mb-4 my-6' : ''}">
-                                <div class="break-words-smart {isSingleEmoji(message.content) ? 'text-7xl leading-none' : ''}">
+                            <div class="flex {message.content.trim().length < 50 && !isSingleEmoji(message.content) ? "flex-row gap-6" : "flex-col gap-2"} w-full {doesMessageHavePreimageTag(message) ? "items-center justify-center" : "items-end"}  {isSingleEmoji(message.content) ? 'mb-4 my-6' : ''}">
+                                <div class="break-words-smart w-full {doesMessageHavePreimageTag(message) ? 'flex justify-center' : ''} {isSingleEmoji(message.content) ? 'text-7xl leading-none' : ''}">
                                     {#if message.content.trim().length > 0}
-                                        {message.content}
+                                        {contentToShow(message)}
+                                    {:else if doesMessageHavePreimageTag(message)}
+                                        <div class="inline-flex flex-row items-center gap-2 bg-orange-400 rounded-full px-2 py-0 w-fit">
+                                            <span>⚡️</span><span class="italic font-bold">Invoice paid</span><span>⚡️</span>
+                                        </div>
                                     {:else}
                                         <span class="italic opacity-60">No message content</span>
                                     {/if}
+                                    {#if invoiceDataMap.has(message.id)}
+                                        <div class="flex flex-col items-start mt-4 gap-4">
+                                            <div class="relative">
+                                                <img
+                                                    src={invoiceDataMap.get(message.id)?.qrCodeUrl}
+                                                    alt="QR Code"
+                                                    class="w-64 h-64 rounded-lg shadow-lg {isBolt11Paid(message) ? 'blur-sm' : ''}"
+                                                />
+                                                {#if isBolt11Paid(message)}
+                                                    <CheckCircle
+                                                        size={48}
+                                                        weight="fill"
+                                                        class="text-green-500 bg-white rounded-full opacity-80 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" 
+                                                    />
+                                                {/if}
+                                            </div>
+                                            <div class="flex flex-col gap-4">
+                                                <button
+                                                    onclick={() => copyInvoice(message.id)}
+                                                    class={`transition-all hover:shadow-xl duration-300 rounded-md px-6 py-2 flex flex-row gap-4 items-center justify-center font-semibold grow ${isMyMessage(message) ? "bg-gray-200 hover:bg-gray-300 text-blue-600" : "bg-blue-500 hover:bg-blue-600"}`}
+                                                >
+                                                   Copy invoice  <CopySimple size={20} />
+                                                </button>
+                                                {#if accountHasNostrWalletConnectUri && !isBolt11Paid(message)}
+                                                    <button
+                                                        onclick={() => payInvoice(message)}
+                                                        class="transition-all bg-gradient-to-bl from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-500  hover:shadow-xl duration-300 rounded-md px-6 py-2 flex flex-row gap-4 items-center justify-center font-semibold grow"
+                                                    >
+                                                    Pay {invoiceDataMap.get(message.id)?.amount} sats
+                                                    </button>
+                                                {/if}
+                                            </div>
+                                        </div>
+                                    {/if}
                                 </div>
-                                <div class={`flex flex-row gap-2 items-center ${message.pubkey === $activeAccount?.pubkey ? "text-gray-300" : "text-gray-400"} ${message.content.trim().length < 50 ? "flex-shrink-0" : "justify-end w-full shrink"}`}>
+                                <div class="flex flex-row gap-2 items-center ml-auto {message.pubkey === $activeAccount?.pubkey ? "text-gray-300" : "text-gray-400"}">
                                     {#if message.id !== "temp"}
                                         <span><CheckCircle size={18} weight="light" /></span>
                                     {:else}
@@ -500,9 +604,6 @@ onDestroy(() => {
     <div class="flex flex-col justify-start items-between divide-y divide-gray-800">
         <button data-copy-button onclick={copyMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Copy <CopySimple size={20} /></button>
         <button onclick={replyToMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Reply <ArrowBendUpLeft size={20} /></button>
-        {#if isSelectedMessageBolt11 && accountHasNostrWalletConnectUri}
-            <button onclick={payInvoice} class="glow-button px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Pay<Lightning size={20} weight="fill" /></button>
-        {/if}
         <!-- <button onclick={editMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between">Edit <PencilSimple size={20} /></button>
         <button onclick={deleteMessage} class="text-red-500 px-4 py-2 flex flex-row gap-20 items-center justify-between">Delete <TrashSimple size={20} /></button> -->
     </div>
@@ -532,7 +633,7 @@ onDestroy(() => {
         content: '';
         position: absolute;
         inset: -1px;
-        background: linear-gradient(90deg, #ff00ea 0%, #ad00ff 100%);
+        background: linear-gradient(90deg, #f97316 0%, #ea580c 100%);
         z-index: -1;
         opacity: 0.15;
         filter: blur(8px);
@@ -540,7 +641,7 @@ onDestroy(() => {
     }
 
     .glow-button:hover {
-        background: rgba(173, 0, 255, 0.2);
+        background: rgba(21, 132, 79, 0.2);
     }
 
     /* Ensure immediate visibility state change */
