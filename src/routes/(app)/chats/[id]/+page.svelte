@@ -300,7 +300,7 @@ async function payInvoice(message: NEvent) {
         console.error("no group found");
         return;
     }
-    
+
     if (!doesMessageHaveBolt11Tag(message)) {
         console.error("message is not a bolt11 invoice");
         return;
@@ -419,6 +419,18 @@ async function computeInvoices() {
     invoiceDataMap = newMap;
 }
 
+function contentToShow(message: NEvent) {
+    const bolt11_tag = findBolt11Tag(message);
+    if (!bolt11_tag) {
+        return message.content;
+    }
+
+    const invoice = bolt11_tag;
+    const firstPart = invoice.substring(0, 15);
+    const lastPart = invoice.substring(invoice.length - 15);
+    return message.content.replace(invoice, `${firstPart}...${lastPart}`);
+}
+
 function isMyMessage(message: NEvent) {
   return message.pubkey === $activeAccount?.pubkey;
 }
@@ -484,7 +496,7 @@ onDestroy(() => {
                             <div class="flex {message.content.trim().length < 50 && !isSingleEmoji(message.content) ? "flex-row gap-6" : "flex-col gap-2"} w-full {doesMessageHavePreimageTag(message) ? "items-center justify-center" : "items-end"}  {isSingleEmoji(message.content) ? 'mb-4 my-6' : ''}">
                                 <div class="break-words-smart w-full {doesMessageHavePreimageTag(message) ? 'flex justify-center' : ''} {isSingleEmoji(message.content) ? 'text-7xl leading-none' : ''}">
                                     {#if message.content.trim().length > 0}
-                                        {message.content}
+                                        {contentToShow(message)}
                                     {:else if doesMessageHavePreimageTag(message)}
                                         <div class="inline-flex flex-row items-center gap-2 bg-orange-400 rounded-full px-2 py-0 w-fit">
                                             <span>⚡️</span><span class="italic font-bold">Invoice paid</span><span>⚡️</span>
