@@ -383,6 +383,15 @@ function reactionsForMessage(message: NEvent): { content: string; count: number 
     );
 }
 
+function isBolt11Paid(message: NEvent): boolean {
+    const replies = messages.filter(
+        (m) => m.kind === 9 &&
+            m.tags.some((t) => t[0] === "q" && t[1] === message.id) &&
+            m.tags.some((t) => t[0] === "preimage")
+    )
+    return replies.length > 0;
+}
+
 let invoiceDataMap = $state(new Map<string, { invoice: string; amount: number; qrCodeUrl?: string }>());
 
 $effect(() => {
@@ -488,7 +497,7 @@ onDestroy(() => {
                                             <img
                                                 src={invoiceDataMap.get(message.id)?.qrCodeUrl}
                                                 alt="QR Code"
-                                                class="w-64 h-64 rounded-lg shadow-lg"
+                                                class="w-64 h-64 rounded-lg shadow-lg {isBolt11Paid(message) ? 'blur-sm' : ''}"
                                             />
                                             <div class="flex flex-col gap-4">
                                                 <button
@@ -497,7 +506,7 @@ onDestroy(() => {
                                                 >
                                                    Copy invoice  <CopySimple size={20} />
                                                 </button>
-                                                {#if accountHasNostrWalletConnectUri}
+                                                {#if accountHasNostrWalletConnectUri && !isBolt11Paid(message)}
                                                     <button
                                                         onclick={() => payInvoice(message)}
                                                         class="transition-all bg-gradient-to-bl from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-500  hover:shadow-xl duration-300 rounded-md px-6 py-2 flex flex-row gap-4 items-center justify-center font-semibold grow"
