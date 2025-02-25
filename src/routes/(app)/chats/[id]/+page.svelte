@@ -651,7 +651,7 @@ onDestroy(() => {
                 {/if}
             {/each}
         </div>
-        <MessageBar {group} bind:replyToMessageEvent={replyToMessageEvent} {handleNewMessage} />
+        <MessageBar {group} bind:replyToMessageEvent={replyToMessageEvent} {handleNewMessage} {messages} />
     </main>
 {/if}
 
