@@ -22,6 +22,7 @@ import { hexMlsGroupId } from "$lib/utils/group";
 import { nameFromMetadata } from "$lib/utils/nostr";
 import { formatMessageTime } from "$lib/utils/time";
 import { copyToClipboard } from "$lib/utils/clipboard";
+import { messageHasDeletionTag } from "$lib/utils/message";
 import { invoke } from "@tauri-apps/api/core";
 import { type UnlistenFn, listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -173,10 +174,8 @@ function doesMessageHaveBolt11Tag(message: NEvent): boolean {
     return findBolt11Tag(message) !== undefined;
 }
 
-function messageHasDeletionTag(message: NEvent): boolean {
-    return messages.some(
-        (m) => m.kind === 5 && m.tags.some((t) => t[0] === "e" && t[1] === message.id)
-    );
+function isMessageDeleted(message: NEvent): boolean {
+    return messageHasDeletionTag(message.id, messages);
 }
 
 function handlePress(event: PressCustomEvent | MouseEvent) {
@@ -499,7 +498,7 @@ function isSelectedMessageDeletable(): boolean {
         return false;
     }
 
-    if (messageHasDeletionTag(selectedMessage)) {
+    if (isMessageDeleted(selectedMessage)) {
         return false;
     }
 
@@ -512,7 +511,7 @@ function isSelectedMessageCopyable(): boolean {
         return false;
     }
 
-    return !messageHasDeletionTag(selectedMessage);
+    return !isMessageDeleted(selectedMessage);
 }
 
 onDestroy(() => {
@@ -571,11 +570,11 @@ onDestroy(() => {
                             class={`relative max-w-[70%] ${doesMessageHavePreimageTag(message) ? "bg-opacity-10" : ""} ${!isSingleEmoji(message.content) ? `rounded-lg ${isMyMessage(message) ? `bg-chat-bg-me text-gray-50 rounded-br` : `bg-chat-bg-other text-gray-50 rounded-bl`} p-3` : ''} ${showMessageMenu && message.id === selectedMessageId ? 'relative z-20' : ''}`}
                         >
                             {#if doesMessageHaveQTag(message)}
-                                <RepliedTo messageId={findQTagReplyTo(message)} />
+                                <RepliedTo messageId={findQTagReplyTo(message)} messages={messages} />
                             {/if}
                             <div class="flex {message.content.trim().length < 50 && !isSingleEmoji(message.content) ? "flex-row gap-6" : "flex-col gap-2"} w-full {doesMessageHavePreimageTag(message) ? "items-center justify-center" : "items-end"}  {isSingleEmoji(message.content) ? 'mb-4 my-6' : ''}">
                                 <div class="break-words-smart w-full {doesMessageHavePreimageTag(message) ? 'flex justify-center' : ''} {isSingleEmoji(message.content) ? 'text-7xl leading-none' : ''}">
-                                    {#if messageHasDeletionTag(message)}
+                                    {#if isMessageDeleted(message)}
                                         <div class="inline-flex flex-row items-center gap-2 bg-gray-200 rounded-full px-3 py-1 w-fit text-black">
                                             <TrashSimple size={20} /><span class="italic opacity-60">Message deleted</span>
                                         </div>
