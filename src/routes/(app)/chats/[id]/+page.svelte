@@ -6,7 +6,11 @@ import GroupAvatar from "$lib/components/GroupAvatar.svelte";
 import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
 import MessageBar from "$lib/components/MessageBar.svelte";
 import RepliedTo from "$lib/components/RepliedTo.svelte";
-import { activeAccount, hasNostrWalletConnectUri, NostrWalletConnectError } from "$lib/stores/accounts";
+import {
+    activeAccount,
+    hasNostrWalletConnectUri,
+    NostrWalletConnectError,
+} from "$lib/stores/accounts";
 import {
     type EnrichedContact,
     type NEvent,
@@ -18,6 +22,7 @@ import { hexMlsGroupId } from "$lib/utils/group";
 import { nameFromMetadata } from "$lib/utils/nostr";
 import { formatMessageTime } from "$lib/utils/time";
 import { copyToClipboard } from "$lib/utils/clipboard";
+import { messageHasDeletionTag } from "$lib/utils/message";
 import { invoke } from "@tauri-apps/api/core";
 import { type UnlistenFn, listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -27,11 +32,12 @@ import {
     CheckCircle,
     CircleDashed,
     CopySimple,
-    DotsThree
+    DotsThree,
+    TrashSimple,
 } from "phosphor-svelte";
 import { onDestroy, onMount, tick } from "svelte";
 import { type PressCustomEvent, press } from "svelte-gestures";
-import { toDataURL } from 'qrcode';
+import { toDataURL } from "qrcode";
 
 let unlistenMlsMessageReceived: UnlistenFn;
 let unlistenMlsMessageProcessed: UnlistenFn;
@@ -145,7 +151,7 @@ function handleNewMessage(message: NEvent, replaceTemp: boolean) {
 }
 
 function findQTagReplyTo(message: NEvent): string | undefined {
-    return message.tags.find((t) => t[0] === "q")?.[1]
+    return message.tags.find((t) => t[0] === "q")?.[1];
 }
 
 function doesMessageHaveQTag(message: NEvent): boolean {
@@ -153,7 +159,7 @@ function doesMessageHaveQTag(message: NEvent): boolean {
 }
 
 function findPreimageTagReplyTo(message: NEvent): string | undefined {
-    return message.tags.find((t) => t[0] === "preimage")?.[1]
+    return message.tags.find((t) => t[0] === "preimage")?.[1];
 }
 
 function doesMessageHavePreimageTag(message: NEvent): boolean {
@@ -168,6 +174,10 @@ function doesMessageHaveBolt11Tag(message: NEvent): boolean {
     return findBolt11Tag(message) !== undefined;
 }
 
+function isMessageDeleted(message: NEvent): boolean {
+    return messageHasDeletionTag(message.id, messages);
+}
+
 function handlePress(event: PressCustomEvent | MouseEvent) {
     const target = event.target as HTMLElement;
     const messageContainer = target.closest("[data-message-container]");
@@ -175,8 +185,8 @@ function handlePress(event: PressCustomEvent | MouseEvent) {
     const isCurrentUser = messageContainer?.getAttribute("data-is-current-user") === "true";
     selectedMessageId = messageId;
     const message = messages.find((m) => m.id === messageId);
-    if(message) {
-       isSelectedMessageBolt11 = doesMessageHaveBolt11Tag(message);
+    if (message) {
+        isSelectedMessageBolt11 = doesMessageHaveBolt11Tag(message);
     }
     const messageBubble = messageContainer?.parentElement?.querySelector(
         "[data-message-container]:not(button)"
@@ -318,20 +328,27 @@ async function payInvoice(message: NEvent) {
     invoke("pay_invoice", {
         group,
         tags: tags,
-        bolt11: invoice
+        bolt11: invoice,
     })
-        .then((reactionEvent) => {
-            console.log("reaction sent", reactionEvent);
-            toastState.add("Payment success", "Successfully sent payment to invoice", "success");
-            handleNewMessage(reactionEvent as NEvent, false);
-        }, (e) => {
-            toastState.add(
-                "Error sending payment",
-                `Failed to send payment: ${e.message}`,
-                "error"
-            );
-            console.error("Error sending payment", e);
-        })
+        .then(
+            (reactionEvent) => {
+                console.log("reaction sent", reactionEvent);
+                toastState.add(
+                    "Payment success",
+                    "Successfully sent payment to invoice",
+                    "success"
+                );
+                handleNewMessage(reactionEvent as NEvent, false);
+            },
+            (e) => {
+                toastState.add(
+                    "Error sending payment",
+                    `Failed to send payment: ${e.message}`,
+                    "error"
+                );
+                console.error("Error sending payment", e);
+            }
+        )
         .finally(() => {
             showMessageMenu = false;
         });
@@ -339,7 +356,7 @@ async function payInvoice(message: NEvent) {
 
 async function copyInvoice(messageId: string) {
     const invoice = invoiceDataMap.get(messageId)?.invoice;
-    if (invoice) await copyToClipboard(invoice, 'bolt11 invoice');
+    if (invoice) await copyToClipboard(invoice, "bolt11 invoice");
 }
 
 function replyToMessage() {
@@ -353,7 +370,35 @@ function editMessage() {
 }
 
 function deleteMessage() {
-    console.log("deleting message");
+    const message = messages.find((m) => m.id === selectedMessageId);
+    if (!message) {
+        console.error("message not found");
+        toastState.add("Error", "Message not found", "error");
+        return;
+    }
+
+    if (message.pubkey !== $activeAccount?.pubkey) {
+        console.error("message is not owned by the current user");
+        toastState.add("Error", "You can only delete your own messages", "error");
+        return;
+    }
+
+    invoke<NEvent>("delete_message", {
+        group,
+        messageId: message.id,
+    })
+        .then((deletionEvent) => {
+            console.log("message deleted", deletionEvent);
+            // Add the deletion event to the messages array to trigger re-rendering
+            if (deletionEvent) {
+                handleNewMessage(deletionEvent as NEvent, false);
+            }
+            showMessageMenu = false;
+        })
+        .catch((e) => {
+            console.error("error deleting message", e);
+            toastState.add("Error Deleting Message", `Failed to delete message: ${e}`, "error");
+        });
 }
 
 function isSingleEmoji(str: string) {
@@ -384,10 +429,11 @@ function reactionsForMessage(message: NEvent): { content: string; count: number 
 
 function isBolt11Paid(message: NEvent): boolean {
     const replies = messages.filter(
-        (m) => m.kind === 9 &&
+        (m) =>
+            m.kind === 9 &&
             m.tags.some((t) => t[0] === "q" && t[1] === message.id) &&
             m.tags.some((t) => t[0] === "preimage")
-    )
+    );
     return replies.length > 0;
 }
 
@@ -401,25 +447,27 @@ $effect(() => {
 async function computeInvoices() {
     const newMap = new Map<string, InvoiceData>();
 
-    await Promise.all(messages.map(async (message) => {
-        const bolt11Tag = message.tags.find((t) => t[0] === "bolt11");
-        if (bolt11Tag) {
-            const invoice = bolt11Tag[1];
-            const amount = Number(bolt11Tag[2] || 0) / 1000;
-            let invoiceData: InvoiceData = { invoice, amount };
-            if (bolt11Tag[3]) {
-                invoiceData.description = bolt11Tag[3];
-            }
-            try {
-                const qrCodeUrl = await toDataURL(`lightning:${bolt11Tag[1]}`);
-                invoiceData.qrCodeUrl = qrCodeUrl;
-            } catch (error) {
-                console.error("Error generating QR code:", error);
-            }
+    await Promise.all(
+        messages.map(async (message) => {
+            const bolt11Tag = message.tags.find((t) => t[0] === "bolt11");
+            if (bolt11Tag) {
+                const invoice = bolt11Tag[1];
+                const amount = Number(bolt11Tag[2] || 0) / 1000;
+                let invoiceData: InvoiceData = { invoice, amount };
+                if (bolt11Tag[3]) {
+                    invoiceData.description = bolt11Tag[3];
+                }
+                try {
+                    const qrCodeUrl = await toDataURL(`lightning:${bolt11Tag[1]}`);
+                    invoiceData.qrCodeUrl = qrCodeUrl;
+                } catch (error) {
+                    console.error("Error generating QR code:", error);
+                }
 
-            newMap.set(message.id, invoiceData);
-        }
-    }));
+                newMap.set(message.id, invoiceData);
+            }
+        })
+    );
 
     invoiceDataMap = newMap;
 }
@@ -437,7 +485,33 @@ function contentToShow(message: NEvent) {
 }
 
 function isMyMessage(message: NEvent) {
-  return message.pubkey === $activeAccount?.pubkey;
+    return message.pubkey === $activeAccount?.pubkey;
+}
+
+function isSelectedMessageDeletable(): boolean {
+    const selectedMessage = messages.find((m) => m.id === selectedMessageId);
+    if (!selectedMessage) {
+        return false;
+    }
+
+    if (doesMessageHavePreimageTag(selectedMessage)) {
+        return false;
+    }
+
+    if (isMessageDeleted(selectedMessage)) {
+        return false;
+    }
+
+    return isMyMessage(selectedMessage);
+}
+
+function isSelectedMessageCopyable(): boolean {
+    const selectedMessage = messages.find((m) => m.id === selectedMessageId);
+    if (!selectedMessage) {
+        return false;
+    }
+
+    return !isMessageDeleted(selectedMessage);
 }
 
 onDestroy(() => {
@@ -476,13 +550,13 @@ onDestroy(() => {
             {#each messages as message (message.id)}
                 {#if message.kind === 9}
                     <div
-                        class={`flex justify-end ${message.pubkey === $activeAccount?.pubkey ? "" : "flex-row-reverse"} items-center gap-4 group ${reactionsForMessage(message).length > 0 ? "mb-6" : ""}`}
+                        class={`flex justify-end ${isMyMessage(message) ? "" : "flex-row-reverse"} items-center gap-4 group ${reactionsForMessage(message).length > 0 ? "mb-6" : ""}`}
                     >
                         <button
                             onclick={handlePress}
                             data-message-container
                             data-message-id={message.id}
-                            data-is-current-user={message.pubkey === $activeAccount?.pubkey}
+                            data-is-current-user={isMyMessage(message)}
                             class="p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                         >
                             <DotsThree size="24" weight="bold" />
@@ -492,15 +566,19 @@ onDestroy(() => {
                             onpress={handlePress}
                             data-message-container
                             data-message-id={message.id}
-                            data-is-current-user={message.pubkey === $activeAccount?.pubkey}
-                            class={`relative max-w-[70%] ${doesMessageHavePreimageTag(message) ? "bg-opacity-10" : ""} ${!isSingleEmoji(message.content) ? `rounded-lg ${message.pubkey === $activeAccount?.pubkey ? `bg-chat-bg-me text-gray-50 rounded-br` : `bg-chat-bg-other text-gray-50 rounded-bl`} p-3` : ''} ${showMessageMenu && message.id === selectedMessageId ? 'relative z-20' : ''}`}
+                            data-is-current-user={isMyMessage(message)}
+                            class={`relative max-w-[70%] ${doesMessageHavePreimageTag(message) ? "bg-opacity-10" : ""} ${!isSingleEmoji(message.content) ? `rounded-lg ${isMyMessage(message) ? `bg-chat-bg-me text-gray-50 rounded-br` : `bg-chat-bg-other text-gray-50 rounded-bl`} p-3` : ''} ${showMessageMenu && message.id === selectedMessageId ? 'relative z-20' : ''}`}
                         >
                             {#if doesMessageHaveQTag(message)}
-                                <RepliedTo messageId={findQTagReplyTo(message)} />
+                                <RepliedTo messageId={findQTagReplyTo(message)} messages={messages} />
                             {/if}
                             <div class="flex {message.content.trim().length < 50 && !isSingleEmoji(message.content) ? "flex-row gap-6" : "flex-col gap-2"} w-full {doesMessageHavePreimageTag(message) ? "items-center justify-center" : "items-end"}  {isSingleEmoji(message.content) ? 'mb-4 my-6' : ''}">
                                 <div class="break-words-smart w-full {doesMessageHavePreimageTag(message) ? 'flex justify-center' : ''} {isSingleEmoji(message.content) ? 'text-7xl leading-none' : ''}">
-                                    {#if message.content.trim().length > 0}
+                                    {#if isMessageDeleted(message)}
+                                        <div class="inline-flex flex-row items-center gap-2 bg-gray-200 rounded-full px-3 py-1 w-fit text-black">
+                                            <TrashSimple size={20} /><span class="italic opacity-60">Message deleted</span>
+                                        </div>
+                                    {:else if message.content.trim().length > 0}
                                         {contentToShow(message)}
                                     {:else if doesMessageHavePreimageTag(message)}
                                         <div class="inline-flex flex-row items-center gap-2 bg-orange-400 rounded-full px-2 py-0 w-fit">
@@ -547,7 +625,7 @@ onDestroy(() => {
                                         </div>
                                     {/if}
                                 </div>
-                                <div class="flex flex-row gap-2 items-center ml-auto {message.pubkey === $activeAccount?.pubkey ? "text-gray-300" : "text-gray-400"}">
+                                <div class="flex flex-row gap-2 items-center ml-auto {isMyMessage(message) ? "text-gray-300" : "text-gray-400"}">
                                     {#if message.id !== "temp"}
                                         <span><CheckCircle size={18} weight="light" /></span>
                                     {:else}
@@ -573,7 +651,7 @@ onDestroy(() => {
                 {/if}
             {/each}
         </div>
-        <MessageBar {group} bind:replyToMessageEvent={replyToMessageEvent} {handleNewMessage} />
+        <MessageBar {group} bind:replyToMessageEvent={replyToMessageEvent} {handleNewMessage} {messages} />
     </main>
 {/if}
 
@@ -611,10 +689,14 @@ onDestroy(() => {
     role="menu"
 >
     <div class="flex flex-col justify-start items-between divide-y divide-gray-800">
-        <button data-copy-button onclick={copyMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Copy <CopySimple size={20} /></button>
+        {#if isSelectedMessageCopyable()}
+            <button data-copy-button onclick={copyMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Copy <CopySimple size={20} /></button>
+        {/if}
         <button onclick={replyToMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Reply <ArrowBendUpLeft size={20} /></button>
-        <!-- <button onclick={editMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between">Edit <PencilSimple size={20} /></button>
-        <button onclick={deleteMessage} class="text-red-500 px-4 py-2 flex flex-row gap-20 items-center justify-between">Delete <TrashSimple size={20} /></button> -->
+        <!-- <button onclick={editMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between">Edit <PencilSimple size={20} /></button> -->
+        {#if isSelectedMessageDeletable()}
+            <button onclick={deleteMessage} class="text-red-500 px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-red-200">Delete <TrashSimple size={20} /></button>
+        {/if}
     </div>
 </div>
 
