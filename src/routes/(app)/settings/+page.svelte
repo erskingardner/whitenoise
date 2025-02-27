@@ -21,7 +21,6 @@ import {
 import {
     Bell,
     CaretRight,
-    CopySimple,
     HardDrives,
     Key,
     Lightning,
@@ -29,7 +28,6 @@ import {
     Skull,
     Trash,
     User,
-    UserPlus,
 } from "phosphor-svelte";
 import { onDestroy, onMount } from "svelte";
 
@@ -103,39 +101,6 @@ function publishKeyPackage() {
             );
             console.error(e);
         });
-}
-
-let showAccountsState = $state(false);
-let accountsState = $state("");
-async function toggleInspectAccounts() {
-    showAccountsState = !showAccountsState;
-    if (showAccountsState) {
-        invoke("get_accounts_state").then((accounts) => {
-            accountsState = JSON.stringify(accounts, null, 2);
-        });
-    }
-}
-
-let showGroupsState = $state(false);
-let groupsState = $state("");
-async function toggleInspectGroups() {
-    showGroupsState = !showGroupsState;
-    if (showGroupsState) {
-        invoke("get_groups").then((groups) => {
-            groupsState = JSON.stringify(groups, null, 2);
-        });
-    }
-}
-
-let showInvitesState = $state(false);
-let invitesState = $state("");
-async function toggleInspectInvites() {
-    showInvitesState = !showInvitesState;
-    if (showInvitesState) {
-        invoke("get_invites").then((invites) => {
-            invitesState = JSON.stringify(invites, null, 2);
-        });
-    }
 }
 
 async function handleLogout(): Promise<void> {
@@ -246,7 +211,7 @@ async function handleLogout(): Promise<void> {
                 </button>
             </li>
             <li class="section-list-item">
-                <button onclick={() => goto("/settings/lightning/")} class="row-button">
+                <button onclick={() => goto("/settings/wallet/")} class="row-button">
                     <Lightning size={24} class="shrink-0" />
                     <span>Wallet</span>
                     <CaretRight size={24} class="ml-auto mr-0 shrink-0" />
@@ -263,13 +228,6 @@ async function handleLogout(): Promise<void> {
     <h2 class="section-title">Privacy & Security</h2>
     <div class="section">
         <ul class="section-list">
-            <!-- <li class="section-list-item">
-                <button onclick={() => goto("/settings/lockdown/")} class="row-button">
-                    <Lock size={24} />
-                    <span>Lockdown Mode</span>
-                    <CaretRight size={24} class="ml-auto mr-0" />
-                </button>
-            </li> -->
             <li class="section-list-item">
                 <button onclick={deleteAll} class="row-button">
                     <Skull size={24} />
@@ -301,55 +259,6 @@ async function handleLogout(): Promise<void> {
                     <span class="truncate">Test Notification</span>
                 </button>
             </li>
-
-            <!-- <li class="section-list-item">
-                <button onclick={toggleInspectAccounts} class="row-button">
-                    <UserFocus size={24} />
-                    <span>Inspect Accounts</span>
-                    {#if showAccountsState}
-                        <CaretDown size={24} class="ml-auto mr-0" />
-                    {:else}
-                        <CaretRight size={24} class="ml-auto mr-0" />
-                    {/if}
-                </button>
-                {#if showAccountsState}
-                    <div class="flex flex-col gap-4 items-start w-full mt-4 p-4">
-                        <pre class="whitespace-pre overflow-x-auto w-full">{accountsState}</pre>
-                    </div>
-                {/if}
-            </li>
-            <li class="section-list-item">
-                <button onclick={toggleInspectInvites} class="row-button">
-                    <Envelope size={24} />
-                    <span>Inspect Invites</span>
-                    {#if showInvitesState}
-                        <CaretDown size={24} class="ml-auto mr-0" />
-                    {:else}
-                        <CaretRight size={24} class="ml-auto mr-0" />
-                    {/if}
-                </button>
-                {#if showInvitesState}
-                    <div class="flex flex-col gap-4 items-start w-full mt-4 p-4">
-                        <pre class="whitespace-pre overflow-x-auto w-full">{invitesState}</pre>
-                    </div>
-                {/if}
-            </li>
-            <li class="section-list-item">
-                <button onclick={toggleInspectGroups} class="row-button">
-                    <Users size={24} />
-                    <span>Inspect Groups</span>
-                    {#if showGroupsState}
-                        <CaretDown size={24} class="ml-auto mr-0" />
-                    {:else}
-                        <CaretRight size={24} class="ml-auto mr-0" />
-                    {/if}
-                </button>
-                {#if showGroupsState}
-                    <div class="flex flex-col gap-4 items-start w-full mt-4 p-4">
-                        <pre class="whitespace-pre overflow-x-auto w-full">{groupsState}</pre>
-                    </div>
-                {/if}
-            </li> -->
         </ul>
     </div>
 </main>
