@@ -1,6 +1,6 @@
 <script lang="ts">
 import { accounts, activeAccount, setActiveAccount } from "$lib/stores/accounts";
-import { Plus } from "phosphor-svelte";
+import { PlusCircle } from "phosphor-svelte";
 import Avatar from "./Avatar.svelte";
 import Modal from "./Modals/Modal.svelte";
 import NewAccountModal from "./Modals/NewAccountModal.svelte";
@@ -35,14 +35,13 @@ function closeModal() {
             >
                 <Avatar
                     pubkey={account.pubkey}
-                    picture={account.metadata?.picture}
                     pxSize={26}
                     showRing={activePubkey === account.pubkey}
                 />
             </button>
         {/each}
-        <button onclick={openModal} class="rounded-full border-2 border-gray-600 hover:border-gray-300 p-1">
-            <Plus size={16} weight="bold" />
+        <button onclick={openModal} class="p-2 -mr-2 text-gray-300 hover:text-white">
+            <PlusCircle size={30} />
         </button>
     </div>
 </div>

@@ -83,15 +83,17 @@ async function handleCreateAccount() {
 </script>
 
 <div class="flex flex-col items-center justify-center w-screen h-dvh bg-gray-800" transition:fly={flyParams}>
-    <div class="bg-gray-800 w-full h-2/3 flex flex-col items-center justify-center gap-6 py-12 px-6">
-        <img src="whitenoise-login-logo2.png" alt="logo" class="w-32 lg:w-40" />
-        <h2 class="text-xl lg:text-2xl font-medium text-center">Secure. Distributed. Uncensorable.</h2>
-        <div class="h-[40px]">
-            {#if loading}
-                <Loader size={40} fullscreen={false} />
-            {/if}
+    <div class="bg-gray-800 w-full h-2/3 flex flex-col items-center justify-center gap-0 py-12 px-6">
+        <div class="flex flex-col items-center justify-center gap-6">
+            <img src="whitenoise-login-logo2.png" alt="logo" class="w-32 lg:w-40" />
+            <h2 class="text-xl lg:text-2xl font-medium text-center">Secure. Distributed. Uncensorable.</h2>
+            <div class="h-[40px]">
+                {#if loading}
+                    <Loader size={40} fullscreen={false} />
+                {/if}
+            </div>
         </div>
-        <h3 class="text-lg text-gray-400 font-medium flex flex-row gap-3 items-center w-full md:w-4/5 text-gray-300 mt-10">
+        <h3 class="text-lg text-gray-400 font-medium flex flex-row gap-3 items-center w-full md:w-4/5 text-gray-300 mt-12 mb-3">
             <SignIn size="24" weight="fill" />
             Log in with an existing Nostr identity
         </h3>
@@ -110,14 +112,14 @@ async function handleCreateAccount() {
             <button
                 type="submit"
                 disabled={loading}
-                class="p-3 font-semibold bg-blue-700 hover:bg-blue-600 rounded-md ring-1 ring-blue-500"
+                class="p-3 font-medium bg-blue-700 hover:bg-blue-600 rounded-md ring-1 ring-blue-500"
             >
                 Log In
             </button>
         </form>
 
 
-        <h3 class="text-lg text-gray-400 font-medium flex flex-row gap-3 items-center w-full md:w-4/5 text-gray-300 mt-10">
+        <h3 class="text-lg text-gray-400 font-medium flex flex-row gap-3 items-center w-full md:w-4/5 text-gray-300 mt-12 mb-3">
             <UserPlus size="24" weight="fill" />
             Create a new Nostr identity
         </h3>
@@ -136,7 +138,7 @@ async function handleCreateAccount() {
             <button
                 type="submit"
                 disabled={loading}
-                class="p-3 font-semibold bg-indigo-700 hover:bg-indigo-600 rounded-md ring-1 ring-indigo-500"
+                class="p-3 font-medium bg-indigo-700 hover:bg-indigo-600 rounded-md ring-1 ring-indigo-500"
             >
                 Create a new Nostr identity
             </button>

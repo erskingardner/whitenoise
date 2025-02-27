@@ -35,7 +35,6 @@ function handleAccountChange(pubkey: string) {
                 <button onclick={() => handleAccountChange(account.pubkey)}>
                     <Avatar
                         pubkey={account.pubkey}
-                        picture={account.metadata.picture}
                         pxSize={32}
                         showRing={account.pubkey === $activeAccount?.pubkey}
                     />

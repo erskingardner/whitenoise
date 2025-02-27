@@ -111,7 +111,9 @@ pub fn run() {
             search_for_enriched_contacts,
             invite_to_white_noise,
             query_message,
-            export_nsec
+            export_nsec,
+            publish_metadata,
+            generate_nip98_auth_token,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -69,7 +69,7 @@ html {
 }
 
 .section-list-item {
-    @apply my-2;
+    @apply my-1.5;
 }
 
 :first-child.section-list-item {
@@ -85,7 +85,7 @@ html {
 }
 
 .section-list-item > .row-button {
-    @apply flex flex-row gap-2 items-center font-medium text-lg p-2 w-full hover:bg-gray-600/30;
+    @apply flex flex-row gap-2 items-center font-medium text-base px-2 py-1.5 w-full text-gray-300 hover:text-white;
 }
 
 @supports not (-webkit-touch-callout: none) {

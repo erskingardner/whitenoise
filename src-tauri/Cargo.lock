@@ -6801,6 +6801,7 @@ name = "whitenoise"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
+ "bitcoin_hashes 0.14.0",
  "chrono",
  "keyring",
  "nostr-openmls",

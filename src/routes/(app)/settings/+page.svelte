@@ -1,57 +1,29 @@
 <script lang="ts">
 import { goto } from "$app/navigation";
 import Alert from "$lib/components/Alert.svelte";
-import Avatar from "$lib/components/Avatar.svelte";
-import Header from "$lib/components/Header.svelte";
 import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
 import SettingsHeader from "$lib/components/SettingsHeader.svelte";
 import {
-    type Account,
     LogoutError,
-    accounts,
     activeAccount,
-    createAccount,
     fetchRelays,
-    login,
     logout,
-    setActiveAccount,
     updateAccountsStore,
 } from "$lib/stores/accounts";
 import { getToastState } from "$lib/stores/toast-state.svelte";
-import { isValidHexPubkey, isValidNsec } from "$lib/types/nostr";
-import { copyToClipboard } from "$lib/utils/clipboard";
-import { nameFromMetadata, npubFromPubkey } from "$lib/utils/nostr";
 import { invoke } from "@tauri-apps/api/core";
 import { type UnlistenFn, listen } from "@tauri-apps/api/event";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import {
     isPermissionGranted,
     requestPermission,
     sendNotification,
 } from "@tauri-apps/plugin-notification";
-import {
-    Bell,
-    CaretRight,
-    CopySimple,
-    HardDrives,
-    Key,
-    PlusCircle,
-    SignIn,
-    SignOut,
-    Skull,
-    Trash,
-    User,
-    UserPlus,
-} from "phosphor-svelte";
+import { Bell, CaretRight, HardDrives, Key, SignOut, Skull, Trash, User } from "phosphor-svelte";
 import { onDestroy, onMount } from "svelte";
 
 let showDeleteAlert = $state(false);
 let showKeyPackageAlert = $state(false);
 let showDeleteKeyPackagesAlert = $state(false);
-let showLogin = $state(false);
-let nsecOrHex = $state("");
-let showLoginError = $state(false);
-let loginError = $state("");
 
 let unlisten: UnlistenFn;
 
@@ -158,7 +130,6 @@ async function handleLogout(): Promise<void> {
     if (!$activeAccount) {
         return;
     }
-    showLoginError = false;
     logout($activeAccount.pubkey)
         .then(() => {
             toastState.add("Logged out", "Successfully logged out", "success");
