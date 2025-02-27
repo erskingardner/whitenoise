@@ -18,7 +18,18 @@ import {
     requestPermission,
     sendNotification,
 } from "@tauri-apps/plugin-notification";
-import { Bell, CaretRight, HardDrives, Key, SignOut, Skull, Trash, User } from "phosphor-svelte";
+import {
+    Bell,
+    CaretRight,
+    CopySimple,
+    HardDrives,
+    Key,
+    Lightning,
+    SignOut,
+    Skull,
+    Trash,
+    User,
+} from "phosphor-svelte";
 import { onDestroy, onMount } from "svelte";
 
 let showDeleteAlert = $state(false);

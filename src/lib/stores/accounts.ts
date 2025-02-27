@@ -62,6 +62,14 @@ export class SignupError extends Error {
     }
 }
 
+/** Custom error class for NWC-related errors */
+export class NostrWalletConnectError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = "NostrWalletConnectError";
+    }
+}
+
 export async function setActiveAccount(pubkey: string): Promise<void> {
     if (
         !get(accounts)
