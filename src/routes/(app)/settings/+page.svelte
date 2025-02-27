@@ -24,6 +24,7 @@ import {
     HardDrives,
     Key,
     Lightning,
+    ListMagnifyingGlass,
     SignOut,
     Skull,
     Trash,
@@ -199,7 +200,7 @@ async function handleLogout(): Promise<void> {
             <li class="section-list-item">
                 <button onclick={() => goto("/settings/keys/")} class="row-button">
                     <Key size={24} class="shrink-0" />
-                    <span>Your Nostr Keys</span>
+                    <span>Your nostr keys</span>
                     <CaretRight size={24} class="ml-auto mr-0 shrink-0" />
                 </button>
             </li>
@@ -243,20 +244,19 @@ async function handleLogout(): Promise<void> {
             <li class="section-list-item">
                 <button onclick={launchKeyPackage} class="row-button">
                     <Key size={24} />
-                    <span>Publish a Key Package</span>
+                    <span>Publish a key package</span>
                 </button>
             </li>
             <li class="section-list-item">
                 <button onclick={deleteAllKeyPackages} class="row-button">
                     <Trash size={24} class="shrink-0" />
-                    <span class="truncate">Send delete requests for all key packages</span>
+                    <span class="truncate">Delete all key packages</span>
                 </button>
             </li>
-
             <li class="section-list-item">
                 <button onclick={testNotification} class="row-button">
                     <Bell size={24} class="shrink-0" />
-                    <span class="truncate">Test Notification</span>
+                    <span class="truncate">Test notification</span>
                 </button>
             </li>
         </ul>
