@@ -2,24 +2,37 @@
 import { activeAccount } from "$lib/stores/accounts";
 import type { NEvent, NostrMlsGroup, NostrMlsGroupWithRelays } from "$lib/types/nostr";
 import { hexMlsGroupId } from "$lib/utils/group";
+import { messageHasDeletionTag } from "$lib/utils/message";
 import { invoke } from "@tauri-apps/api/core";
 import { PaperPlaneTilt, X } from "phosphor-svelte";
 import { onMount } from "svelte";
 import Loader from "./Loader.svelte";
+import { TrashSimple } from "phosphor-svelte";
 
 let {
     group,
     replyToMessageEvent = $bindable(),
     handleNewMessage,
+    messages = [],
 }: {
     group: NostrMlsGroup;
     replyToMessageEvent?: NEvent;
     handleNewMessage: (message: NEvent, replaceTemp: boolean) => void;
+    messages: NEvent[];
 } = $props();
 
 let message = $state("");
 let textarea: HTMLTextAreaElement;
 let sendingMessage: boolean = $state(false);
+let isReplyToMessageDeleted = $state(false);
+
+$effect(() => {
+    if (replyToMessageEvent?.id) {
+        isReplyToMessageDeleted = messageHasDeletionTag(replyToMessageEvent.id, messages);
+    } else {
+        isReplyToMessageDeleted = false;
+    }
+});
 
 function adjustTextareaHeight() {
     textarea.style.height = "auto";
@@ -101,7 +114,13 @@ onMount(() => {
 <div class="messagebar sticky bottom-0 left-0 right-0 bg-gray-900 drop-shadow-message-bar">
     {#if replyToMessageEvent}
         <div class="w-full py-4 px-6 pl-8 bg-blue-700/50 text-white backdrop-blur-sm border-t border-gray-700 border-l-4 border-l-blue-500 flex flex-row gap-2 items-start justify-between rounded-t-xl">
-            <span>{replyToMessageEvent.content}</span>
+            {#if isReplyToMessageDeleted}
+                <div class="inline-flex flex-row items-center gap-2 bg-gray-200 rounded-full px-3 py-1 w-fit text-black">
+                    <TrashSimple size={20} /><span class="italic opacity-60">Message deleted</span>
+                </div>
+            {:else}
+                <span>{replyToMessageEvent.content}</span>
+            {/if}
             <button onclick={() => replyToMessageEvent = undefined} class="p-1 bg-white/50 hover:bg-white rounded-full mr-0">
                 <X size={12} class="text-blue-700" />
             </button>

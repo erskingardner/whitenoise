@@ -29,6 +29,7 @@ import {
     Skull,
     Trash,
     User,
+    UserPlus,
 } from "phosphor-svelte";
 import { onDestroy, onMount } from "svelte";
 
@@ -241,6 +242,13 @@ async function handleLogout(): Promise<void> {
                 <button onclick={() => goto("/settings/network/")} class="row-button">
                     <HardDrives size={24} class="shrink-0" />
                     <span>Network</span>
+                    <CaretRight size={24} class="ml-auto mr-0 shrink-0" />
+                </button>
+            </li>
+            <li class="section-list-item">
+                <button onclick={() => goto("/settings/lightning/")} class="row-button">
+                    <Lightning size={24} class="shrink-0" />
+                    <span>Wallet</span>
                     <CaretRight size={24} class="ml-auto mr-0 shrink-0" />
                 </button>
             </li>

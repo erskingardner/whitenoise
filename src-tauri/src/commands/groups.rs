@@ -4,8 +4,12 @@ use crate::groups::{Group, GroupType, GroupWithRelays};
 use crate::key_packages::fetch_key_packages_for_members;
 use crate::secrets_store;
 use crate::whitenoise::Whitenoise;
+use lightning_invoice::SignedRawBolt11Invoice;
 use nostr_sdk::prelude::*;
+use nostr_sdk::NostrSigner;
 use std::ops::Add;
+use std::str::FromStr;
+use std::sync::Arc;
 use tauri::Emitter;
 
 /// Gets all MLS groups that the active account is a member of
@@ -413,18 +417,10 @@ pub async fn send_mls_message(
 ) -> Result<UnsignedEvent, String> {
     let nostr_keys = wn.nostr.client.signer().await.map_err(|e| e.to_string())?;
 
-    // Create an unsigned nostr event with the message
-    let mut inner_event = UnsignedEvent::new(
-        nostr_keys
-            .get_public_key()
-            .await
-            .map_err(|e| e.to_string())?,
-        Timestamp::now(),
-        kind.into(),
-        tags.unwrap_or_default(),
-        message,
-    );
-    inner_event.ensure_id();
+    let inner_event = create_unsigned_nostr_event(&nostr_keys, message, kind, tags)
+        .await
+        .map_err(|e| e.to_string())?;
+
     let json_event_string = serde_json::to_string(&inner_event).map_err(|e| e.to_string())?;
 
     let serialized_message;
@@ -501,6 +497,65 @@ pub async fn send_mls_message(
     Ok(inner_event)
 }
 
+/// Creates an unsigned nostr event with the given parameters
+async fn create_unsigned_nostr_event(
+    nostr_keys: &Arc<dyn NostrSigner>,
+    message: String,
+    kind: u16,
+    tags: Option<Vec<Tag>>,
+) -> Result<UnsignedEvent, Error> {
+    let mut final_tags = tags.unwrap_or_default();
+    final_tags.extend(bolt11_invoice_tags(&message));
+
+    let mut inner_event = UnsignedEvent::new(
+        nostr_keys.get_public_key().await?,
+        Timestamp::now(),
+        kind.into(),
+        final_tags,
+        message,
+    );
+    inner_event.ensure_id();
+    Ok(inner_event)
+}
+
+/// Parses a message for BOLT11 invoices and returns corresponding tags
+fn bolt11_invoice_tags(message: &str) -> Vec<Tag> {
+    let mut tags = Vec::new();
+
+    // Bitcoin network prefixes according to BOLT-11 spec
+    const NETWORK_PREFIXES: [&str; 4] = ["lnbc", "lntb", "lntbs", "lnbcrt"];
+
+    // Check if message contains what looks like a bolt11 invoice
+    if let Some(word) = message.split_whitespace().find(|w| {
+        let w_lower = w.to_lowercase();
+        NETWORK_PREFIXES
+            .iter()
+            .any(|prefix| w_lower.starts_with(prefix))
+    }) {
+        // Try to parse as BOLT11 invoice
+        if let Ok(invoice) = SignedRawBolt11Invoice::from_str(word) {
+            let raw_invoice = invoice.raw_invoice();
+            let amount_msats = raw_invoice
+                .amount_pico_btc()
+                .map(|pico_btc| (pico_btc as f64 * 0.1) as u64);
+
+            // Add the invoice, amount, and description tag
+            if let Some(msats) = amount_msats {
+                let mut tag_values = vec![word.to_string(), msats.to_string()];
+
+                // Add description if present
+                if let Some(description) = raw_invoice.description() {
+                    tag_values.push(description.to_string());
+                }
+
+                tags.push(Tag::custom(TagKind::from("bolt11"), tag_values));
+            }
+        }
+    }
+
+    tags
+}
+
 /// Gets the list of members in an MLS group
 ///
 /// # Arguments
@@ -574,4 +629,563 @@ pub async fn rotate_key_in_group(
         .await
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Deletes a message from an MLS group by creating and sending a deletion event
+///
+/// Creates a kind 5 (deletion) event with an "e" tag referencing the message
+/// to be deleted, as specified in NIP-09.
+///
+/// # Arguments
+/// * `group` - The MLS group containing the message
+/// * `message_id` - ID of the message to delete (hex-encoded string)
+/// * `wn` - Whitenoise state handle
+/// * `app_handle` - Tauri app handle
+///
+/// # Returns
+/// * `Ok(UnsignedEvent)` - The deletion event if successful
+/// * `Err(String)` - Error message if deletion fails
+///
+/// # Errors
+/// Returns error if:
+/// * Message ID cannot be parsed as a valid EventId
+/// * No active account is found
+/// * Message cannot be found in the group
+/// * User is not the owner of the message
+/// * Sending the deletion event fails
+#[tauri::command]
+pub async fn delete_message(
+    group: Group,
+    message_id: String,
+    wn: tauri::State<'_, Whitenoise>,
+    app_handle: tauri::AppHandle,
+) -> Result<UnsignedEvent, String> {
+    tracing::debug!(
+        target: "whitenoise::commands::groups::delete_message",
+        "Attempting to delete message with ID: {} from group: {}",
+        message_id,
+        hex::encode(&group.mls_group_id)
+    );
+
+    // Validate inputs and permissions
+    let (message_event_id, active_account) =
+        validate_deletion_request(&message_id, &group, wn.clone()).await?;
+
+    // Create deletion event with "e" tag (NIP-09)
+    let deletion_tags = vec![Tag::event(message_event_id)];
+    let deletion_reason = "Message deleted by user";
+
+    tracing::debug!(
+        target: "whitenoise::commands::groups::delete_message",
+        "Creating deletion event for message ID: {}, from user: {}",
+        message_id,
+        active_account.pubkey.to_hex()
+    );
+
+    // Send the deletion event
+    let result = send_mls_message(
+        group,
+        deletion_reason.to_string(),
+        5, // Kind 5 for deletion events as per NIP-09
+        Some(deletion_tags),
+        wn,
+        app_handle,
+    )
+    .await
+    .map_err(|e| format!("Failed to send deletion event: {}", e));
+
+    match &result {
+        Ok(event) => {
+            let id_str = match &event.id {
+                Some(id) => id.to_hex(),
+                None => "unknown".to_string(),
+            };
+            tracing::debug!(
+                target: "whitenoise::commands::groups::delete_message",
+                "Successfully created deletion event with ID: {}",
+                id_str
+            )
+        }
+        Err(e) => tracing::error!(
+            target: "whitenoise::commands::groups::delete_message",
+            "Failed to delete message: {}",
+            e
+        ),
+    }
+
+    result
+}
+
+/// Validates a message deletion request
+///
+/// # Arguments
+/// * `message_id` - Hex-encoded message ID
+/// * `group` - Group containing the message
+/// * `wn` - Whitenoise state
+///
+/// # Returns
+/// * `Ok((EventId, Account))` - Validated message ID and active account
+/// * `Err(String)` - Error message if validation fails
+async fn validate_deletion_request(
+    message_id: &str,
+    group: &Group,
+    wn: tauri::State<'_, Whitenoise>,
+) -> Result<(EventId, Account), String> {
+    tracing::debug!(
+        target: "whitenoise::commands::groups::validate_deletion_request",
+        "Validating deletion request for message ID: {} in group: {}",
+        message_id,
+        hex::encode(&group.mls_group_id)
+    );
+
+    // Parse and validate message ID
+    let message_event_id =
+        EventId::from_hex(message_id).map_err(|e| format!("Invalid message ID format: {}", e))?;
+
+    // Get and validate active account
+    let active_account = Account::get_active(wn.clone())
+        .await
+        .map_err(|e| format!("Failed to get active account: {}", e))?;
+
+    tracing::debug!(
+        target: "whitenoise::commands::groups::validate_deletion_request",
+        "Active account: {}, attempting to delete message: {}",
+        active_account.pubkey.to_hex(),
+        message_id
+    );
+
+    // Fetch messages and verify message exists in this group
+    let messages = group
+        .messages(wn.clone())
+        .await
+        .map_err(|e| format!("Failed to fetch messages: {}", e))?;
+
+    // Find the target message
+    let message = messages
+        .iter()
+        .find(|m| m.id == Some(message_event_id))
+        .ok_or_else(|| format!("Message with ID {} not found in this group", message_id))?;
+
+    // Verify ownership
+    if message.pubkey != active_account.pubkey {
+        tracing::warn!(
+            target: "whitenoise::commands::groups::validate_deletion_request",
+            "Permission denied: User {} attempted to delete message {} created by {}",
+            active_account.pubkey.to_hex(),
+            message_id,
+            message.pubkey.to_hex()
+        );
+        return Err(format!(
+            "Permission denied: Cannot delete message {}. Only the message creator can delete it.",
+            message_id
+        ));
+    }
+
+    tracing::debug!(
+        target: "whitenoise::commands::groups::validate_deletion_request",
+        "Validation successful for message: {}",
+        message_id
+    );
+
+    Ok((message_event_id, active_account))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_create_unsigned_nostr_event_basic() {
+        let keys =
+            Keys::from_str("nsec1d4ed5x49d7p24xn63flj4985dc4gpfngdhtqcxpth0ywhm6czxcs5l2exj")
+                .unwrap();
+        let signer: Arc<dyn NostrSigner> = Arc::new(keys.clone());
+        let message = "Stay humble & stack sats!".to_string();
+        let kind = 1;
+        let tags = None;
+
+        let result = create_unsigned_nostr_event(&signer, message.clone(), kind, tags).await;
+
+        assert!(result.is_ok());
+        let event = result.unwrap();
+        assert_eq!(event.content, message);
+        assert!(event.tags.is_empty());
+        assert_eq!(event.kind, kind.into());
+        assert_eq!(event.pubkey, keys.public_key());
+    }
+
+    #[tokio::test]
+    async fn test_create_unsigned_nostr_event_with_tags() {
+        let keys =
+            Keys::from_str("nsec1d4ed5x49d7p24xn63flj4985dc4gpfngdhtqcxpth0ywhm6czxcs5l2exj")
+                .unwrap();
+        let signer: Arc<dyn NostrSigner> = Arc::new(keys.clone());
+        let message = "Stay humble & stack sats!".to_string();
+        let kind = 1;
+        let tags = Some(vec![Tag::reference("test_id")]);
+
+        let result =
+            create_unsigned_nostr_event(&signer, message.clone(), kind, tags.clone()).await;
+
+        assert!(result.is_ok());
+        let event = result.unwrap();
+        assert_eq!(event.content, message);
+        assert_eq!(event.tags.to_vec(), tags.unwrap());
+        assert_eq!(event.kind, kind.into());
+        assert_eq!(event.pubkey, keys.public_key());
+    }
+
+    #[tokio::test]
+    async fn test_create_unsigned_nostr_event_with_bolt11() {
+        let keys =
+            Keys::from_str("nsec1d4ed5x49d7p24xn63flj4985dc4gpfngdhtqcxpth0ywhm6czxcs5l2exj")
+                .unwrap();
+        let signer: Arc<dyn NostrSigner> = Arc::new(keys.clone());
+
+        // Test case 1: Message with invoice and existing tags
+        let invoice = "lnbc15u1p3xnhl2pp5jptserfk3zk4qy42tlucycrfwxhydvlemu9pqr93tuzlv9cc7g3sdqsvfhkcap3xyhx7un8cqzpgxqzjcsp5f8c52y2stc300gl6s4xswtjpc37hrnnr3c9wvtgjfuvqmpm35evq9qyyssqy4lgd8tj637qcjp05rdpxxykjenthxftej7a2zzmwrmrl70fyj9hvj0rewhzj7jfyuwkwcg9g2jpwtk3wkjtwnkdks84hsnu8xps5vsq4gj5hs";
+        let message: String = "Please pay me here: ".to_string() + &invoice;
+        let existing_tag = Tag::reference("test_id");
+        let result =
+            create_unsigned_nostr_event(&signer, message, 1, Some(vec![existing_tag.clone()]))
+                .await;
+
+        assert!(result.is_ok());
+        let event = result.unwrap();
+        let tags_vec = event.tags.to_vec();
+
+        // Check that original tag is preserved
+        assert!(tags_vec.contains(&existing_tag));
+
+        // Check bolt11 tag content
+        let bolt11_tags: Vec<_> = tags_vec
+            .iter()
+            .filter(|tag| *tag != &existing_tag)
+            .collect();
+        assert_eq!(bolt11_tags.len(), 1);
+
+        let tag = &bolt11_tags[0];
+        let content = (*tag).clone().to_vec();
+        assert_eq!(content[0], "bolt11");
+        assert_eq!(content[1], invoice);
+        assert!(!content[2].is_empty());
+        assert_eq!(content[3], "bolt11.org");
+
+        // Test case 2: Regular message with tags
+        let result = create_unsigned_nostr_event(
+            &signer,
+            "Just a regular message".to_string(),
+            1,
+            Some(vec![existing_tag.clone()]),
+        )
+        .await;
+
+        assert!(result.is_ok());
+        let event = result.unwrap();
+        let tags_vec = event.tags.to_vec();
+        assert!(tags_vec.contains(&existing_tag));
+        assert_eq!(tags_vec.len(), 1); // Only the existing tag, no bolt11 tag
+
+        // Test case 3: Invalid invoice
+        let result = create_unsigned_nostr_event(
+            &signer,
+            "lnbc1invalid".to_string(),
+            1,
+            Some(vec![existing_tag.clone()]),
+        )
+        .await;
+
+        assert!(result.is_ok());
+        let event = result.unwrap();
+        let tags_vec = event.tags.to_vec();
+        assert!(tags_vec.contains(&existing_tag));
+        assert_eq!(tags_vec.len(), 1); // Only the existing tag, no bolt11 tag
+    }
+
+    #[tokio::test]
+    async fn test_create_unsigned_nostr_event_with_bolt11_networks() {
+        let keys =
+            Keys::from_str("nsec1d4ed5x49d7p24xn63flj4985dc4gpfngdhtqcxpth0ywhm6czxcs5l2exj")
+                .unwrap();
+        let signer: Arc<dyn NostrSigner> = Arc::new(keys.clone());
+        let existing_tag = Tag::reference("test_id");
+
+        // Test cases for different network prefixes
+        let test_cases = vec![
+            // Mainnet invoice (lnbc)
+            "lnbc15u1p3xnhl2pp5jptserfk3zk4qy42tlucycrfwxhydvlemu9pqr93tuzlv9cc7g3sdqsvfhkcap3xyhx7un8cqzpgxqzjcsp5f8c52y2stc300gl6s4xswtjpc37hrnnr3c9wvtgjfuvqmpm35evq9qyyssqy4lgd8tj637qcjp05rdpxxykjenthxftej7a2zzmwrmrl70fyj9hvj0rewhzj7jfyuwkwcg9g2jpwtk3wkjtwnkdks84hsnu8xps5vsq4gj5hs",
+            // Testnet invoice (lntb)
+            "lntb20m1pvjluezsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygshp58yjmdan79s6qqdhdzgynm4zwqd5d7xmw5fk98klysy043l2ahrqspp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqfpp3x9et2e20v6pu37c5d9vax37wxq72un989qrsgqdj545axuxtnfemtpwkc45hx9d2ft7x04mt8q7y6t0k2dge9e7h8kpy9p34ytyslj3yu569aalz2xdk8xkd7ltxqld94u8h2esmsmacgpghe9k8",
+            // Signet invoice (lntbs)
+            "lntbs4320n1pnm35s8dqqnp4qg62h96f9rsq0fwq0wff6q2444j8ylp7984srtvxtdth8mmw008qgpp5uad7pp9cjtvde5l67dtakznj9x3fd4qggmeg4z6j5za6zxz0areqsp5dgdv4ugpfsgqmp7vuxpq5s06jxaesg9e7hu32ffjdc2va6cwpt4s9qyysgqcqpcxqyz5vqn94eujdlwdtjxqzu9tycyujzgwsq6xnjw3ycpqfvzk6dl3pk2wrjyja4645xftw7x4m4h9jl3wugczsdn9jeyhv75g63nk83y2848zqpsdqdx7",
+            // Regtest invoice (lnbcrt)
+            "lnbcrt12340n1pnm35h8pp5dz8c9ytfv0s6h97vp0mwdhmxm4c9jn5wjnyeez9th06t5lag6q4qdqqcqzzsxqyz5vqsp5v6jg8wrl37s6ggf0sc2jd0g6a2axnemyet227ckfwlxgrykclw8s9qxpqysgqy6966qlpgc2frw5307wy2a9f966ksv2f8zx6tatcmdcqpwxn9vp3m9s6eg4cewuprn0wljs3vkfs5cny5nq3n8slme2lvfxf70pzdlsqztw8hc",
+        ];
+
+        for invoice in test_cases {
+            let message = format!("Please pay me here: {}", invoice);
+            let result =
+                create_unsigned_nostr_event(&signer, message, 1, Some(vec![existing_tag.clone()]))
+                    .await;
+
+            assert!(result.is_ok());
+            let event = result.unwrap();
+            let tags_vec = event.tags.to_vec();
+
+            // Check that original tag is preserved
+            assert!(tags_vec.contains(&existing_tag));
+
+            // Check bolt11 tag content
+            let bolt11_tags: Vec<_> = tags_vec
+                .iter()
+                .filter(|tag| *tag != &existing_tag)
+                .collect();
+            assert_eq!(bolt11_tags.len(), 1);
+
+            let tag = &bolt11_tags[0];
+            let content = (*tag).clone().to_vec();
+            assert_eq!(content[0], "bolt11");
+            assert_eq!(content[1], invoice);
+            assert!(!content[2].is_empty());
+        }
+    }
+
+    // New tests for validate_deletion_request
+
+    // Helper to create a mock Whitenoise state for tests
+    struct MockWhitenoiseState {
+        active_account: Option<Account>,
+        messages: Vec<UnsignedEvent>,
+    }
+
+    impl MockWhitenoiseState {
+        fn new(active_account: Option<Account>, messages: Vec<UnsignedEvent>) -> Self {
+            Self {
+                active_account,
+                messages,
+            }
+        }
+    }
+
+    // Test-specific helper functions
+    #[cfg(test)]
+    mod test_helpers {
+        use super::*;
+        use crate::accounts::{AccountOnboarding, AccountSettings};
+        use crate::groups::GroupState;
+
+        // Get active account from mock state
+        pub async fn get_active_from_mock(wn: &MockWhitenoiseState) -> Result<Account, String> {
+            match &wn.active_account {
+                Some(account) => Ok(account.clone()),
+                None => Err("No active account".to_string()),
+            }
+        }
+
+        // Get messages from mock state
+        pub async fn get_messages_from_mock(
+            _group: &Group,
+            wn: &MockWhitenoiseState,
+        ) -> Result<Vec<UnsignedEvent>, String> {
+            Ok(wn.messages.clone())
+        }
+
+        // Create a minimal test account
+        pub fn create_test_account(pubkey: PublicKey) -> Account {
+            Account {
+                pubkey,
+                metadata: Metadata::default(),
+                settings: AccountSettings::default(),
+                onboarding: AccountOnboarding::default(),
+                last_used: Timestamp::now(),
+                last_synced: Timestamp::zero(),
+                active: true,
+            }
+        }
+
+        // Create a minimal test group
+        pub fn create_test_group(mls_group_id: Vec<u8>) -> Group {
+            Group {
+                mls_group_id,
+                account_pubkey: Keys::generate().public_key(),
+                nostr_group_id: "test_id".to_string(),
+                name: "Test Group".to_string(),
+                description: "Test Topic".to_string(),
+                admin_pubkeys: vec![],
+                last_message_id: None,
+                last_message_at: None,
+                group_type: GroupType::Group,
+                epoch: 0,
+                state: GroupState::Active,
+            }
+        }
+    }
+
+    // Mock validation function for tests that uses our mock state
+    async fn validate_deletion_request_test(
+        message_id: &str,
+        group: &Group,
+        wn: &MockWhitenoiseState,
+    ) -> Result<(EventId, Account), String> {
+        use test_helpers::*;
+
+        // Parse and validate message ID
+        let message_event_id = EventId::from_hex(message_id)
+            .map_err(|e| format!("Invalid message ID format: {}", e))?;
+
+        // Get and validate active account
+        let active_account = get_active_from_mock(wn)
+            .await
+            .map_err(|e| format!("Failed to get active account: {}", e))?;
+
+        // Fetch messages and verify message exists in this group
+        let messages = get_messages_from_mock(group, wn)
+            .await
+            .map_err(|e| format!("Failed to fetch messages: {}", e))?;
+
+        // Find the target message
+        let message = messages
+            .iter()
+            .find(|m| m.id == Some(message_event_id))
+            .ok_or_else(|| format!("Message with ID {} not found in this group", message_id))?;
+
+        // Verify ownership
+        if message.pubkey != active_account.pubkey {
+            return Err(format!(
+                "Permission denied: Cannot delete message. Only the message creator can delete it."
+            ));
+        }
+
+        Ok((message_event_id, active_account))
+    }
+
+    #[tokio::test]
+    async fn test_validate_deletion_request_success() {
+        use test_helpers::*;
+
+        // Create test data
+        let message_id = "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
+        let event_id = EventId::from_hex(message_id).unwrap();
+
+        // Create account with matching pubkey
+        let account_keys = Keys::generate();
+        let account = create_test_account(account_keys.public_key());
+
+        // Create message owned by the account
+        let mut message = UnsignedEvent::new(
+            account_keys.public_key(),
+            Timestamp::now(),
+            Kind::TextNote,
+            vec![],
+            "Test message".to_string(),
+        );
+        message.id = Some(event_id);
+
+        // Create mock state
+        let mock_state = MockWhitenoiseState::new(Some(account.clone()), vec![message]);
+
+        // Create mock group
+        let group = create_test_group(vec![1, 2, 3, 4]);
+
+        // Test successful validation
+        let result = validate_deletion_request_test(message_id, &group, &mock_state).await;
+        assert!(result.is_ok());
+
+        let (returned_event_id, returned_account) = result.unwrap();
+        assert_eq!(returned_event_id, event_id);
+        assert_eq!(returned_account.pubkey, account.pubkey);
+    }
+
+    #[tokio::test]
+    async fn test_validate_deletion_request_invalid_message_id() {
+        use test_helpers::*;
+
+        // Test with invalid message ID format
+        let message_id = "invalid_id";
+        let mock_state = MockWhitenoiseState::new(None, vec![]);
+        let group = create_test_group(vec![1, 2, 3, 4]);
+
+        let result = validate_deletion_request_test(message_id, &group, &mock_state).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Invalid message ID format"));
+    }
+
+    #[tokio::test]
+    async fn test_validate_deletion_request_no_active_account() {
+        use test_helpers::*;
+
+        // Valid message ID but no active account
+        let message_id = "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
+        let mock_state = MockWhitenoiseState::new(None, vec![]);
+        let group = create_test_group(vec![1, 2, 3, 4]);
+
+        let result = validate_deletion_request_test(message_id, &group, &mock_state).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Failed to get active account"));
+    }
+
+    #[tokio::test]
+    async fn test_validate_deletion_request_message_not_found() {
+        use test_helpers::*;
+
+        // Message ID not found in group
+        let message_id = "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
+
+        // Different message ID in the group
+        let different_id = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let different_event_id = EventId::from_hex(different_id).unwrap();
+
+        let account_keys = Keys::generate();
+        let account = create_test_account(account_keys.public_key());
+
+        let mut message = UnsignedEvent::new(
+            account_keys.public_key(),
+            Timestamp::now(),
+            Kind::TextNote,
+            vec![],
+            "Test message".to_string(),
+        );
+        message.id = Some(different_event_id); // Different ID than requested
+
+        let mock_state = MockWhitenoiseState::new(Some(account), vec![message]);
+
+        let group = create_test_group(vec![1, 2, 3, 4]);
+
+        let result = validate_deletion_request_test(message_id, &group, &mock_state).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found in this group"));
+    }
+
+    #[tokio::test]
+    async fn test_validate_deletion_request_not_owner() {
+        use test_helpers::*;
+
+        // Message creator is different from active account
+        let message_id = "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
+        let event_id = EventId::from_hex(message_id).unwrap();
+
+        // Create two different account keys
+        let account_keys = Keys::generate();
+        let other_keys = Keys::generate();
+
+        let account = create_test_account(account_keys.public_key()); // Active account
+
+        // Message created by different user
+        let mut message = UnsignedEvent::new(
+            other_keys.public_key(), // Different pubkey than active account
+            Timestamp::now(),
+            Kind::TextNote,
+            vec![],
+            "Test message".to_string(),
+        );
+        message.id = Some(event_id);
+
+        let mock_state = MockWhitenoiseState::new(Some(account), vec![message]);
+
+        let group = create_test_group(vec![1, 2, 3, 4]);
+
+        let result = validate_deletion_request_test(message_id, &group, &mock_state).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Permission denied"));
+    }
 }

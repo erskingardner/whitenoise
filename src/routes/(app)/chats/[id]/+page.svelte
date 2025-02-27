@@ -1,20 +1,28 @@
 <script lang="ts">
 import { goto } from "$app/navigation";
 import { page } from "$app/state";
+import { getToastState } from "$lib/stores/toast-state.svelte";
 import GroupAvatar from "$lib/components/GroupAvatar.svelte";
 import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
 import MessageBar from "$lib/components/MessageBar.svelte";
 import RepliedTo from "$lib/components/RepliedTo.svelte";
-import { activeAccount } from "$lib/stores/accounts";
+import {
+    activeAccount,
+    hasNostrWalletConnectUri,
+    NostrWalletConnectError,
+} from "$lib/stores/accounts";
 import {
     type EnrichedContact,
     type NEvent,
     type NostrMlsGroup,
     NostrMlsGroupType,
+    type NostrMlsGroupWithRelays,
 } from "$lib/types/nostr";
 import { hexMlsGroupId } from "$lib/utils/group";
 import { nameFromMetadata } from "$lib/utils/nostr";
 import { formatMessageTime } from "$lib/utils/time";
+import { copyToClipboard } from "$lib/utils/clipboard";
+import { messageHasDeletionTag } from "$lib/utils/message";
 import { invoke } from "@tauri-apps/api/core";
 import { type UnlistenFn, listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -25,9 +33,11 @@ import {
     CircleDashed,
     CopySimple,
     DotsThree,
+    TrashSimple,
 } from "phosphor-svelte";
 import { onDestroy, onMount, tick } from "svelte";
 import { type PressCustomEvent, press } from "svelte-gestures";
+import { toDataURL } from "qrcode";
 
 let unlistenMlsMessageReceived: UnlistenFn;
 let unlistenMlsMessageProcessed: UnlistenFn;
@@ -39,9 +49,12 @@ let groupName = $state("");
 let messages: NEvent[] = $state([]);
 let showMessageMenu = $state(false);
 let selectedMessageId: string | null | undefined = $state(undefined);
+let isSelectedMessageBolt11: boolean | null | undefined = $state(false);
 let messageMenuPosition = $state({ x: 0, y: 0 });
 let messageMenuExtendedPosition = $state({ x: 0, y: 0 });
 let replyToMessageEvent: NEvent | undefined = $state(undefined);
+let toastState = getToastState();
+let accountHasNostrWalletConnectUri: boolean | undefined = $state(undefined);
 
 $effect(() => {
     if (
@@ -90,6 +103,16 @@ async function scrollToBottom() {
     }
 }
 
+async function checkWalletStatus() {
+    try {
+        accountHasNostrWalletConnectUri = await hasNostrWalletConnectUri();
+    } catch (e) {
+        if (e instanceof NostrWalletConnectError) {
+            console.error(e);
+        }
+    }
+}
+
 onMount(async () => {
     if (!unlistenMlsMessageProcessed) {
         unlistenMlsMessageProcessed = await listen<[NostrMlsGroup, NEvent]>(
@@ -115,6 +138,7 @@ onMount(async () => {
         );
     }
 
+    await checkWalletStatus();
     await loadGroup();
 });
 
@@ -126,13 +150,44 @@ function handleNewMessage(message: NEvent, replaceTemp: boolean) {
     scrollToBottom();
 }
 
+function findQTagReplyTo(message: NEvent): string | undefined {
+    return message.tags.find((t) => t[0] === "q")?.[1];
+}
+
+function doesMessageHaveQTag(message: NEvent): boolean {
+    return findQTagReplyTo(message) !== undefined;
+}
+
+function findPreimageTagReplyTo(message: NEvent): string | undefined {
+    return message.tags.find((t) => t[0] === "preimage")?.[1];
+}
+
+function doesMessageHavePreimageTag(message: NEvent): boolean {
+    return findPreimageTagReplyTo(message) !== undefined;
+}
+
+function findBolt11Tag(message: NEvent): string | undefined {
+    return message.tags.find((t) => t[0] === "bolt11")?.[1];
+}
+
+function doesMessageHaveBolt11Tag(message: NEvent): boolean {
+    return findBolt11Tag(message) !== undefined;
+}
+
+function isMessageDeleted(message: NEvent): boolean {
+    return messageHasDeletionTag(message.id, messages);
+}
+
 function handlePress(event: PressCustomEvent | MouseEvent) {
     const target = event.target as HTMLElement;
     const messageContainer = target.closest("[data-message-container]");
     const messageId = messageContainer?.getAttribute("data-message-id");
     const isCurrentUser = messageContainer?.getAttribute("data-is-current-user") === "true";
     selectedMessageId = messageId;
-
+    const message = messages.find((m) => m.id === messageId);
+    if (message) {
+        isSelectedMessageBolt11 = doesMessageHaveBolt11Tag(message);
+    }
     const messageBubble = messageContainer?.parentElement?.querySelector(
         "[data-message-container]:not(button)"
     );
@@ -197,6 +252,7 @@ function handlePress(event: PressCustomEvent | MouseEvent) {
 function handleOutsideClick() {
     showMessageMenu = false;
     selectedMessageId = undefined;
+    isSelectedMessageBolt11 = undefined;
 }
 
 async function sendReaction(reaction: string, messageId: string | null | undefined) {
@@ -248,6 +304,61 @@ async function copyMessage() {
     }
 }
 
+async function payInvoice(message: NEvent) {
+    if (!group) {
+        console.error("no group found");
+        return;
+    }
+
+    if (!doesMessageHaveBolt11Tag(message)) {
+        console.error("message is not a bolt11 invoice");
+        return;
+    }
+
+    if (!accountHasNostrWalletConnectUri) {
+        console.error("Nostr Wallet Connect URI not found");
+        return;
+    }
+    let groupWithRelays: NostrMlsGroupWithRelays = await invoke("get_group", {
+        groupId: hexMlsGroupId(group.mls_group_id),
+    });
+    const invoice = findBolt11Tag(message);
+    let tags = [["q", message.id, groupWithRelays.relays[0], message.pubkey]];
+    console.log("Sending payment", tags);
+    invoke("pay_invoice", {
+        group,
+        tags: tags,
+        bolt11: invoice,
+    })
+        .then(
+            (reactionEvent) => {
+                console.log("reaction sent", reactionEvent);
+                toastState.add(
+                    "Payment success",
+                    "Successfully sent payment to invoice",
+                    "success"
+                );
+                handleNewMessage(reactionEvent as NEvent, false);
+            },
+            (e) => {
+                toastState.add(
+                    "Error sending payment",
+                    `Failed to send payment: ${e.message}`,
+                    "error"
+                );
+                console.error("Error sending payment", e);
+            }
+        )
+        .finally(() => {
+            showMessageMenu = false;
+        });
+}
+
+async function copyInvoice(messageId: string) {
+    const invoice = invoiceDataMap.get(messageId)?.invoice;
+    if (invoice) await copyToClipboard(invoice, "bolt11 invoice");
+}
+
 function replyToMessage() {
     replyToMessageEvent = messages.find((m) => m.id === selectedMessageId);
     document.getElementById("newMessageInput")?.focus();
@@ -259,7 +370,35 @@ function editMessage() {
 }
 
 function deleteMessage() {
-    console.log("deleting message");
+    const message = messages.find((m) => m.id === selectedMessageId);
+    if (!message) {
+        console.error("message not found");
+        toastState.add("Error", "Message not found", "error");
+        return;
+    }
+
+    if (message.pubkey !== $activeAccount?.pubkey) {
+        console.error("message is not owned by the current user");
+        toastState.add("Error", "You can only delete your own messages", "error");
+        return;
+    }
+
+    invoke<NEvent>("delete_message", {
+        group,
+        messageId: message.id,
+    })
+        .then((deletionEvent) => {
+            console.log("message deleted", deletionEvent);
+            // Add the deletion event to the messages array to trigger re-rendering
+            if (deletionEvent) {
+                handleNewMessage(deletionEvent as NEvent, false);
+            }
+            showMessageMenu = false;
+        })
+        .catch((e) => {
+            console.error("error deleting message", e);
+            toastState.add("Error Deleting Message", `Failed to delete message: ${e}`, "error");
+        });
 }
 
 function isSingleEmoji(str: string) {
@@ -288,9 +427,97 @@ function reactionsForMessage(message: NEvent): { content: string; count: number 
     );
 }
 
+function isBolt11Paid(message: NEvent): boolean {
+    const replies = messages.filter(
+        (m) =>
+            m.kind === 9 &&
+            m.tags.some((t) => t[0] === "q" && t[1] === message.id) &&
+            m.tags.some((t) => t[0] === "preimage")
+    );
+    return replies.length > 0;
+}
+
+type InvoiceData = { invoice: string; amount: number; description?: string; qrCodeUrl?: string };
+let invoiceDataMap = $state(new Map<string, InvoiceData>());
+
+$effect(() => {
+    computeInvoices();
+});
+
+async function computeInvoices() {
+    const newMap = new Map<string, InvoiceData>();
+
+    await Promise.all(
+        messages.map(async (message) => {
+            const bolt11Tag = message.tags.find((t) => t[0] === "bolt11");
+            if (bolt11Tag) {
+                const invoice = bolt11Tag[1];
+                const amount = Number(bolt11Tag[2] || 0) / 1000;
+                let invoiceData: InvoiceData = { invoice, amount };
+                if (bolt11Tag[3]) {
+                    invoiceData.description = bolt11Tag[3];
+                }
+                try {
+                    const qrCodeUrl = await toDataURL(`lightning:${bolt11Tag[1]}`);
+                    invoiceData.qrCodeUrl = qrCodeUrl;
+                } catch (error) {
+                    console.error("Error generating QR code:", error);
+                }
+
+                newMap.set(message.id, invoiceData);
+            }
+        })
+    );
+
+    invoiceDataMap = newMap;
+}
+
+function contentToShow(message: NEvent) {
+    const bolt11_tag = findBolt11Tag(message);
+    if (!bolt11_tag) {
+        return message.content;
+    }
+
+    const invoice = bolt11_tag;
+    const firstPart = invoice.substring(0, 15);
+    const lastPart = invoice.substring(invoice.length - 15);
+    return message.content.replace(invoice, `${firstPart}...${lastPart}`);
+}
+
+function isMyMessage(message: NEvent) {
+    return message.pubkey === $activeAccount?.pubkey;
+}
+
+function isSelectedMessageDeletable(): boolean {
+    const selectedMessage = messages.find((m) => m.id === selectedMessageId);
+    if (!selectedMessage) {
+        return false;
+    }
+
+    if (doesMessageHavePreimageTag(selectedMessage)) {
+        return false;
+    }
+
+    if (isMessageDeleted(selectedMessage)) {
+        return false;
+    }
+
+    return isMyMessage(selectedMessage);
+}
+
+function isSelectedMessageCopyable(): boolean {
+    const selectedMessage = messages.find((m) => m.id === selectedMessageId);
+    if (!selectedMessage) {
+        return false;
+    }
+
+    return !isMessageDeleted(selectedMessage);
+}
+
 onDestroy(() => {
     unlistenMlsMessageProcessed();
     unlistenMlsMessageReceived();
+    toastState.cleanup();
 });
 </script>
 
@@ -323,13 +550,13 @@ onDestroy(() => {
             {#each messages as message (message.id)}
                 {#if message.kind === 9}
                     <div
-                        class={`flex justify-end ${message.pubkey === $activeAccount?.pubkey ? "" : "flex-row-reverse"} items-center gap-4 group ${reactionsForMessage(message).length > 0 ? "mb-6" : ""}`}
+                        class={`flex justify-end ${isMyMessage(message) ? "" : "flex-row-reverse"} items-center gap-4 group ${reactionsForMessage(message).length > 0 ? "mb-6" : ""}`}
                     >
                         <button
                             onclick={handlePress}
                             data-message-container
                             data-message-id={message.id}
-                            data-is-current-user={message.pubkey === $activeAccount?.pubkey}
+                            data-is-current-user={isMyMessage(message)}
                             class="p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                         >
                             <DotsThree size="24" weight="bold" />
@@ -339,21 +566,66 @@ onDestroy(() => {
                             onpress={handlePress}
                             data-message-container
                             data-message-id={message.id}
-                            data-is-current-user={message.pubkey === $activeAccount?.pubkey}
-                            class={`relative max-w-[70%] ${!isSingleEmoji(message.content) ? `rounded-lg ${message.pubkey === $activeAccount?.pubkey ? "bg-chat-bg-me text-gray-50 rounded-br" : "bg-chat-bg-other text-gray-50 rounded-bl"} p-3` : ''} ${showMessageMenu && message.id === selectedMessageId ? 'relative z-20' : ''}`}
+                            data-is-current-user={isMyMessage(message)}
+                            class={`relative max-w-[70%] ${doesMessageHavePreimageTag(message) ? "bg-opacity-10" : ""} ${!isSingleEmoji(message.content) ? `rounded-lg ${isMyMessage(message) ? `bg-chat-bg-me text-gray-50 rounded-br` : `bg-chat-bg-other text-gray-50 rounded-bl`} p-3` : ''} ${showMessageMenu && message.id === selectedMessageId ? 'relative z-20' : ''}`}
                         >
-                            {#if message.tags.find((t) => t[0] === "q")?.[1]}
-                                <RepliedTo messageId={message.tags.find((t) => t[0] === "q")?.[1]} />
+                            {#if doesMessageHaveQTag(message)}
+                                <RepliedTo messageId={findQTagReplyTo(message)} messages={messages} />
                             {/if}
-                            <div class="flex {message.content.trim().length < 50 && !isSingleEmoji(message.content) ? "flex-row gap-6" : "flex-col gap-2 justify-end w-full"} items-end {isSingleEmoji(message.content) ? 'mb-4 my-6' : ''}">
-                                <div class="break-words {isSingleEmoji(message.content) ? 'text-7xl leading-none' : ''}">
-                                    {#if message.content.trim().length > 0}
-                                        {message.content}
+                            <div class="flex {message.content.trim().length < 50 && !isSingleEmoji(message.content) ? "flex-row gap-6" : "flex-col gap-2"} w-full {doesMessageHavePreimageTag(message) ? "items-center justify-center" : "items-end"}  {isSingleEmoji(message.content) ? 'mb-4 my-6' : ''}">
+                                <div class="break-words-smart w-full {doesMessageHavePreimageTag(message) ? 'flex justify-center' : ''} {isSingleEmoji(message.content) ? 'text-7xl leading-none' : ''}">
+                                    {#if isMessageDeleted(message)}
+                                        <div class="inline-flex flex-row items-center gap-2 bg-gray-200 rounded-full px-3 py-1 w-fit text-black">
+                                            <TrashSimple size={20} /><span class="italic opacity-60">Message deleted</span>
+                                        </div>
+                                    {:else if message.content.trim().length > 0}
+                                        {contentToShow(message)}
+                                    {:else if doesMessageHavePreimageTag(message)}
+                                        <div class="inline-flex flex-row items-center gap-2 bg-orange-400 rounded-full px-2 py-0 w-fit">
+                                            <span>⚡️</span><span class="italic font-bold">Invoice paid</span><span>⚡️</span>
+                                        </div>
                                     {:else}
                                         <span class="italic opacity-60">No message content</span>
                                     {/if}
+                                    {#if invoiceDataMap.has(message.id)}
+                                        <div class="flex flex-col items-start mt-4 gap-4">
+                                            <div class="relative bg-slate-200 p-1 rounded-lg">
+                                                <img
+                                                    src={invoiceDataMap.get(message.id)?.qrCodeUrl}
+                                                    alt="QR Code"
+                                                    class="w-64 h-64 rounded-lg shadow-lg {isBolt11Paid(message) ? 'blur-sm' : ''}"
+                                                />
+                                                {#if invoiceDataMap.get(message.id)?.description}
+                                                    <span class="text-sm text-blue-900 mx-1">{invoiceDataMap.get(message.id)?.description}</span>
+                                                {/if}
+                                                {#if isBolt11Paid(message)}
+                                                    <CheckCircle
+                                                        size={48}
+                                                        weight="fill"
+                                                        class="text-green-500 bg-white rounded-full opacity-80 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" 
+                                                    />
+                                                {/if}
+                                            </div>
+                                            <div class="flex flex-col gap-4">
+                                                <button
+                                                    onclick={() => copyInvoice(message.id)}
+                                                    class={`transition-all hover:shadow-xl duration-300 rounded-md px-6 py-2 flex flex-row gap-4 items-center justify-center font-semibold grow ${isMyMessage(message) ? "bg-gray-200 hover:bg-gray-300 text-blue-600" : "bg-blue-500 hover:bg-blue-600"}`}
+                                                >
+                                                   Copy invoice  <CopySimple size={20} />
+                                                </button>
+                                                {#if accountHasNostrWalletConnectUri && !isBolt11Paid(message)}
+                                                    <button
+                                                        onclick={() => payInvoice(message)}
+                                                        class="transition-all bg-gradient-to-bl from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-500  hover:shadow-xl duration-300 rounded-md px-6 py-2 flex flex-row gap-4 items-center justify-center font-semibold grow"
+                                                    >
+                                                    Pay {invoiceDataMap.get(message.id)?.amount} sats
+                                                    </button>
+                                                {/if}
+                                            </div>
+                                        </div>
+                                    {/if}
                                 </div>
-                                <div class={`flex flex-row gap-2 items-center ${message.pubkey === $activeAccount?.pubkey ? "text-gray-300" : "text-gray-400"} ${message.content.trim().length < 50 ? "flex-shrink-0" : "justify-end w-full shrink"}`}>
+                                <div class="flex flex-row gap-2 items-center ml-auto {isMyMessage(message) ? "text-gray-300" : "text-gray-400"}">
                                     {#if message.id !== "temp"}
                                         <span><CheckCircle size={18} weight="light" /></span>
                                     {:else}
@@ -379,7 +651,7 @@ onDestroy(() => {
                 {/if}
             {/each}
         </div>
-        <MessageBar {group} bind:replyToMessageEvent={replyToMessageEvent} {handleNewMessage} />
+        <MessageBar {group} bind:replyToMessageEvent={replyToMessageEvent} {handleNewMessage} {messages} />
     </main>
 {/if}
 
@@ -412,15 +684,19 @@ onDestroy(() => {
 
 <div
     id="messageMenuExtended"
-    class="{showMessageMenu ? 'visible' : 'invisible'} fixed bg-gray-900/90 backdrop-blur-sm drop-shadow-md drop-shadow-black rounded-md ring-1 ring-gray-700 z-30 translate-x-0"
+    class="{showMessageMenu ? 'opacity-100 visible' : 'opacity-0 invisible'} fixed bg-gray-900/90 backdrop-blur-sm drop-shadow-md drop-shadow-black rounded-md ring-1 ring-gray-700 z-30 translate-x-0 transition-opacity duration-200"
     style="left: {messageMenuExtendedPosition.x}px; top: {messageMenuExtendedPosition.y}px;"
     role="menu"
 >
     <div class="flex flex-col justify-start items-between divide-y divide-gray-800">
-        <button data-copy-button onclick={copyMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Copy <CopySimple size={20} /></button>
+        {#if isSelectedMessageCopyable()}
+            <button data-copy-button onclick={copyMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Copy <CopySimple size={20} /></button>
+        {/if}
         <button onclick={replyToMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-gray-700">Reply <ArrowBendUpLeft size={20} /></button>
-        <!-- <button onclick={editMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between">Edit <PencilSimple size={20} /></button>
-        <button onclick={deleteMessage} class="text-red-500 px-4 py-2 flex flex-row gap-20 items-center justify-between">Delete <TrashSimple size={20} /></button> -->
+        <!-- <button onclick={editMessage} class="px-4 py-2 flex flex-row gap-20 items-center justify-between">Edit <PencilSimple size={20} /></button> -->
+        {#if isSelectedMessageDeletable()}
+            <button onclick={deleteMessage} class="text-red-500 px-4 py-2 flex flex-row gap-20 items-center justify-between hover:bg-red-200">Delete <TrashSimple size={20} /></button>
+        {/if}
     </div>
 </div>
 
@@ -436,5 +712,31 @@ onDestroy(() => {
         color: rgb(34 197 94); /* text-green-500 */
         transition: color 0.2s ease-in-out;
     }
-</style>
 
+    .glow-button {
+        position: relative;
+        color: #fff;
+        transition: all 0.3s ease;
+        background: rgba(173, 0, 255, 0.1);
+    }
+
+    .glow-button::before {
+        content: '';
+        position: absolute;
+        inset: -1px;
+        background: linear-gradient(90deg, #f97316 0%, #ea580c 100%);
+        z-index: -1;
+        opacity: 0.15;
+        filter: blur(8px);
+        border-radius: 0.375rem;
+    }
+
+    .glow-button:hover {
+        background: rgba(21, 132, 79, 0.2);
+    }
+
+    /* Ensure immediate visibility state change */
+    .invisible {
+        display: none;
+    }
+</style>
