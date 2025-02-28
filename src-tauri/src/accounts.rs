@@ -538,7 +538,7 @@ impl Account {
             .bind(url)
             .bind(String::from(relay_type))
             .bind(self.pubkey.to_hex())
-            .bind(&serde_json::to_string(&meta)?)
+            .bind(String::from(meta))
             .execute(&mut *txn)
             .await?;
         }
