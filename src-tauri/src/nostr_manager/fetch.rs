@@ -5,6 +5,7 @@
 
 use crate::nostr_manager::event_processor::ProcessableEvent;
 use crate::nostr_manager::{NostrManager, NostrManagerError, Result};
+use crate::relays::RelayMeta;
 use nostr_sdk::prelude::*;
 
 impl NostrManager {
@@ -37,7 +38,7 @@ impl NostrManager {
         }
     }
 
-    pub async fn fetch_user_relays(&self, pubkey: PublicKey) -> Result<Vec<String>> {
+    pub async fn fetch_user_relays(&self, pubkey: PublicKey) -> Result<Vec<(String, RelayMeta)>> {
         let filter = Filter::new().author(pubkey).kind(Kind::RelayList).limit(1);
 
         let events = self
@@ -49,7 +50,10 @@ impl NostrManager {
         Ok(Self::relay_urls_from_events(events))
     }
 
-    pub async fn fetch_user_inbox_relays(&self, pubkey: PublicKey) -> Result<Vec<String>> {
+    pub async fn fetch_user_inbox_relays(
+        &self,
+        pubkey: PublicKey,
+    ) -> Result<Vec<(String, RelayMeta)>> {
         let filter = Filter::new()
             .author(pubkey)
             .kind(Kind::InboxRelays)
@@ -63,7 +67,10 @@ impl NostrManager {
         Ok(Self::relay_urls_from_events(events))
     }
 
-    pub async fn fetch_user_key_package_relays(&self, pubkey: PublicKey) -> Result<Vec<String>> {
+    pub async fn fetch_user_key_package_relays(
+        &self,
+        pubkey: PublicKey,
+    ) -> Result<Vec<(String, RelayMeta)>> {
         let filter = Filter::new()
             .author(pubkey)
             .kind(Kind::MlsKeyPackageRelays)

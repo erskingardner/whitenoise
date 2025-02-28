@@ -2,19 +2,20 @@
 import { goto } from "$app/navigation";
 import Header from "$lib/components/Header.svelte";
 import HeaderToolbar from "$lib/components/HeaderToolbar.svelte";
+import Modal from "$lib/components/Modals/Modal.svelte";
+import RelayListManager from "$lib/components/Modals/RelayListManager.svelte";
 import { colorForRelayStatus, relays } from "$lib/stores/accounts";
 import { activeAccount } from "$lib/stores/accounts";
 import type { EnrichedContact } from "$lib/types/nostr";
 import { invoke } from "@tauri-apps/api/core";
-import { CaretLeft, HardDrives, Plus, Trash } from "phosphor-svelte";
+import { CaretLeft, HardDrives, PlusCircle, Trash } from "phosphor-svelte";
+import type { Component } from "svelte";
 import { onMount } from "svelte";
 
 function goBack() {
     goto("/settings");
 }
 
-let showAddRelay = $state(false);
-let newRelayUrl = $state("");
 // State for relay lists
 let inboxRelays = $state<string[]>([]);
 let keyPackageRelays = $state<string[]>([]);
@@ -24,14 +25,16 @@ let hasKeyPackageRelays = $state(false);
 let hasNormalRelays = $state(false);
 let isLoading = $state(true);
 
-function addRelay() {
-    // TODO: Implement relay addition
-    showAddRelay = false;
-    newRelayUrl = "";
-}
+// Modal state
+let showModal = $state(false);
+let modalKind = $state<number>(0);
+let modalTitle = $state<string>("");
 
-function removeRelay(url: string) {
-    // TODO: Implement relay removal
+// Function to open the relay manager modal
+function openRelayManager(kind: number, title: string) {
+    modalKind = kind;
+    modalTitle = title;
+    showModal = true;
 }
 
 // Function to load relay lists
@@ -75,11 +78,11 @@ onMount(() => {
         </button>
     {/snippet}
     {#snippet center()}
-        <h1>Network Settings</h1>
+        <h1>Network</h1>
     {/snippet}
 </HeaderToolbar>
 
-<Header title="Network Settings" />
+<Header title="Network" />
 
 <main class="px-4 flex flex-col pb-32">
     <h2 class="section-title">Connected Relays</h2>
@@ -110,7 +113,12 @@ onMount(() => {
         </ul>
     </div>
 
-    <h2 class="section-title">Your Relay List</h2>
+    <div class="flex items-center justify-between">
+        <h2 class="section-title">Your Relay List</h2>
+        <button onclick={() => openRelayManager(10002, "Manage Nostr Relays")} class="p-2 -mr-2 text-gray-300 hover:text-white">
+            <PlusCircle size={30} />
+        </button>
+    </div>
     <div class="section">
         {#if isLoading}
             <div class="p-4 text-center text-gray-600 dark:text-gray-400">
@@ -138,7 +146,12 @@ onMount(() => {
         {/if}
     </div>
 
-    <h2 class="section-title">Your Inbox Relay List</h2>
+    <div class="flex items-center justify-between">
+        <h2 class="section-title">Your Inbox Relay List</h2>
+        <button onclick={() => openRelayManager(10050, "Manage Inbox Relays")} class="p-2 -mr-2 text-gray-300 hover:text-white">
+            <PlusCircle size={30} />
+        </button>
+    </div>
     <div class="section">
         {#if isLoading}
             <div class="p-4 text-center text-gray-600 dark:text-gray-400">
@@ -166,7 +179,12 @@ onMount(() => {
         {/if}
     </div>
 
-    <h2 class="section-title">Your Key Package Relay List</h2>
+    <div class="flex items-center justify-between">
+        <h2 class="section-title">Your Key Package Relay List</h2>
+        <button onclick={() => openRelayManager(10051, "Manage Key Package Relays")} class="p-2 -mr-2 text-gray-300 hover:text-white">
+            <PlusCircle size={30} />
+        </button>
+    </div>
     <div class="section">
         {#if isLoading}
             <div class="p-4 text-center text-gray-600 dark:text-gray-400">
@@ -210,6 +228,17 @@ onMount(() => {
             <p><strong>Inbox Relays (kind: 10050):</strong> These are relays where you expect to receive private direct messages.</p>
             <p><strong>Key Package Relays (kind: 10051):</strong> These are relays where you publish key packages that other users will use to add you to secure chat groups.</p>
         </div>
-
     </div>
 </main>
+
+{#if showModal}
+    <Modal
+        initialComponent={RelayListManager as unknown as Component}
+        modalProps={{
+            kind: modalKind,
+            title: modalTitle,
+            closeModal: () => (showModal = false)
+        }}
+        bind:showModal
+    />
+{/if}

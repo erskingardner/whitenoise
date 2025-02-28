@@ -80,11 +80,11 @@ onMount(() => {
         </button>
     {/snippet}
     {#snippet center()}
-        <h1>Keys</h1>
+        <h1>Your Nostr Keys</h1>
     {/snippet}
 </HeaderToolbar>
 
-<Header title="Keys" />
+<Header title="Your Nostr Keys" />
 
 <main class="px-4 flex flex-col pb-32">
     <h2 class="section-title">Public Key</h2>

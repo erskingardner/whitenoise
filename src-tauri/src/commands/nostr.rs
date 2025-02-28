@@ -1,5 +1,5 @@
 use crate::accounts::Account;
-use crate::relays::RelayType;
+use crate::relays::{RelayMeta, RelayType};
 use crate::secrets_store;
 use crate::types::{EnrichedContact, NostrEncryptionMethod};
 use crate::whitenoise::Whitenoise;
@@ -77,9 +77,12 @@ pub async fn fetch_enriched_contact(
         metadata: metadata.unwrap_or_default(),
         nip17: !inbox_relays.is_empty(),
         nip104: !key_packages.is_empty(),
-        nostr_relays,
-        inbox_relays,
-        key_package_relays,
+        nostr_relays: nostr_relays.iter().map(|(url, _)| url.clone()).collect(),
+        inbox_relays: inbox_relays.iter().map(|(url, _)| url.clone()).collect(),
+        key_package_relays: key_package_relays
+            .iter()
+            .map(|(url, _)| url.clone())
+            .collect(),
     };
 
     if update_account {
@@ -89,19 +92,15 @@ pub async fn fetch_enriched_contact(
 
         account.metadata = enriched_contact.metadata.clone();
         account
-            .update_relays(RelayType::Nostr, &enriched_contact.nostr_relays, wn.clone())
+            .update_relays(RelayType::Nostr, &nostr_relays, wn.clone())
             .await
             .map_err(|e| format!("Failed to update relays: {}", e))?;
         account
-            .update_relays(RelayType::Inbox, &enriched_contact.inbox_relays, wn.clone())
+            .update_relays(RelayType::Inbox, &inbox_relays, wn.clone())
             .await
             .map_err(|e| format!("Failed to update relays: {}", e))?;
         account
-            .update_relays(
-                RelayType::KeyPackage,
-                &enriched_contact.key_package_relays,
-                wn.clone(),
-            )
+            .update_relays(RelayType::KeyPackage, &key_package_relays, wn.clone())
             .await
             .map_err(|e| format!("Failed to update relays: {}", e))?;
         account
@@ -156,9 +155,12 @@ pub async fn query_enriched_contact(
         metadata: metadata.unwrap_or_default(),
         nip17: !inbox_relays.is_empty(),
         nip104: !key_packages.is_empty(),
-        nostr_relays,
-        inbox_relays,
-        key_package_relays,
+        nostr_relays: nostr_relays.iter().map(|(url, _)| url.clone()).collect(),
+        inbox_relays: inbox_relays.iter().map(|(url, _)| url.clone()).collect(),
+        key_package_relays: key_package_relays
+            .iter()
+            .map(|(url, _)| url.clone())
+            .collect(),
     };
 
     if update_account {
@@ -168,19 +170,15 @@ pub async fn query_enriched_contact(
 
         account.metadata = enriched_contact.metadata.clone();
         account
-            .update_relays(RelayType::Nostr, &enriched_contact.nostr_relays, wn.clone())
+            .update_relays(RelayType::Nostr, &nostr_relays, wn.clone())
             .await
             .map_err(|e| format!("Failed to update relays: {}", e))?;
         account
-            .update_relays(RelayType::Inbox, &enriched_contact.inbox_relays, wn.clone())
+            .update_relays(RelayType::Inbox, &inbox_relays, wn.clone())
             .await
             .map_err(|e| format!("Failed to update relays: {}", e))?;
         account
-            .update_relays(
-                RelayType::KeyPackage,
-                &enriched_contact.key_package_relays,
-                wn.clone(),
-            )
+            .update_relays(RelayType::KeyPackage, &key_package_relays, wn.clone())
             .await
             .map_err(|e| format!("Failed to update relays: {}", e))?;
 
@@ -499,32 +497,44 @@ pub async fn decrypt_content(
 
 #[tauri::command]
 pub async fn publish_relay_list(
-    relays: Vec<String>,
+    relay_entries: Vec<(String, RelayMeta)>,
     kind: u64,
     wn: tauri::State<'_, Whitenoise>,
 ) -> Result<(), String> {
-    let signer = wn.nostr.client.signer().await.map_err(|e| e.to_string())?;
+    let event_kind = Kind::from_u16(kind.try_into().expect("Invalid kind"));
 
-    let mut tags: Vec<Tag> = Vec::new();
-    for relay in relays.clone() {
-        tags.push(Tag::custom(TagKind::Relay, [relay]));
-    }
+    let relay_iter = relay_entries.iter().filter_map(|(url, meta)| {
+        RelayUrl::parse(url)
+            .ok()
+            .map(|relay_url| (relay_url, meta.to_relay_metadata()))
+    });
 
-    let event_kind = match kind {
-        10050 => Kind::InboxRelays,
-        10051 => Kind::MlsKeyPackageRelays,
+    let event_builder: EventBuilder;
+
+    match event_kind {
+        Kind::RelayList => {
+            event_builder = EventBuilder::relay_list(relay_iter);
+        }
+        Kind::InboxRelays => {
+            let mut tags: Vec<Tag> = Vec::new();
+            for (relay, meta) in relay_entries.clone() {
+                tags.push(Tag::custom(TagKind::Relay, [relay, meta.into()]));
+            }
+            event_builder = EventBuilder::new(Kind::InboxRelays, "").tags(tags);
+        }
+        Kind::MlsKeyPackageRelays => {
+            let mut tags: Vec<Tag> = Vec::new();
+            for (relay, meta) in relay_entries.clone() {
+                tags.push(Tag::custom(TagKind::Relay, [relay, meta.into()]));
+            }
+            event_builder = EventBuilder::new(Kind::MlsKeyPackageRelays, "").tags(tags);
+        }
         _ => return Err("Invalid relay list kind".to_string()),
-    };
-
-    let event = EventBuilder::new(event_kind, "")
-        .tags(tags)
-        .sign(&signer)
-        .await
-        .map_err(|e| e.to_string())?;
+    }
 
     wn.nostr
         .client
-        .send_event(event)
+        .send_event_builder(event_builder)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -532,18 +542,24 @@ pub async fn publish_relay_list(
         .await
         .map_err(|e| e.to_string())?;
 
-    match kind {
-        10050 => {
+    match event_kind {
+        Kind::RelayList => {
             active_account
-                .update_relays(RelayType::Inbox, &relays, wn.clone())
+                .update_relays(RelayType::Nostr, &relay_entries, wn.clone())
                 .await
-                .map_err(|e| format!("Failed to update relays: {}", e))?;
+                .map_err(|e| format!("Failed to update nostr relays: {}", e))?;
         }
-        10051 => {
+        Kind::InboxRelays => {
             active_account
-                .update_relays(RelayType::KeyPackage, &relays, wn.clone())
+                .update_relays(RelayType::Inbox, &relay_entries, wn.clone())
                 .await
-                .map_err(|e| format!("Failed to update relays: {}", e))?;
+                .map_err(|e| format!("Failed to update inbox relays: {}", e))?;
+        }
+        Kind::MlsKeyPackageRelays => {
+            active_account
+                .update_relays(RelayType::KeyPackage, &relay_entries, wn.clone())
+                .await
+                .map_err(|e| format!("Failed to update key package relays: {}", e))?;
         }
         _ => return Err("Invalid relay list kind".to_string()),
     }

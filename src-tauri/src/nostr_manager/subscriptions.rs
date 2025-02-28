@@ -67,6 +67,21 @@ impl NostrManager {
             .await?)
     }
 
+    async fn subscribe_key_package_relays(
+        &self,
+        pubkey: PublicKey,
+    ) -> Result<Output<SubscriptionId>> {
+        let key_package_relays_filter = Filter::new()
+            .kind(Kind::MlsKeyPackageRelays)
+            .author(pubkey)
+            .since(Timestamp::now());
+
+        Ok(self
+            .client
+            .subscribe(vec![key_package_relays_filter], None)
+            .await?)
+    }
+
     async fn subscribe_giftwraps(&self, pubkey: PublicKey) -> Result<Output<SubscriptionId>> {
         // This is a hack to get the client to do the initial authenticate on relays that require it.
         // https://github.com/rust-nostr/nostr/issues/509
@@ -106,6 +121,7 @@ impl NostrManager {
         self.subscribe_metadata(pubkey).await?;
         self.subscribe_relay_list(pubkey).await?;
         self.subscribe_inbox_relay_list(pubkey).await?;
+        self.subscribe_key_package_relays(pubkey).await?;
         self.subscribe_giftwraps(pubkey).await?;
 
         if !nostr_group_ids.is_empty() {
@@ -171,6 +187,14 @@ impl NostrManager {
                     .lock()
                     .await
                     .queue_event(ProcessableEvent::MlsMessage(event))
+                    .await
+                    .map_err(|e| NostrManagerError::FailedToQueueEvent(e.to_string()))?;
+            }
+            Kind::MlsKeyPackageRelays | Kind::RelayList | Kind::InboxRelays => {
+                self.event_processor
+                    .lock()
+                    .await
+                    .queue_event(ProcessableEvent::RelayList(event))
                     .await
                     .map_err(|e| NostrManagerError::FailedToQueueEvent(e.to_string()))?;
             }

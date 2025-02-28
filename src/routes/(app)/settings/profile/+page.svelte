@@ -239,11 +239,11 @@ async function handleSubmit(event: Event) {
         </button>
     {/snippet}
     {#snippet center()}
-        <h1>Profile</h1>
+        <h1>Your Profile</h1>
     {/snippet}
 </HeaderToolbar>
 
-<Header title="Profile" />
+<Header title="Your Profile" />
 
 <main class="px-4 flex flex-col pb-32 gap-6">
     <!-- Banner Image -->

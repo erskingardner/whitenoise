@@ -2,7 +2,7 @@ use crate::database::DatabaseError;
 use crate::groups::{Group, GroupRow};
 use crate::invites::{Invite, InviteRow};
 use crate::nostr_manager;
-use crate::relays::RelayType;
+use crate::relays::{RelayMeta, RelayType};
 use crate::secrets_store;
 use crate::Whitenoise;
 use nostr_openmls::NostrMls;
@@ -518,7 +518,7 @@ impl Account {
     pub async fn update_relays(
         &self,
         relay_type: RelayType,
-        relays: &Vec<String>,
+        relays: &Vec<(String, RelayMeta)>,
         wn: tauri::State<'_, Whitenoise>,
     ) -> Result<Account> {
         if relays.is_empty() {
@@ -529,13 +529,16 @@ impl Account {
 
         // Then insert the new relays
         for relay in relays {
+            let url = relay.0.clone();
+            let meta = relay.1;
             sqlx::query(
-                "INSERT OR REPLACE INTO account_relays (url, relay_type, account_pubkey)
-                 VALUES (?, ?, ?)",
+                "INSERT OR REPLACE INTO account_relays (url, relay_type, account_pubkey, relay_meta)
+                 VALUES (?, ?, ?, ?)",
             )
-            .bind(relay)
+            .bind(url)
             .bind(String::from(relay_type))
             .bind(self.pubkey.to_hex())
+            .bind(&serde_json::to_string(&meta)?)
             .execute(&mut *txn)
             .await?;
         }
@@ -704,9 +707,17 @@ impl Account {
     }
 
     /// Stores a Nostr Wallet Connect URI for this account
-    pub fn store_nostr_wallet_connect_uri(&self, nostr_wallet_connect_uri: &str, wn: tauri::State<'_, Whitenoise>) -> Result<()> {
-        secrets_store::store_nostr_wallet_connect_uri(&self.pubkey.to_hex(), nostr_wallet_connect_uri, &wn.data_dir)
-            .map_err(AccountError::SecretsStoreError)
+    pub fn store_nostr_wallet_connect_uri(
+        &self,
+        nostr_wallet_connect_uri: &str,
+        wn: tauri::State<'_, Whitenoise>,
+    ) -> Result<()> {
+        secrets_store::store_nostr_wallet_connect_uri(
+            &self.pubkey.to_hex(),
+            nostr_wallet_connect_uri,
+            &wn.data_dir,
+        )
+        .map_err(AccountError::SecretsStoreError)
     }
 
     /// Retrieves the Nostr Wallet Connect URI for this account
@@ -714,7 +725,10 @@ impl Account {
     /// # Returns
     /// * `Result<Option<String>>` - Some(uri) if a URI is stored, None if no URI is stored,
     ///   or an error if the operation fails
-    pub fn get_nostr_wallet_connect_uri(&self, wn: tauri::State<'_, Whitenoise>) -> Result<Option<String>> {
+    pub fn get_nostr_wallet_connect_uri(
+        &self,
+        wn: tauri::State<'_, Whitenoise>,
+    ) -> Result<Option<String>> {
         secrets_store::get_nostr_wallet_connect_uri(&self.pubkey.to_hex(), &wn.data_dir)
             .map_err(AccountError::SecretsStoreError)
     }

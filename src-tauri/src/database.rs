@@ -1,5 +1,5 @@
 use sqlx::sqlite::SqlitePoolOptions;
-use sqlx::{migrate::MigrateDatabase, Sqlite, SqlitePool};
+use sqlx::{migrate::MigrateDatabase, Row, Sqlite, SqlitePool};
 use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -11,8 +11,11 @@ const MIGRATION_FILES: &[(&str, &[u8])] = &[
         "0001_initial.sql",
         include_bytes!("../db_migrations/0001_initial.sql"),
     ),
+    (
+        "0002_add_relay_meta_to_relays.sql",
+        include_bytes!("../db_migrations/0002_add_relay_meta_to_relays.sql"),
+    ),
     // Add new migrations here in order, for example:
-    // ("0002_something.sql", include_bytes!("../db_migrations/0002_something.sql")),
     // ("0003_another.sql", include_bytes!("../db_migrations/0003_another.sql")),
 ];
 
@@ -124,10 +127,38 @@ impl Database {
             )));
         }
 
+        // List all files in the migrations directory
+        tracing::info!("Listing migration files in directory:");
+        if let Ok(entries) = fs::read_dir(&migrations_path) {
+            for entry in entries.flatten() {
+                tracing::info!("  Found file: {:?}", entry.path());
+            }
+        }
+
         match sqlx::migrate::Migrator::new(migrations_path).await {
             Ok(migrator) => {
-                migrator.run(&pool).await?;
-                tracing::info!("Migrations applied successfully");
+                // Log the migrations that the migrator found
+                tracing::info!("Migrator created successfully. Migrations found:");
+                for migration in migrator.iter() {
+                    tracing::info!(
+                        "  Migration: {} (version: {})",
+                        migration.description,
+                        migration.version
+                    );
+                }
+
+                // Run the migrations
+                tracing::info!("Running migrations...");
+                match migrator.run(&pool).await {
+                    Ok(_) => {
+                        tracing::info!("Migrations applied successfully");
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to run migrations: {:?}", e);
+                        return Err(DatabaseError::Migrate(e));
+                    }
+                }
+
                 // Clean up temp directory on Android after successful migration
                 if cfg!(target_os = "android") {
                     if let Ok(temp_dir) = app_handle.path().app_data_dir() {
@@ -141,11 +172,13 @@ impl Database {
             }
         }
 
-        Ok(Self {
+        let db = Self {
             pool,
             path: db_path,
             last_connected: std::time::SystemTime::now(),
-        })
+        };
+
+        Ok(db)
     }
 
     pub async fn delete_all_data(&self) -> Result<(), DatabaseError> {
