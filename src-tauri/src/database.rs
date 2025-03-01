@@ -1,5 +1,5 @@
 use sqlx::sqlite::SqlitePoolOptions;
-use sqlx::{migrate::MigrateDatabase, Row, Sqlite, SqlitePool};
+use sqlx::{migrate::MigrateDatabase, Sqlite, SqlitePool};
 use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
