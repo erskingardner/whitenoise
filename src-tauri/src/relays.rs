@@ -96,7 +96,7 @@ impl From<Option<String>> for RelayMeta {
 }
 
 impl RelayMeta {
-    pub fn to_relay_metadata(&self) -> Option<RelayMetadata> {
+    pub fn to_relay_metadata(self) -> Option<RelayMetadata> {
         match self {
             RelayMeta::Read => Some(RelayMetadata::Read),
             RelayMeta::Write => Some(RelayMetadata::Write),
