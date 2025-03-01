@@ -509,28 +509,26 @@ pub async fn publish_relay_list(
             .map(|relay_url| (relay_url, meta.to_relay_metadata()))
     });
 
-    let event_builder: EventBuilder;
-
-    match event_kind {
+    let event_builder = match event_kind {
         Kind::RelayList => {
-            event_builder = EventBuilder::relay_list(relay_iter);
+            EventBuilder::relay_list(relay_iter)
         }
         Kind::InboxRelays => {
             let mut tags: Vec<Tag> = Vec::new();
             for (relay, meta) in relay_entries.clone() {
                 tags.push(Tag::custom(TagKind::Relay, [relay, meta.into()]));
             }
-            event_builder = EventBuilder::new(Kind::InboxRelays, "").tags(tags);
+            EventBuilder::new(Kind::InboxRelays, "").tags(tags)
         }
         Kind::MlsKeyPackageRelays => {
             let mut tags: Vec<Tag> = Vec::new();
             for (relay, meta) in relay_entries.clone() {
                 tags.push(Tag::custom(TagKind::Relay, [relay, meta.into()]));
             }
-            event_builder = EventBuilder::new(Kind::MlsKeyPackageRelays, "").tags(tags);
+            EventBuilder::new(Kind::MlsKeyPackageRelays, "").tags(tags)
         }
         _ => return Err("Invalid relay list kind".to_string()),
-    }
+    };
 
     wn.nostr
         .client
