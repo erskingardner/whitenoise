@@ -6,7 +6,7 @@ import Modal from "$lib/components/Modals/Modal.svelte";
 import RelayListManager from "$lib/components/Modals/RelayListManager.svelte";
 import { colorForRelayStatus, relays } from "$lib/stores/accounts";
 import { activeAccount } from "$lib/stores/accounts";
-import type { EnrichedContact } from "$lib/types/nostr";
+import type { EnrichedContact, RelayWithMeta } from "$lib/types/nostr";
 import { invoke } from "@tauri-apps/api/core";
 import { CaretLeft, HardDrives, PlusCircle, Trash } from "phosphor-svelte";
 import type { Component } from "svelte";
@@ -17,23 +17,25 @@ function goBack() {
 }
 
 // State for relay lists
-let inboxRelays = $state<string[]>([]);
-let keyPackageRelays = $state<string[]>([]);
-let normalRelays = $state<string[]>([]);
-let hasInboxRelays = $state(false);
-let hasKeyPackageRelays = $state(false);
-let hasNormalRelays = $state(false);
+let inboxRelays = $state<RelayWithMeta[]>([]);
+let keyPackageRelays = $state<RelayWithMeta[]>([]);
+let normalRelays = $state<RelayWithMeta[]>([]);
+let hasInboxRelays = $derived(inboxRelays.length > 0);
+let hasKeyPackageRelays = $derived(keyPackageRelays.length > 0);
+let hasNormalRelays = $derived(normalRelays.length > 0);
 let isLoading = $state(true);
 
 // Modal state
 let showModal = $state(false);
 let modalKind = $state<number>(0);
 let modalTitle = $state<string>("");
+let modalRelays = $state<RelayWithMeta[]>([]);
 
 // Function to open the relay manager modal
-function openRelayManager(kind: number, title: string) {
+function openRelayManager(kind: number, title: string, relaysWithMeta: RelayWithMeta[]) {
     modalKind = kind;
     modalTitle = title;
+    modalRelays = relaysWithMeta;
     showModal = true;
 }
 
@@ -43,20 +45,14 @@ async function loadRelayLists() {
     try {
         const account = $activeAccount;
         if (account) {
-            let contact: EnrichedContact = await invoke("fetch_enriched_contact", {
+            const enrichedContact = await invoke<EnrichedContact>("fetch_enriched_contact", {
                 pubkey: account.pubkey,
                 updateAccount: false,
             });
 
-            console.log("contact", contact);
-
-            inboxRelays = contact.inbox_relays;
-            keyPackageRelays = contact.key_package_relays;
-            normalRelays = contact.nostr_relays;
-
-            hasInboxRelays = inboxRelays.length > 0;
-            hasKeyPackageRelays = keyPackageRelays.length > 0;
-            hasNormalRelays = normalRelays.length > 0;
+            inboxRelays = enrichedContact.inbox_relays;
+            keyPackageRelays = enrichedContact.key_package_relays;
+            normalRelays = enrichedContact.nostr_relays;
         }
     } catch (error) {
         console.error("Failed to load relay lists:", error);
@@ -89,7 +85,7 @@ onMount(() => {
     <div class="section">
         <ul class="section-list divide-y divide-gray-700">
             {#each Object.entries($relays) as [url, status]}
-                <li class="section-list-item pt-2">
+                <li class="section-list-item pt-2 first:pt-0">
                     <div class="flex flex-col w-full gap-1">
                         <div class="flex items-center justify-between w-full">
                             <span class="text-sm font-medium flex items-center gap-2">
@@ -115,7 +111,7 @@ onMount(() => {
 
     <div class="flex items-center justify-between">
         <h2 class="section-title">Your Relay List</h2>
-        <button onclick={() => openRelayManager(10002, "Manage Nostr Relays")} class="p-2 -mr-2 text-gray-300 hover:text-white">
+        <button onclick={() => openRelayManager(10002, "Manage Nostr Relays", normalRelays)} class="p-2 -mr-2 text-gray-300 hover:text-white">
             <PlusCircle size={30} />
         </button>
     </div>
@@ -127,7 +123,7 @@ onMount(() => {
         {:else if hasNormalRelays}
             <ul class="section-list divide-y divide-gray-700">
                 {#each normalRelays as url}
-                    <li class="section-list-item pt-2">
+                    <li class="section-list-item">
                         <div class="flex flex-col w-full gap-1">
                             <div class="flex items-center justify-between w-full">
                                 <span class="text-sm font-medium flex items-center gap-2">
@@ -140,7 +136,7 @@ onMount(() => {
                 {/each}
             </ul>
         {:else}
-            <div class="p-4 text-sm text-gray-600 dark:text-gray-400">
+            <div class="text-sm text-gray-600 dark:text-gray-400">
                 <p>You don't have any normal relays configured.</p>
             </div>
         {/if}
@@ -148,7 +144,7 @@ onMount(() => {
 
     <div class="flex items-center justify-between">
         <h2 class="section-title">Your Inbox Relay List</h2>
-        <button onclick={() => openRelayManager(10050, "Manage Inbox Relays")} class="p-2 -mr-2 text-gray-300 hover:text-white">
+        <button onclick={() => openRelayManager(10050, "Manage Inbox Relays", inboxRelays)} class="p-2 -mr-2 text-gray-300 hover:text-white">
             <PlusCircle size={30} />
         </button>
     </div>
@@ -160,7 +156,7 @@ onMount(() => {
         {:else if hasInboxRelays}
             <ul class="section-list divide-y divide-gray-700">
                 {#each inboxRelays as url}
-                    <li class="section-list-item pt-2">
+                    <li class="section-list-item">
                         <div class="flex flex-col w-full gap-1">
                             <div class="flex items-center justify-between w-full">
                                 <span class="text-sm font-medium flex items-center gap-2">
@@ -173,7 +169,7 @@ onMount(() => {
                 {/each}
             </ul>
         {:else}
-            <div class="p-4 text-sm text-gray-600 dark:text-gray-400">
+            <div class="text-sm text-gray-600 dark:text-gray-400">
                 <p>You don't have any inbox relays configured.</p>
             </div>
         {/if}
@@ -181,7 +177,7 @@ onMount(() => {
 
     <div class="flex items-center justify-between">
         <h2 class="section-title">Your Key Package Relay List</h2>
-        <button onclick={() => openRelayManager(10051, "Manage Key Package Relays")} class="p-2 -mr-2 text-gray-300 hover:text-white">
+        <button onclick={() => openRelayManager(10051, "Manage Key Package Relays", keyPackageRelays)} class="p-2 -mr-2 text-gray-300 hover:text-white">
             <PlusCircle size={30} />
         </button>
     </div>
@@ -193,7 +189,7 @@ onMount(() => {
         {:else if hasKeyPackageRelays}
             <ul class="section-list divide-y divide-gray-700">
                 {#each keyPackageRelays as url}
-                    <li class="section-list-item pt-2">
+                    <li class="section-list-item">
                         <div class="flex flex-col w-full gap-1">
                             <div class="flex items-center justify-between w-full">
                                 <span class="text-sm font-medium flex items-center gap-2">
@@ -206,7 +202,7 @@ onMount(() => {
                 {/each}
             </ul>
         {:else}
-            <div class="p-4 text-sm text-gray-600 dark:text-gray-400">
+            <div class="text-sm text-gray-600 dark:text-gray-400">
                 <p>You don't have any key package relays configured.</p>
             </div>
         {/if}
@@ -237,6 +233,7 @@ onMount(() => {
         modalProps={{
             kind: modalKind,
             title: modalTitle,
+            relays: modalRelays,
             closeModal: () => (showModal = false)
         }}
         bind:showModal

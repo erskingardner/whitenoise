@@ -19,9 +19,9 @@ export type EnrichedContact = {
     metadata: NMetadata;
     nip17: boolean;
     nip104: boolean;
-    nostr_relays: string[];
-    inbox_relays: string[];
-    key_package_relays: string[];
+    nostr_relays: RelayWithMeta[];
+    inbox_relays: RelayWithMeta[];
+    key_package_relays: RelayWithMeta[];
 };
 
 export type EnrichedContactsMap = {
@@ -46,6 +46,17 @@ export type NMetadata = {
 
 export type NChats = {
     [key: string]: NChat;
+};
+
+export type RelayMeta = "Read" | "Write" | "ReadWrite";
+
+export type RelayWithMeta = {
+    url: string;
+    meta: RelayMeta;
+};
+
+export type NRelayList = {
+    relays: RelayWithMeta[];
 };
 
 export type NLegacies = {
