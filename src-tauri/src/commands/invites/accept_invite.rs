@@ -1,53 +1,9 @@
 use crate::accounts::Account;
 use crate::groups::{Group, GroupType};
-use crate::invites::{Invite, InviteState, ProcessedInvite};
+use crate::invites::{Invite, InviteState};
 use crate::whitenoise::Whitenoise;
 use nostr_sdk::prelude::*;
-use serde::{Deserialize, Serialize};
 use tauri::Emitter;
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct InvitesWithFailures {
-    invites: Vec<Invite>,
-    failures: Vec<(EventId, String)>,
-}
-
-/// Fetches invites from the database for the active user
-#[tauri::command]
-pub async fn get_invites(wn: tauri::State<'_, Whitenoise>) -> Result<InvitesWithFailures, String> {
-    let pending_invites = Invite::pending(wn.clone())
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let failed_invites: Vec<(EventId, String)> = ProcessedInvite::failed_with_reason(wn.clone())
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(InvitesWithFailures {
-        invites: pending_invites,
-        failures: failed_invites,
-    })
-}
-
-/// Gets a specific invite by its ID.
-///
-/// # Arguments
-/// * `invite_id` - The ID of the invite to retrieve
-/// * `wn` - The Whitenoise state
-///
-/// # Returns
-/// * `Ok(Invite)` if the invite was found
-/// * `Err(String)` if there was an error retrieving the invite or it wasn't found
-#[tauri::command]
-pub async fn get_invite(
-    active_account: String,
-    invite_id: String,
-    wn: tauri::State<'_, Whitenoise>,
-) -> Result<Invite, String> {
-    Invite::find_by_id(&active_account, &invite_id, wn.clone())
-        .await
-        .map_err(|e| e.to_string())
-}
 
 /// Accepts a group invite and joins the corresponding group.
 ///
@@ -140,37 +96,6 @@ pub async fn accept_invite(
         .map_err(|e| e.to_string())?;
 
     tracing::debug!(target: "whitenoise::invites::accept_invite", "Accepted invite - Added group: {:?}", group);
-
-    Ok(())
-}
-
-/// Declines a group invite.
-///
-/// # Arguments
-/// * `invite` - The invite to decline
-/// * `wn` - The Whitenoise state
-/// * `app_handle` - The Tauri app handle
-///
-/// # Returns
-/// * `Ok(())` if the invite was successfully declined
-/// * `Err(String)` if there was an error declining the invite
-///
-/// # Events Emitted
-/// * `invite_declined` - Emitted with the updated invite after it is declined
-#[tauri::command]
-pub async fn decline_invite(
-    mut invite: Invite,
-    wn: tauri::State<'_, Whitenoise>,
-    app_handle: tauri::AppHandle,
-) -> Result<(), String> {
-    tracing::debug!(target: "whitenoise::invites::decline_invite", "Declining invite {:?}", invite.event.id.unwrap());
-
-    invite.state = InviteState::Declined;
-    invite.save(wn.clone()).await.map_err(|e| e.to_string())?;
-
-    app_handle
-        .emit("invite_declined", invite)
-        .map_err(|e| e.to_string())?;
 
     Ok(())
 }
