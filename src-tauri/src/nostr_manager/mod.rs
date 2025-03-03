@@ -1,5 +1,6 @@
 use crate::accounts::Account;
 use crate::nostr_manager::event_processor::EventProcessor;
+use crate::relays::RelayMeta;
 use crate::types::NostrEncryptionMethod;
 use crate::Whitenoise;
 use nostr_sdk::prelude::*;
@@ -194,12 +195,13 @@ impl NostrManager {
             // TODO: We should query first and only fetch if we don't have them
             let relays = self.fetch_user_relays(keys.public_key()).await?;
             for relay in relays.iter() {
-                self.client.add_relay(relay).await?;
-                self.client.connect_relay(relay).await?;
+                let url = relay.0.clone();
+                self.client.add_relay(&url).await?;
+                self.client.connect_relay(&url).await?;
                 tracing::debug!(
                     target: "whitenoise::nostr_manager::set_nostr_identity",
                     "Connected to user relay: {}",
-                    relay
+                    url
                 );
             }
 
@@ -207,12 +209,13 @@ impl NostrManager {
             // TODO: We should query first and only fetch if we don't have them
             let inbox_relays = self.fetch_user_inbox_relays(keys.public_key()).await?;
             for relay in inbox_relays.iter() {
-                self.client.add_read_relay(relay).await?;
-                self.client.connect_relay(relay).await?;
+                let url = relay.0.clone();
+                self.client.add_read_relay(&url).await?;
+                self.client.connect_relay(&url).await?;
                 tracing::debug!(
                     target: "whitenoise::nostr_manager::set_nostr_identity",
                     "Connected to user inbox relay: {}",
-                    relay
+                    url
                 );
             }
 
@@ -222,12 +225,13 @@ impl NostrManager {
                 .fetch_user_key_package_relays(keys.public_key())
                 .await?;
             for relay in key_package_relays.iter() {
-                self.client.add_relay(relay).await?;
-                self.client.connect_relay(relay).await?;
+                let url = relay.0.clone();
+                self.client.add_relay(&url).await?;
+                self.client.connect_relay(&url).await?;
                 tracing::debug!(
                     target: "whitenoise::nostr_manager::set_nostr_identity",
                     "Connected to user key package relay: {}",
-                    relay
+                    url
                 );
             }
         }
@@ -398,12 +402,21 @@ impl NostrManager {
         }
     }
 
-    fn relay_urls_from_events(events: Events) -> Vec<String> {
+    fn relay_urls_from_events(events: Events) -> Vec<(String, RelayMeta)> {
         events
             .into_iter()
             .flat_map(|e| e.tags)
             .filter(|tag| tag.kind() == TagKind::Relay)
-            .map_while(|tag| tag.content().map(|c| c.to_string()))
+            .map(|tag| {
+                let tag_arr = tag.to_vec();
+                let url = tag_arr[1].clone();
+                let relay_meta = if tag_arr.len() > 2 {
+                    tag_arr[2].clone().into()
+                } else {
+                    RelayMeta::ReadWrite
+                };
+                (url, relay_meta)
+            })
             .collect()
     }
 

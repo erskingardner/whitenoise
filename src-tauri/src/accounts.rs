@@ -2,7 +2,7 @@ use crate::database::DatabaseError;
 use crate::groups::{Group, GroupRow};
 use crate::invites::{Invite, InviteRow};
 use crate::nostr_manager;
-use crate::relays::RelayType;
+use crate::relays::{RelayMeta, RelayType};
 use crate::secrets_store;
 use crate::Whitenoise;
 use nostr_openmls::NostrMls;
@@ -94,11 +94,16 @@ pub struct Account {
 
 impl Account {
     /// Generates a new keypair and saves the mostly blank account to the database
-    pub async fn new(wn: tauri::State<'_, Whitenoise>) -> Result<Account> {
+    pub async fn new(name: String, wn: tauri::State<'_, Whitenoise>) -> Result<Account> {
         let keys = Keys::generate();
+
+        let mut metadata = Metadata::new();
+        metadata.name = Some(name.clone());
+        metadata.display_name = Some(name.clone());
+
         let account = Account {
             pubkey: keys.public_key(),
-            metadata: Metadata::default(),
+            metadata: metadata.clone(),
             settings: AccountSettings::default(),
             onboarding: AccountOnboarding::default(),
             last_used: Timestamp::now(),
@@ -109,6 +114,19 @@ impl Account {
 
         // If the record saves, add the keys to the secret store
         secrets_store::store_private_key(&keys, &wn.data_dir)?;
+
+        // Publish the kind:0
+        let event_builder = EventBuilder::metadata(&metadata);
+        let event_result = wn.nostr.client.send_event_builder(event_builder).await;
+
+        match event_result {
+            Ok(event) => {
+                tracing::debug!(target: "whitenoise::accounts", "Published metadata event for new user: {}", event.id().to_hex());
+            }
+            Err(e) => {
+                tracing::error!(target: "whitenoise::accounts", "Error publishing metadata event for new user: {}", e);
+            }
+        }
 
         Ok(account)
     }
@@ -191,24 +209,30 @@ impl Account {
         tracing::debug!(target: "whitenoise::accounts", "Saving new account to database");
         account.save(wn.clone()).await?;
 
-        tracing::debug!(target: "whitenoise::accounts", "Inserting nostr relays, {:?}", nostr_relays_unwrapped);
-        account
-            .update_relays(RelayType::Nostr, &nostr_relays_unwrapped, wn.clone())
-            .await?;
+        if !nostr_relays_unwrapped.is_empty() {
+            tracing::debug!(target: "whitenoise::accounts", "Inserting nostr relays, {:?}", nostr_relays_unwrapped);
+            account
+                .update_relays(RelayType::Nostr, &nostr_relays_unwrapped, wn.clone())
+                .await?;
+        }
 
-        tracing::debug!(target: "whitenoise::accounts", "Inserting inbox relays, {:?}", inbox_relays_unwrapped);
-        account
-            .update_relays(RelayType::Inbox, &inbox_relays_unwrapped, wn.clone())
-            .await?;
+        if !inbox_relays_unwrapped.is_empty() {
+            tracing::debug!(target: "whitenoise::accounts", "Inserting inbox relays, {:?}", inbox_relays_unwrapped);
+            account
+                .update_relays(RelayType::Inbox, &inbox_relays_unwrapped, wn.clone())
+                .await?;
+        }
 
-        tracing::debug!(target: "whitenoise::accounts", "Inserting key package relays, {:?}", key_package_relays_unwrapped);
-        account
-            .update_relays(
-                RelayType::KeyPackage,
-                &key_package_relays_unwrapped,
-                wn.clone(),
-            )
-            .await?;
+        if !key_package_relays_unwrapped.is_empty() {
+            tracing::debug!(target: "whitenoise::accounts", "Inserting key package relays, {:?}", key_package_relays_unwrapped);
+            account
+                .update_relays(
+                    RelayType::KeyPackage,
+                    &key_package_relays_unwrapped,
+                    wn.clone(),
+                )
+                .await?;
+        }
 
         tracing::debug!(target: "whitenoise::accounts", "Storing private key");
         secrets_store::store_private_key(keys, &wn.data_dir)?;
@@ -500,7 +524,7 @@ impl Account {
     pub async fn update_relays(
         &self,
         relay_type: RelayType,
-        relays: &Vec<String>,
+        relays: &Vec<(String, RelayMeta)>,
         wn: tauri::State<'_, Whitenoise>,
     ) -> Result<Account> {
         if relays.is_empty() {
@@ -511,13 +535,16 @@ impl Account {
 
         // Then insert the new relays
         for relay in relays {
+            let url = relay.0.clone();
+            let meta = relay.1;
             sqlx::query(
-                "INSERT OR REPLACE INTO account_relays (url, relay_type, account_pubkey)
-                 VALUES (?, ?, ?)",
+                "INSERT OR REPLACE INTO account_relays (url, relay_type, account_pubkey, relay_meta)
+                 VALUES (?, ?, ?, ?)",
             )
-            .bind(relay)
+            .bind(url)
             .bind(String::from(relay_type))
             .bind(self.pubkey.to_hex())
+            .bind(String::from(meta))
             .execute(&mut *txn)
             .await?;
         }
@@ -686,9 +713,17 @@ impl Account {
     }
 
     /// Stores a Nostr Wallet Connect URI for this account
-    pub fn store_nostr_wallet_connect_uri(&self, nostr_wallet_connect_uri: &str, wn: tauri::State<'_, Whitenoise>) -> Result<()> {
-        secrets_store::store_nostr_wallet_connect_uri(&self.pubkey.to_hex(), nostr_wallet_connect_uri, &wn.data_dir)
-            .map_err(AccountError::SecretsStoreError)
+    pub fn store_nostr_wallet_connect_uri(
+        &self,
+        nostr_wallet_connect_uri: &str,
+        wn: tauri::State<'_, Whitenoise>,
+    ) -> Result<()> {
+        secrets_store::store_nostr_wallet_connect_uri(
+            &self.pubkey.to_hex(),
+            nostr_wallet_connect_uri,
+            &wn.data_dir,
+        )
+        .map_err(AccountError::SecretsStoreError)
     }
 
     /// Retrieves the Nostr Wallet Connect URI for this account
@@ -696,7 +731,10 @@ impl Account {
     /// # Returns
     /// * `Result<Option<String>>` - Some(uri) if a URI is stored, None if no URI is stored,
     ///   or an error if the operation fails
-    pub fn get_nostr_wallet_connect_uri(&self, wn: tauri::State<'_, Whitenoise>) -> Result<Option<String>> {
+    pub fn get_nostr_wallet_connect_uri(
+        &self,
+        wn: tauri::State<'_, Whitenoise>,
+    ) -> Result<Option<String>> {
         secrets_store::get_nostr_wallet_connect_uri(&self.pubkey.to_hex(), &wn.data_dir)
             .map_err(AccountError::SecretsStoreError)
     }

@@ -49,15 +49,15 @@ html {
 }
 
 .button-primary {
-    @apply px-3 py-1.5 text-center flex flex-row shrink items-center justify-center gap-2 bg-blue-700 hover:bg-blue-600 rounded-md ring-1 ring-blue-500;
+    @apply px-3 py-1.5 text-center flex flex-row shrink items-center justify-center gap-2 bg-blue-700 hover:bg-blue-600 rounded-md ring-1 ring-blue-500 transition-colors;
 }
 
 .button-warning {
-    @apply px-3 py-1.5 text-center flex flex-row shrink items-center justify-center gap-2 bg-red-700 hover:bg-red-600 rounded-md ring-1 ring-red-500;
+    @apply px-3 py-1.5 text-center flex flex-row shrink items-center justify-center gap-2 bg-red-700 hover:bg-red-600 rounded-md ring-1 ring-red-500 transition-colors;
 }
 
 .button-outline {
-    @apply px-3 py-1.5 text-center flex flex-row items-center justify-center gap-2 rounded-md bg-gray-700 hover:bg-gray-600 ring-1 ring-gray-500;
+    @apply px-3 py-1.5 text-center flex flex-row items-center justify-center gap-2 rounded-md bg-gray-700 hover:bg-gray-600 ring-1 ring-gray-500 transition-colors;
 }
 
 .section {
@@ -69,7 +69,7 @@ html {
 }
 
 .section-list-item {
-    @apply my-2;
+    @apply my-1.5;
 }
 
 :first-child.section-list-item {
@@ -85,7 +85,7 @@ html {
 }
 
 .section-list-item > .row-button {
-    @apply flex flex-row gap-2 items-center font-medium text-lg p-2 w-full hover:bg-gray-600/30;
+    @apply flex flex-row gap-2 items-center font-medium text-base px-2 py-1.5 w-full text-gray-300 hover:text-white;
 }
 
 @supports not (-webkit-touch-callout: none) {

@@ -292,11 +292,12 @@ impl Group {
 
         // Add the relays for the group
         for relay in group_data.relays() {
-            sqlx::query("INSERT OR REPLACE INTO group_relays (url, relay_type, account_pubkey, group_id) VALUES (?, ?, ?, ?)")
+            sqlx::query("INSERT OR REPLACE INTO group_relays (url, relay_type, account_pubkey, group_id, relay_meta) VALUES (?, ?, ?, ?, ?)")
                 .bind(relay)
                 .bind("group")
                 .bind(account.pubkey.to_hex())
                 .bind(group.mls_group_id.clone())
+                .bind("read-write")
                 .execute(&mut *txn)
                 .await?;
         }

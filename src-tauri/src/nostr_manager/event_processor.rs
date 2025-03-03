@@ -4,7 +4,7 @@ use crate::invites::{Invite, InviteError, InviteState, ProcessedInvite, Processe
 use crate::key_packages;
 use crate::messages::{MessageError, ProcessedMessage, ProcessedMessageState};
 use crate::nostr_manager::NostrManagerError;
-use crate::relays::RelayType;
+use crate::relays::{RelayMeta, RelayType};
 use crate::secrets_store;
 use crate::Whitenoise;
 use nostr_openmls::groups::GroupError as NostrOpenmlsGroupError;
@@ -17,6 +17,8 @@ use tokio::sync::mpsc::{self, Receiver, Sender};
 
 #[derive(Error, Debug)]
 pub enum EventProcessorError {
+    #[error("Unsupported event kind: {0}")]
+    UnsupportedEventKind(Kind),
     #[error("Failed to send event to channel")]
     UnqueueableEvent(#[from] SendError<ProcessableEvent>),
     #[error("Failed to process event")]
@@ -51,6 +53,7 @@ pub type Result<T> = std::result::Result<T, EventProcessorError>;
 pub enum ProcessableEvent {
     GiftWrap(Event),
     MlsMessage(Event),
+    RelayList(Event),
 }
 
 #[derive(Debug)]
@@ -115,6 +118,15 @@ impl EventProcessor {
                                 tracing::error!(
                                     target: "whitenoise::nostr_manager::event_processor",
                                     "Error processing MLS message: {}",
+                                    e
+                                );
+                            }
+                        }
+                        ProcessableEvent::RelayList(event) => {
+                            if let Err(e) = Self::process_relay_list(&app_handle, event).await {
+                                tracing::error!(
+                                    target: "whitenoise::nostr_manager::event_processor",
+                                    "Error processing relay list: {}",
                                     e
                                 );
                             }
@@ -320,6 +332,49 @@ impl EventProcessor {
             "Received private direct message: {:?}",
             inner_event
         );
+        Ok(())
+    }
+
+    async fn process_relay_list(app_handle: &AppHandle, event: Event) -> Result<()> {
+        tracing::debug!(
+            target: "whitenoise::nostr_manager::event_processor",
+            "Received relay list: {:?}",
+            event
+        );
+
+        let wn = app_handle.state::<Whitenoise>();
+
+        // If it's a relay list for an account we need to update the account's relays
+        let account = Account::find_by_pubkey(&event.pubkey, wn.clone()).await?;
+
+        let relay_type = match event.kind {
+            Kind::RelayList => RelayType::Nostr,
+            Kind::InboxRelays => RelayType::Inbox,
+            Kind::MlsKeyPackageRelays => RelayType::KeyPackage,
+            _ => {
+                return Err(EventProcessorError::UnsupportedEventKind(event.kind));
+            }
+        };
+
+        let relay_entries: Vec<(String, RelayMeta)> = event
+            .tags
+            .iter()
+            .filter(|tag| tag.kind() == TagKind::Relay)
+            .map(|tag| {
+                let tag_vec = tag.clone().to_vec();
+                let relay_url = tag_vec[1].clone();
+                let relay_meta = if tag_vec.len() > 2 {
+                    tag_vec[2].clone().into()
+                } else {
+                    RelayMeta::ReadWrite
+                };
+                (relay_url, relay_meta)
+            })
+            .collect::<Vec<(String, RelayMeta)>>();
+
+        account
+            .update_relays(relay_type, &relay_entries, wn.clone())
+            .await?;
         Ok(())
     }
 

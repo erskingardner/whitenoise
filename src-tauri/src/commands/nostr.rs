@@ -1,11 +1,13 @@
 use crate::accounts::Account;
-use crate::relays::RelayType;
+use crate::relays::{RelayMeta, RelayType};
 use crate::secrets_store;
 use crate::types::{EnrichedContact, NostrEncryptionMethod};
 use crate::whitenoise::Whitenoise;
+use bitcoin_hashes::sha256::Hash as Sha256Hash;
 use nostr_openmls::NostrMls;
 use nostr_sdk::prelude::*;
 use std::collections::HashMap;
+use std::str::FromStr;
 use tauri::Emitter;
 
 #[tauri::command]
@@ -75,9 +77,12 @@ pub async fn fetch_enriched_contact(
         metadata: metadata.unwrap_or_default(),
         nip17: !inbox_relays.is_empty(),
         nip104: !key_packages.is_empty(),
-        nostr_relays,
-        inbox_relays,
-        key_package_relays,
+        nostr_relays: nostr_relays.iter().map(|(url, _)| url.clone()).collect(),
+        inbox_relays: inbox_relays.iter().map(|(url, _)| url.clone()).collect(),
+        key_package_relays: key_package_relays
+            .iter()
+            .map(|(url, _)| url.clone())
+            .collect(),
     };
 
     if update_account {
@@ -87,19 +92,15 @@ pub async fn fetch_enriched_contact(
 
         account.metadata = enriched_contact.metadata.clone();
         account
-            .update_relays(RelayType::Nostr, &enriched_contact.nostr_relays, wn.clone())
+            .update_relays(RelayType::Nostr, &nostr_relays, wn.clone())
             .await
             .map_err(|e| format!("Failed to update relays: {}", e))?;
         account
-            .update_relays(RelayType::Inbox, &enriched_contact.inbox_relays, wn.clone())
+            .update_relays(RelayType::Inbox, &inbox_relays, wn.clone())
             .await
             .map_err(|e| format!("Failed to update relays: {}", e))?;
         account
-            .update_relays(
-                RelayType::KeyPackage,
-                &enriched_contact.key_package_relays,
-                wn.clone(),
-            )
+            .update_relays(RelayType::KeyPackage, &key_package_relays, wn.clone())
             .await
             .map_err(|e| format!("Failed to update relays: {}", e))?;
         account
@@ -154,9 +155,12 @@ pub async fn query_enriched_contact(
         metadata: metadata.unwrap_or_default(),
         nip17: !inbox_relays.is_empty(),
         nip104: !key_packages.is_empty(),
-        nostr_relays,
-        inbox_relays,
-        key_package_relays,
+        nostr_relays: nostr_relays.iter().map(|(url, _)| url.clone()).collect(),
+        inbox_relays: inbox_relays.iter().map(|(url, _)| url.clone()).collect(),
+        key_package_relays: key_package_relays
+            .iter()
+            .map(|(url, _)| url.clone())
+            .collect(),
     };
 
     if update_account {
@@ -166,19 +170,15 @@ pub async fn query_enriched_contact(
 
         account.metadata = enriched_contact.metadata.clone();
         account
-            .update_relays(RelayType::Nostr, &enriched_contact.nostr_relays, wn.clone())
+            .update_relays(RelayType::Nostr, &nostr_relays, wn.clone())
             .await
             .map_err(|e| format!("Failed to update relays: {}", e))?;
         account
-            .update_relays(RelayType::Inbox, &enriched_contact.inbox_relays, wn.clone())
+            .update_relays(RelayType::Inbox, &inbox_relays, wn.clone())
             .await
             .map_err(|e| format!("Failed to update relays: {}", e))?;
         account
-            .update_relays(
-                RelayType::KeyPackage,
-                &enriched_contact.key_package_relays,
-                wn.clone(),
-            )
+            .update_relays(RelayType::KeyPackage, &key_package_relays, wn.clone())
             .await
             .map_err(|e| format!("Failed to update relays: {}", e))?;
 
@@ -497,32 +497,44 @@ pub async fn decrypt_content(
 
 #[tauri::command]
 pub async fn publish_relay_list(
-    relays: Vec<String>,
+    relay_entries: Vec<(String, RelayMeta)>,
     kind: u64,
     wn: tauri::State<'_, Whitenoise>,
 ) -> Result<(), String> {
-    let signer = wn.nostr.client.signer().await.map_err(|e| e.to_string())?;
+    let event_kind = Kind::from_u16(kind.try_into().expect("Invalid kind"));
 
-    let mut tags: Vec<Tag> = Vec::new();
-    for relay in relays.clone() {
-        tags.push(Tag::custom(TagKind::Relay, [relay]));
-    }
+    let relay_iter = relay_entries.iter().filter_map(|(url, meta)| {
+        RelayUrl::parse(url)
+            .ok()
+            .map(|relay_url| (relay_url, meta.to_relay_metadata()))
+    });
 
-    let event_kind = match kind {
-        10050 => Kind::InboxRelays,
-        10051 => Kind::MlsKeyPackageRelays,
+    let event_builder: EventBuilder;
+
+    match event_kind {
+        Kind::RelayList => {
+            event_builder = EventBuilder::relay_list(relay_iter);
+        }
+        Kind::InboxRelays => {
+            let mut tags: Vec<Tag> = Vec::new();
+            for (relay, meta) in relay_entries.clone() {
+                tags.push(Tag::custom(TagKind::Relay, [relay, meta.into()]));
+            }
+            event_builder = EventBuilder::new(Kind::InboxRelays, "").tags(tags);
+        }
+        Kind::MlsKeyPackageRelays => {
+            let mut tags: Vec<Tag> = Vec::new();
+            for (relay, meta) in relay_entries.clone() {
+                tags.push(Tag::custom(TagKind::Relay, [relay, meta.into()]));
+            }
+            event_builder = EventBuilder::new(Kind::MlsKeyPackageRelays, "").tags(tags);
+        }
         _ => return Err("Invalid relay list kind".to_string()),
-    };
-
-    let event = EventBuilder::new(event_kind, "")
-        .tags(tags)
-        .sign(&signer)
-        .await
-        .map_err(|e| e.to_string())?;
+    }
 
     wn.nostr
         .client
-        .send_event(event)
+        .send_event_builder(event_builder)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -530,18 +542,24 @@ pub async fn publish_relay_list(
         .await
         .map_err(|e| e.to_string())?;
 
-    match kind {
-        10050 => {
+    match event_kind {
+        Kind::RelayList => {
             active_account
-                .update_relays(RelayType::Inbox, &relays, wn.clone())
+                .update_relays(RelayType::Nostr, &relay_entries, wn.clone())
                 .await
-                .map_err(|e| format!("Failed to update relays: {}", e))?;
+                .map_err(|e| format!("Failed to update nostr relays: {}", e))?;
         }
-        10051 => {
+        Kind::InboxRelays => {
             active_account
-                .update_relays(RelayType::KeyPackage, &relays, wn.clone())
+                .update_relays(RelayType::Inbox, &relay_entries, wn.clone())
                 .await
-                .map_err(|e| format!("Failed to update relays: {}", e))?;
+                .map_err(|e| format!("Failed to update inbox relays: {}", e))?;
+        }
+        Kind::MlsKeyPackageRelays => {
+            active_account
+                .update_relays(RelayType::KeyPackage, &relay_entries, wn.clone())
+                .await
+                .map_err(|e| format!("Failed to update key package relays: {}", e))?;
         }
         _ => return Err("Invalid relay list kind".to_string()),
     }
@@ -601,4 +619,69 @@ pub async fn export_nsec(
         .map_err(|e| e.to_string())?;
 
     keys.secret_key().to_bech32().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn publish_metadata(
+    metadata: Metadata,
+    wn: tauri::State<'_, Whitenoise>,
+) -> Result<(), String> {
+    let event = EventBuilder::metadata(&metadata);
+
+    tracing::debug!(
+        target: "whitenoise::commands::nostr::publish_metadata",
+        "Sending event: {:?}",
+        event
+    );
+    wn.nostr
+        .client
+        .send_event_builder(event)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+/// Generates a NIP-98 auth token for a given URL and method.
+///
+/// # Arguments
+///
+/// * `url` - The URL to generate the auth token for.
+/// * `method` - The HTTP method to use for the auth token.
+/// * `payload` - The json stringified body of the request to use for the auth token.
+///
+/// # Returns
+///
+/// * `Ok(String)` - The auth token.
+/// * `Err(String)` - An error message if there was an issue generating the auth token.
+#[tauri::command]
+pub async fn generate_nip98_auth_token(
+    url: String,
+    method: String,
+    payload: Option<String>,
+    wn: tauri::State<'_, Whitenoise>,
+) -> Result<String, String> {
+    let signer = wn.nostr.client.signer().await.map_err(|e| e.to_string())?;
+
+    let url = Url::parse(&url).map_err(|e| e.to_string())?;
+    let method = HttpMethod::from_str(&method.to_uppercase()).map_err(|e| e.to_string())?;
+    let mut http_data = HttpData::new(url.clone(), method.clone());
+    if let Some(payload) = payload {
+        let hash: Sha256Hash = Sha256Hash::from_str(&payload).map_err(|e| e.to_string())?;
+        http_data = http_data.payload(hash);
+    }
+    let event = EventBuilder::http_auth(http_data)
+        .sign(&signer)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    tracing::debug!(
+        target: "whitenoise::commands::nostr::generate_nip98_auth_token",
+        "Generated auth token for URL: {}, method: {}, event: {:?}",
+        url,
+        method,
+        event
+    );
+
+    Ok(event.as_json())
 }

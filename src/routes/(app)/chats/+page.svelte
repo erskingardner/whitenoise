@@ -145,7 +145,7 @@ onDestroy(() => {
 <HeaderToolbar>
     {#snippet right()}
         <div>
-            <button onclick={() => (showModal = !showModal)} class="p-2 -mr-2">
+            <button onclick={() => (showModal = !showModal)} class="p-2 -mr-2 text-gray-300 hover:text-white">
                 <PlusCircle size={30} />
             </button>
         </div>
