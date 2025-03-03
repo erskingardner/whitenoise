@@ -61,9 +61,9 @@ impl From<RelayType> for String {
 impl From<String> for RelayMeta {
     fn from(s: String) -> Self {
         match s.as_str() {
-            "read" => RelayMeta::Read,
-            "write" => RelayMeta::Write,
-            "read-write" => RelayMeta::ReadWrite,
+            "Read" => RelayMeta::Read,
+            "Write" => RelayMeta::Write,
+            "ReadWrite" => RelayMeta::ReadWrite,
             _ => panic!("Invalid relay metadata: {}", s),
         }
     }
@@ -72,9 +72,9 @@ impl From<String> for RelayMeta {
 impl From<RelayMeta> for String {
     fn from(relay_meta: RelayMeta) -> Self {
         match relay_meta {
-            RelayMeta::Read => "read".to_string(),
-            RelayMeta::Write => "write".to_string(),
-            RelayMeta::ReadWrite => "read-write".to_string(),
+            RelayMeta::Read => "Read".to_string(),
+            RelayMeta::Write => "Write".to_string(),
+            RelayMeta::ReadWrite => "ReadWrite".to_string(),
         }
     }
 }
@@ -82,9 +82,9 @@ impl From<RelayMeta> for String {
 impl From<RelayMeta> for Option<String> {
     fn from(relay_meta: RelayMeta) -> Self {
         match relay_meta {
-            RelayMeta::Read => Some("read".to_string()),
-            RelayMeta::Write => Some("write".to_string()),
-            RelayMeta::ReadWrite => Some("read-write".to_string()),
+            RelayMeta::Read => Some("Read".to_string()),
+            RelayMeta::Write => Some("Write".to_string()),
+            RelayMeta::ReadWrite => Some("ReadWrite".to_string()),
         }
     }
 }
@@ -96,7 +96,7 @@ impl From<Option<String>> for RelayMeta {
 }
 
 impl RelayMeta {
-    pub fn to_relay_metadata(&self) -> Option<RelayMetadata> {
+    pub fn to_relay_metadata(self) -> Option<RelayMetadata> {
         match self {
             RelayMeta::Read => Some(RelayMetadata::Read),
             RelayMeta::Write => Some(RelayMetadata::Write),

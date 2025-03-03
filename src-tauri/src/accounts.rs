@@ -209,24 +209,30 @@ impl Account {
         tracing::debug!(target: "whitenoise::accounts", "Saving new account to database");
         account.save(wn.clone()).await?;
 
-        tracing::debug!(target: "whitenoise::accounts", "Inserting nostr relays, {:?}", nostr_relays_unwrapped);
-        account
-            .update_relays(RelayType::Nostr, &nostr_relays_unwrapped, wn.clone())
-            .await?;
+        if !nostr_relays_unwrapped.is_empty() {
+            tracing::debug!(target: "whitenoise::accounts", "Inserting nostr relays, {:?}", nostr_relays_unwrapped);
+            account
+                .update_relays(RelayType::Nostr, &nostr_relays_unwrapped, wn.clone())
+                .await?;
+        }
 
-        tracing::debug!(target: "whitenoise::accounts", "Inserting inbox relays, {:?}", inbox_relays_unwrapped);
-        account
-            .update_relays(RelayType::Inbox, &inbox_relays_unwrapped, wn.clone())
-            .await?;
+        if !inbox_relays_unwrapped.is_empty() {
+            tracing::debug!(target: "whitenoise::accounts", "Inserting inbox relays, {:?}", inbox_relays_unwrapped);
+            account
+                .update_relays(RelayType::Inbox, &inbox_relays_unwrapped, wn.clone())
+                .await?;
+        }
 
-        tracing::debug!(target: "whitenoise::accounts", "Inserting key package relays, {:?}", key_package_relays_unwrapped);
-        account
-            .update_relays(
-                RelayType::KeyPackage,
-                &key_package_relays_unwrapped,
-                wn.clone(),
-            )
-            .await?;
+        if !key_package_relays_unwrapped.is_empty() {
+            tracing::debug!(target: "whitenoise::accounts", "Inserting key package relays, {:?}", key_package_relays_unwrapped);
+            account
+                .update_relays(
+                    RelayType::KeyPackage,
+                    &key_package_relays_unwrapped,
+                    wn.clone(),
+                )
+                .await?;
+        }
 
         tracing::debug!(target: "whitenoise::accounts", "Storing private key");
         secrets_store::store_private_key(keys, &wn.data_dir)?;
