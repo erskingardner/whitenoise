@@ -1,32 +1,16 @@
 <script lang="ts">
 import { activeAccount } from "$lib/stores/accounts";
-import type { NEvent } from "$lib/types/nostr";
-import { messageHasDeletionTag } from "$lib/utils/message";
-import { invoke } from "@tauri-apps/api/core";
-import { onMount } from "svelte";
 import Name from "./Name.svelte";
 import { TrashSimple } from "phosphor-svelte";
+import { type Message } from "$lib/types/chat";
 
-let { messageId, messages = [] }: { messageId?: string; messages?: NEvent[] } = $props();
-
-let message: NEvent | undefined = $state(undefined);
-let isDeleted = $state(false);
-
-$effect(() => {
-    if (messageId) {
-        isDeleted = messageHasDeletionTag(messageId, messages);
-    }
-});
-
-onMount(() => {
-    if (messageId) {
-        invoke("query_message", {
-            messageId,
-        }).then((messageResponse) => {
-            message = messageResponse as NEvent;
-        });
-    }
-});
+let { 
+    message,
+    isDeleted = $bindable(false),
+}: { 
+    message: Message | undefined;
+    isDeleted?: boolean;
+} = $props();
 </script>
 
 {#if message}
