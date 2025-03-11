@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
-import { type Writable, get, writable } from "svelte/store";
+import { type Writable, get, writable, derived } from "svelte/store";
 import type { NMetadata } from "../types/nostr";
 
 export type Account = {
@@ -33,6 +33,7 @@ type RelaysData = Record<string, string>;
 export const accounts: Writable<Account[]> = writable([]);
 export const activeAccount: Writable<Account | null> = writable(null);
 export const relays: Writable<RelaysData> = writable({} as RelaysData);
+
 
 /** Basic matching patterns for hex and nsec keys */
 export const hexPattern = /^[a-fA-F0-9]{64}$/;
@@ -148,6 +149,24 @@ export async function hasNostrWalletConnectUri(): Promise<boolean> {
         throw new NostrWalletConnectError(`Failed to check NWC URI: ${error}`);
     }
 }
+
+export const hasLightningWallet = derived<Writable<Account | null>, boolean>(
+    activeAccount,
+    ($activeAccount, set) => {
+        if (!$activeAccount) {
+            set(false);
+            return;
+        }
+        
+        hasNostrWalletConnectUri()
+            .then(result => set(result))
+            .catch(err => {
+                console.error("Error checking Lightning wallet status:", err);
+                set(false);
+            });
+    },
+    false 
+);
 
 /** Validates a Nostr Wallet Connect URI and returns detailed error messages */
 export function nostrWalletConnectUriError(uri: string): string | null {
