@@ -2,37 +2,28 @@
 import { activeAccount } from "$lib/stores/accounts";
 import type { NEvent, NostrMlsGroup, NostrMlsGroupWithRelays } from "$lib/types/nostr";
 import { hexMlsGroupId } from "$lib/utils/group";
-import { messageHasDeletionTag } from "$lib/utils/message";
 import { invoke } from "@tauri-apps/api/core";
 import { PaperPlaneTilt, X } from "phosphor-svelte";
 import { onMount } from "svelte";
 import Loader from "./Loader.svelte";
 import { TrashSimple } from "phosphor-svelte";
+import type { Message } from "$lib/types/chat";
 
 let {
     group,
-    replyToMessageEvent = $bindable(),
+    replyToMessage = $bindable(),
     handleNewMessage,
-    messages = [],
+    isReplyToMessageDeleted = $bindable(false),
 }: {
     group: NostrMlsGroup;
-    replyToMessageEvent?: NEvent;
-    handleNewMessage: (message: NEvent, replaceTemp: boolean) => void;
-    messages: NEvent[];
+    replyToMessage?: Message;
+    handleNewMessage: (message: NEvent) => void;
+    isReplyToMessageDeleted?: boolean;
 } = $props();
 
 let message = $state("");
 let textarea: HTMLTextAreaElement;
 let sendingMessage: boolean = $state(false);
-let isReplyToMessageDeleted = $state(false);
-
-$effect(() => {
-    if (replyToMessageEvent?.id) {
-        isReplyToMessageDeleted = messageHasDeletionTag(replyToMessageEvent.id, messages);
-    } else {
-        isReplyToMessageDeleted = false;
-    }
-});
 
 function adjustTextareaHeight() {
     textarea.style.height = "auto";
@@ -48,18 +39,17 @@ async function sendMessage() {
 
     let kind = 9;
     let tags = [];
-    if (replyToMessageEvent) {
+    if (replyToMessage) {
         let groupWithRelays: NostrMlsGroupWithRelays = await invoke("get_group", {
             groupId: hexMlsGroupId(group.mls_group_id),
         });
         tags.push([
             "q",
-            replyToMessageEvent.id,
+            replyToMessage.id,
             groupWithRelays.relays[0],
-            replyToMessageEvent.pubkey,
+            replyToMessage.pubkey,
         ]);
     }
-    // Create a temp message and put it in the transcript immediately while we attempt to publish the real event
     let tmpMessage = {
         id: "temp",
         content: message,
@@ -69,7 +59,7 @@ async function sendMessage() {
         tags,
     };
 
-    handleNewMessage(tmpMessage as NEvent, false);
+    handleNewMessage(tmpMessage as NEvent);
     sendingMessage = true;
 
     await invoke("send_mls_message", {
@@ -79,13 +69,12 @@ async function sendMessage() {
         tags,
     })
         .then((messageEvent) => {
-            handleNewMessage(messageEvent as NEvent, true);
-            // Clear the message input and adjust the height of the textarea
+            handleNewMessage(messageEvent as NEvent);
             message = "";
             setTimeout(adjustTextareaHeight, 0);
         })
         .finally(() => {
-            replyToMessageEvent = undefined;
+            replyToMessage = undefined;
             sendingMessage = false;
         });
 }
@@ -96,7 +85,6 @@ function handleKeydown(event: KeyboardEvent) {
     }
 }
 
-// Add keyboard visibility detection
 onMount(() => {
     const visualViewport = window.visualViewport;
     if (visualViewport) {
@@ -112,16 +100,16 @@ onMount(() => {
 </script>
 
 <div class="messagebar sticky bottom-0 left-0 right-0 bg-gray-900 drop-shadow-message-bar">
-    {#if replyToMessageEvent}
+    {#if replyToMessage}
         <div class="w-full py-4 px-6 pl-8 bg-blue-700/50 text-white backdrop-blur-sm border-t border-gray-700 border-l-4 border-l-blue-500 flex flex-row gap-2 items-start justify-between rounded-t-xl">
             {#if isReplyToMessageDeleted}
                 <div class="inline-flex flex-row items-center gap-2 bg-gray-200 rounded-full px-3 py-1 w-fit text-black">
                     <TrashSimple size={20} /><span class="italic opacity-60">Message deleted</span>
                 </div>
             {:else}
-                <span>{replyToMessageEvent.content}</span>
+                <span>{replyToMessage.content}</span>
             {/if}
-            <button onclick={() => replyToMessageEvent = undefined} class="p-1 bg-white/50 hover:bg-white rounded-full mr-0">
+            <button onclick={() => replyToMessage = undefined} class="p-1 bg-white/50 hover:bg-white rounded-full mr-0">
                 <X size={12} class="text-blue-700" />
             </button>
         </div>
