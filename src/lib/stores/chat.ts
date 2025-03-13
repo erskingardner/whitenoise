@@ -1,20 +1,19 @@
-import { writable, get, derived } from 'svelte/store';
-import type { NEvent, NostrMlsGroup,  NostrMlsGroupWithRelays } from '$lib/types/nostr';
 import type {
     ChatState,
+    DeletionsMap,
     Message,
     MessagesMap,
-    DeletionsMap,
+    ReactionSummary,
     ReactionsMap,
-    ReactionSummary
-} from '$lib/types/chat';
-import { activeAccount } from './accounts';
+} from "$lib/types/chat";
+import type { NEvent, NostrMlsGroup, NostrMlsGroupWithRelays } from "$lib/types/nostr";
 import { invoke } from "@tauri-apps/api/core";
+import { derived, get, writable } from "svelte/store";
+import { activeAccount } from "./accounts";
 
-
-import { eventToMessage } from '$lib/utils/message';
-import { eventToReaction } from '$lib/utils/reaction';
-import { eventToDeletion } from '$lib/utils/deletion';
+import { eventToDeletion } from "$lib/utils/deletion";
+import { eventToMessage } from "$lib/utils/message";
+import { eventToReaction } from "$lib/utils/reaction";
 
 export function createChatStore() {
     const messagesMap = writable<MessagesMap>(new Map());
@@ -24,10 +23,9 @@ export function createChatStore() {
     const currentPubkey = get(activeAccount)?.pubkey;
 
     const messages = derived(messagesMap, ($messagesMap) => {
-        return Array.from($messagesMap.values())
-            .sort((a, b) => a.createdAt - b.createdAt);
+        return Array.from($messagesMap.values()).sort((a, b) => a.createdAt - b.createdAt);
     });
-    
+
     const { subscribe, set, update } = writable<ChatState>({
         messages: get(messages),
         handleEvent,
@@ -42,29 +40,31 @@ export function createChatStore() {
         deleteMessage,
         payLightningInvoice,
         isMessageDeletable,
-        isMessageCopyable
+        isMessageCopyable,
     });
-    
-    messages.subscribe(sorted => {
-        update(state => ({
+
+    messages.subscribe((sorted) => {
+        update((state) => ({
             ...state,
-            messages: sorted
+            messages: sorted,
         }));
     });
-    
+
     const eventHandlers = {
         handleMessageEvent: (event: NEvent) => {
             const newMessage = eventToMessage(event, currentPubkey);
             const messagesToUpdate = [newMessage];
-            const replyToMessage = newMessage.replyToId ? findMessage(newMessage.replyToId) : undefined;
+            const replyToMessage = newMessage.replyToId
+                ? findMessage(newMessage.replyToId)
+                : undefined;
             const isPaid = true;
-            if(replyToMessage?.lightningInvoice && newMessage.lightningPayment && isPaid) {
+            if (replyToMessage?.lightningInvoice && newMessage.lightningPayment && isPaid) {
                 newMessage.lightningPayment.isPaid = true;
                 replyToMessage.lightningInvoice.isPaid = true;
                 messagesToUpdate.push(replyToMessage);
             }
-            
-            messagesMap.update(messages => {
+
+            messagesMap.update((messages) => {
                 for (const message of messagesToUpdate) {
                     messages.set(message.id, message);
                 }
@@ -74,7 +74,7 @@ export function createChatStore() {
         handleDeletionEvent: (event: NEvent) => {
             const deletion = eventToDeletion(event);
             if (!deletion) return;
-            deletionsMap.update(deletions => {
+            deletionsMap.update((deletions) => {
                 deletions.set(deletion.targetId, deletion);
                 return deletions;
             });
@@ -82,42 +82,42 @@ export function createChatStore() {
         handleReactionEvent: (event: NEvent) => {
             const reaction = eventToReaction(event);
             if (!reaction) return;
-            reactionsMap.update(reactions => {
+            reactionsMap.update((reactions) => {
                 reactions.set(reaction.id, reaction);
                 return reactions;
             });
-            
+
             const message = findMessage(reaction.targetId);
             if (!message) return;
             message.reactions.push(reaction);
-            messagesMap.update(messages => {
+            messagesMap.update((messages) => {
                 messages.set(message.id, message);
                 return messages;
             });
-        }
+        },
     };
 
     // Event handler map with Nostr event kinds as keys
     const eventHandlerMap: Record<number, (event: NEvent) => void> = {
         5: eventHandlers.handleDeletionEvent,
         7: eventHandlers.handleReactionEvent,
-        9: eventHandlers.handleMessageEvent
+        9: eventHandlers.handleMessageEvent,
     };
 
     function deleteTempEvents() {
-        messagesMap.update(messages => {
+        messagesMap.update((messages) => {
             messages.delete("temp");
             return messages;
         });
-        reactionsMap.update(reactions => {
+        reactionsMap.update((reactions) => {
             reactions.delete("temp");
             return reactions;
         });
     }
 
-    function handleEvent(event: NEvent, deleteTemp: boolean = true) {
+    function handleEvent(event: NEvent, deleteTemp = true) {
         if (deleteTemp) deleteTempEvents();
-        
+
         const handler = eventHandlerMap[event.kind];
         if (handler) handler(event);
     }
@@ -136,7 +136,7 @@ export function createChatStore() {
     }
 
     function findMessage(id: string): Message | undefined {
-        const messages = get(messagesMap); 
+        const messages = get(messagesMap);
         return messages.get(id);
     }
 
@@ -144,7 +144,7 @@ export function createChatStore() {
         const replyToId = message.replyToId;
         if (replyToId) return findMessage(replyToId);
     }
-    
+
     function isDeleted(eventId: string): boolean {
         const deletions = get(deletionsMap);
         return deletions.has(eventId);
@@ -153,13 +153,13 @@ export function createChatStore() {
     function getMessageReactionsSummary(messageId: string): ReactionSummary[] {
         const message = findMessage(messageId);
         const reactions = message?.reactions || [];
-        const reactionsCounter: {[key: string]: number}  = {};
+        const reactionsCounter: { [key: string]: number } = {};
         for (const reaction of reactions) {
-            if(!isDeleted(reaction.id)) {
+            if (!isDeleted(reaction.id)) {
                 reactionsCounter[reaction.content] = (reactionsCounter[reaction.content] || 0) + 1;
             }
         }
-        return Object.entries(reactionsCounter).map(([emoji, count]) => ({ emoji, count }))
+        return Object.entries(reactionsCounter).map(([emoji, count]) => ({ emoji, count }));
     }
 
     function hasReactions(message: Message): boolean {
@@ -167,9 +167,9 @@ export function createChatStore() {
         return reactionsSummary.length > 0;
     }
 
-    function isMessageDeletable(messageId: string): boolean {        
+    function isMessageDeletable(messageId: string): boolean {
         const message = findMessage(messageId);
-        if(!message || message.lightningPayment || isDeleted(messageId)) return false;
+        if (!message || message.lightningPayment || isDeleted(messageId)) return false;
         return message.isMine;
     }
 
@@ -187,14 +187,17 @@ export function createChatStore() {
         const message = findMessage(messageId);
         if (!message) return null;
 
-        const tags = [["e", message.id], ["p", message.pubkey]]
+        const tags = [
+            ["e", message.id],
+            ["p", message.pubkey],
+        ];
         try {
-            const reactionEvent = await invoke("send_mls_message", {
+            const reactionEvent = (await invoke("send_mls_message", {
                 group,
                 message: reaction,
                 kind: 7,
-                tags
-            }) as NEvent;
+                tags,
+            })) as NEvent;
             handleEvent(reactionEvent);
             return reactionEvent;
         } catch (error) {
@@ -212,7 +215,8 @@ export function createChatStore() {
 
     async function deleteEvent(
         group: NostrMlsGroup,
-        pubkey: string, eventId: string
+        pubkey: string,
+        eventId: string
     ): Promise<NEvent | null> {
         if (pubkey !== currentPubkey) return null;
 
@@ -236,14 +240,13 @@ export function createChatStore() {
         message: Message
     ): Promise<NEvent | null> {
         if (!message.lightningInvoice) {
-            console.log('HERE MESSAGE IS', message);
             console.error("Message does not have a lightning invoice");
             return null;
         }
-        
-        let tags = [["q", message.id, groupWithRelays.relays[0], message.pubkey]];
-        
-        const paymentEvent : NEvent = await invoke("pay_invoice", {
+
+        const tags = [["q", message.id, groupWithRelays.relays[0], message.pubkey]];
+
+        const paymentEvent: NEvent = await invoke("pay_invoice", {
             group: groupWithRelays.group,
             tags: tags,
             bolt11: message.lightningInvoice.invoice,
@@ -266,6 +269,6 @@ export function createChatStore() {
         deleteMessage,
         payLightningInvoice,
         isMessageDeletable,
-        isMessageCopyable
+        isMessageCopyable,
     };
 }
